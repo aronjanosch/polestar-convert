@@ -62,7 +62,9 @@ export function render(guide, { report, slug, packId, next }) {
 			else { curMap = m; conditionalMap = null; }
 		}
 		let along = false;
-		if (s.completesWith && s.allAlong) {
+		// A step that stays listed until done (RXP `#sticky`) is an along step of its own.
+		if (s.sticky && !s.completesWith && s.allAlong) { out.push("  along"); along = true; }
+		else if (s.completesWith && s.allAlong) {
 			if (s.completesWith === "next") { out.push("  along"); along = true; }
 			else if (waitsFor[i] >= 0) { out.push(`  along until ${labelName[waitsFor[i]]}`); along = true; format = Math.max(format, 4); }
 		}
