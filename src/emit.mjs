@@ -74,6 +74,16 @@ export class Report {
 	note(guide, stepNo, what, line) { this.items.push({ guide, stepNo, what, line }); }
 }
 
+// `.abandon <quest>` and `.destroy <item>[,count]` as Polestar goals, or null when the
+// quest or item is not in Polestar's data (the caller then falls back to a task).
+function nativeGoal(n, l, data) {
+	const id = Number(String(l.args).split(",")[0]);
+	if (!(id > 0)) return null;
+	if (n === "abandon" && data.quests && data.quests[id]) return { text: `abandon ${id}`, format: 6 };
+	if (n === "destroy" && data.items && data.items[id]) return { text: `destroy ${id}`, format: 6 };
+	return null;
+}
+
 function buildStep(step, stepNo, data, ctx) {
 	const { report } = ctx;
 	const cond = parseCondition(step.cond);
@@ -269,6 +279,12 @@ function buildStep(step, stepNo, data, ctx) {
 			// Counting the character's money does not hold up in play (selling junk, repairs):
 			// RXP's step is ticked by the player, so the goal is dropped and the text stays.
 			report.count(".money (dropped: not a reliable goal)");
+		} else if (ctx.native.has(n) && nativeGoal(n, l, data)) {
+			// A verb Polestar has gained (abandon, destroy): the goal checks itself instead of a tick.
+			const g = nativeGoal(n, l, data);
+			add(g.text, l.cond, n);
+			formatNeeds = Math.max(formatNeeds, g.format);
+			report.count(`.${n} -> ${n} (native verb)`);
 		} else if (TASKS.has(n)) {
 			const t = plain(l.text) || n;
 			if (n === "destroy") { const id = Number(l.args.split(",")[0]); if (data.items[id] && !l.cond) whens.push(`has ${id}`); }
@@ -341,7 +357,7 @@ export function convertGuide(parsed, data, opts) {
 	for (const s of parsed.steps) for (const l of s.lines) {
 		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^(\d+)/) || [])[1]));
 	}
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, seen: opts.seen || new Set() };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, seen: opts.seen || new Set(), native: opts.native || new Set() };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
