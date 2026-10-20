@@ -5,7 +5,7 @@
 //
 // Guide = {
 //   name,                   // for report lines
-//   title, faction?, classes?, races?, levels?, zone?, defaultMap?,
+//   title, faction?, classes?, races?, levels?, zone?, defaultMap?, category?, folder?,
 //   next?                   // slug of the following guide, set by the CLI
 //   steps: [Step],
 // }

@@ -36,7 +36,8 @@ export function render(guide, { report, slug, packId, next }) {
 	if (guide.zone) out.push(`zone ${guide.zone}`);
 	out.push("coords live");
 	if (next.length) out.push(`next ${next.map((n) => `${packId}/${n}`).join(", ")}`);
-	out.push("category Leveling");
+	out.push(`category ${guide.category || "Leveling"}`);
+	if (guide.folder) out.push(`folder ${guide.folder}`);
 	out.push("");
 
 	steps.forEach((s, i) => {
@@ -78,5 +79,5 @@ export function render(guide, { report, slug, packId, next }) {
 		out.push("");
 	});
 	report.count("steps in: " + guide.sourceSteps, 0);
-	return { text: out.join("\n"), format, stepsIn: guide.sourceSteps, stepsOut: steps.length };
+	return { text: out.join("\n"), format, levels: guide.levels, stepsIn: guide.sourceSteps, stepsOut: steps.length };
 }
