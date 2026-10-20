@@ -56,23 +56,33 @@ The route, quests and text are RXP's; how a step runs is Polestar's. The rule:
 a step RXP shows holds in Polestar until it is done, ticked or skipped.
 Nothing passes unseen.
 
-- **Text alone** (`+…` or `>>…` with no goal, often `#completewith`) is a
-  step of its own: a `task` to tick, at the middle of RXP's waypoints (`@x,y`). RXP
-  closes such a step itself when its target step is done; here you tick it
-  or skip it.
-  - Polestar's *Along the way* never lists notes, and `along until X` ends
-    when the route *reaches* X, so text left there never showed.
-- **Countable work beside the route** (`#completewith` or `#sticky` with kills,
-  items or quest objectives) is an `along` step. It stays listed up to and
-  through its target, as in RXP: the label goes on the step after the target
-  (`<target>-end`).
-- **`destroy` / `abandon`** hold their step; they check themselves off.
-- **Farming rounds** (RXP's `.goto …,40,0` beside text) are not written as
-  waypoints. For kills and items, Polestar finds the spots itself (*Next spot*).
-- **A step whose goals are all optional** (elite, group, `#optional`) keeps
-  them required, since Polestar passes such a step at once. Skip it to leave
-  it. If it is about one quest the player may not have, it shows only while on
-  that quest (`when onquest`). An optional turn-in stays optional.
+RXP shows a `#completewith X` step beside the steps after it and closes it
+when X is done. Polestar's `along` is passed over at once, lists only goals
+(never notes) under *Along the way*, and `along until X` ends when the route
+*reaches* X. So the converter sorts RXP's step by what it holds. The rule
+comes from a catalog of all 847 text-only steps and 45 read by hand:
+
+| RXP step holds | Polestar | Example |
+|---|---|---|
+| text + a farming signal (`.mob`, `.money`, `.itemcount <N`, an `.xp` target) | a step of its own: `task` to tick, `@` the middle of RXP's points | "Loot until 50 copper" |
+| text + arrow points only (no `,0`) | the way into the next step; the text a `note` there | "Enter the cave" |
+| text alone | `task` under *Along the way* up to and through X | "Save up your Linen Cloth" |
+| countable goals (kill, collect, objectives, buys) | `along` up to and through X | kills beside the next step |
+| goals that check themselves (fly, hearth, vendor, use, destroy, abandon) | a step that holds | "Destroy the Hearthstone" |
+
+"Up to and through X": the label goes on the step after X (`<label>-end`,
+`stepN-end` for `#completewith next`).
+
+- **Waypoints:** points without an arrow (`,0`) and the points of a step that
+  farms or fights are rounds, not ways, and are left out; Polestar finds the
+  spots itself (*Next spot*). Of a way, a goal with a place of its own keeps
+  the last point and those on another map (leaving a city); one without a
+  place (`fly`, `sethome`) keeps every point. Repeated points go.
+- **A step whose goals are all optional** (elite, group, `#optional`,
+  training) keeps them required, since Polestar passes such a step at once.
+  Skip it to leave it. If it is about one quest the player may not have, it
+  shows only while on that quest (`when onquest`). An optional turn-in stays
+  optional, and a step of optional waypoints alone still passes.
 - **Steps and goals for races the guide is not for** are left out (RXP's
   "You have selected a guide meant for Undead" in an Undead guide).
 - **The play style is fixed:** not self-found (`#ah` kept, `#ssf` dropped),
@@ -83,6 +93,8 @@ Nothing passes unseen.
 
 - Step numbers count every class's steps ("3 / 72"); RXP counts only yours.
   A Polestar change, not the converter's.
+- A `goto` radius is the arrival radius only; Polestar draws no area. A text
+  step gets one point, not a circle.
 - A step with no title shows its first goal as the heading, so a one-task step
   reads twice. RXP has no titles to give it.
 - `.subzoneskip` area ids have no name table: 654 lines.
