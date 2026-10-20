@@ -40,12 +40,22 @@ const parsed = extractGuides(readFileSync(a.file, "utf8")).map(parseGuide);
 const chosen = parsed.filter((g) => !a.only || (g.header.name || "") === a.only);
 if (!chosen.length) { console.error("no guide matches"); process.exit(1); }
 
-const slugs = new Map(chosen.map((g) => [g.header.name, slugOf(g.header.name || "guide")]));
+// Two guides can share a name (Alliance and Horde, or other editions): keep slugs unique.
+const slugOfGuide = new Map();
+const used = new Map();
+for (const g of chosen) {
+	let slug = slugOf(g.header.name || "guide");
+	const n = used.get(slug) || 0;
+	used.set(slug, n + 1);
+	if (n) slug += `-${slugOf(g.header.faction || "") || "x"}-${n + 1}`;
+	slugOfGuide.set(g, slug);
+}
+const slugs = new Map(chosen.map((g) => [g.header.name, slugOfGuide.get(g)]));
 const report = new Report();
 const accepted = new Set(); // quests accepted anywhere in this run
 const seen = new Set(); // quests whose accept has already been emitted, in route order
 for (const g of chosen) {
-	const slug = slugs.get(g.header.name);
+	const slug = slugOfGuide.get(g);
 	const nextName = (g.header.next || "").split(";")[0].trim();
 	const next = slugs.get(nextName) || null;
 	const r = convertGuide(g, data, { report, slug, packId, next, accepted, seen });
