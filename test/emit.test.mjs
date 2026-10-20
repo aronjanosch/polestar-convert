@@ -6,7 +6,7 @@ import { Report, goalText, questOf } from "../src/ir.mjs";
 
 const step = (o) => ({ stepNo: 1, only: {}, whens: [], goals: [], tips: [], notes: [], maps: [], loop: [], allAlong: false, format: 4, ...o });
 const guide = (steps) => ({ name: "Invented", title: "Invented Vale", faction: "Horde", classes: null, races: ["Undead"], levels: "1-4", zone: "Invented Vale", defaultMap: 1, sourceSteps: steps.length, steps });
-const run = (steps) => render(guide(steps), { report: new Report(), slug: "vale", packId: "mine", next: "vale-2" });
+const run = (steps) => render(guide(steps), { report: new Report(), slug: "vale", packId: "mine", next: ["vale-2"] });
 
 test("header, goals with only/optional/comment, zone change and pack format", () => {
 	const r = run([

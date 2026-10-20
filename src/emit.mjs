@@ -6,9 +6,21 @@ import { goalText } from "./ir.mjs";
 
 export function render(guide, { report, slug, packId, next }) {
 	const steps = guide.steps;
-	// `along until <label>`: only when the label sits on a later step we keep.
-	const labels = new Map();
-	steps.forEach((s, i) => { if (s.label) labels.set(s.label, i); });
+	// `along until <label>` waits for the next step so labelled. A source may
+	// label several steps alike; Polestar wants each label once, so the second
+	// becomes `<label>-2`, and only labels some along step waits for are written.
+	const seenLabel = new Map();
+	const labelName = steps.map((s) => {
+		if (!s.label) return null;
+		const n = (seenLabel.get(s.label) || 0) + 1;
+		seenLabel.set(s.label, n);
+		return n > 1 ? `${s.label}-${n}` : s.label;
+	});
+	const waitsFor = steps.map((s, i) => {
+		if (!s.completesWith || s.completesWith === "next" || !s.allAlong) return -1;
+		return steps.findIndex((o, j) => j > i && o.label === s.completesWith);
+	});
+	const waited = new Set(waitsFor.filter((j) => j >= 0));
 	let format = 4;
 	const out = [];
 	// Polestar's `zone` is sticky, but a class-only step's zone does not reach the
@@ -23,7 +35,7 @@ export function render(guide, { report, slug, packId, next }) {
 	if (guide.levels) out.push(`levels ${guide.levels}`);
 	if (guide.zone) out.push(`zone ${guide.zone}`);
 	out.push("coords live");
-	if (next) out.push(`next ${packId}/${next}`);
+	if (next.length) out.push(`next ${next.map((n) => `${packId}/${n}`).join(", ")}`);
 	out.push("category Leveling");
 	out.push("");
 
@@ -48,9 +60,9 @@ export function render(guide, { report, slug, packId, next }) {
 		let along = false;
 		if (s.completesWith && s.allAlong) {
 			if (s.completesWith === "next") { out.push("  along"); along = true; }
-			else if (labels.has(s.completesWith) && labels.get(s.completesWith) > i) { out.push(`  along until ${s.completesWith}`); along = true; format = Math.max(format, 4); }
+			else if (waitsFor[i] >= 0) { out.push(`  along until ${labelName[waitsFor[i]]}`); along = true; format = Math.max(format, 4); }
 		}
-		if (s.label && steps.some((o, j) => j < i && o.completesWith === s.label && o.allAlong)) out.push(`  label ${s.label}`);
+		if (waited.has(i)) out.push(`  label ${labelName[i]}`);
 		for (const t of s.tips.slice(0, 2)) if (t !== s.title) out.push(`  tip ${t}`);
 		const loopable = s.goals.some((g) => ["kill", "collect", "interact"].includes(g.kind) && !g.at);
 		if (s.loop.length >= 2 && loopable) { out.push("  loop"); for (const g of s.loop) out.push(`  goto ${g.x},${g.y}${g.live ? "" : " era"}`); }

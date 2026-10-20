@@ -5,7 +5,7 @@
 
 import { parseCondition, onlyText, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
-import { worldToZone, zoneName, findNpc } from "../data.mjs";
+import { worldToZone, zoneName, findNpc, questOpenTo } from "../data.mjs";
 import { render } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 
@@ -137,10 +137,19 @@ function buildStep(step, stepNo, data, ctx) {
 	const notes = [];
 	let title = null;
 	let formatNeeds = 4;
+	let closed = 0;
 	const add = (goal, lineCond) => {
 		const lc = parseCondition(lineCond);
 		const mine = {};
 		for (const k of Object.keys(lc.only)) mine[k] = lc.only[k];
+		const quest = goal.quest != null ? data.quests[goal.quest] : null;
+		const races = mine.race || cond.only.race || (ctx.races.length ? ctx.races : null);
+		if (quest && !questOpenTo(data, quest, ctx.faction, races)) {
+			closed++;
+			report.count("goal for a quest the data closes to these races (dropped)");
+			report.note(ctx.name, stepNo, `quest ${goal.quest} (${quest.title}) is not open to ${ctx.faction || "these"} races in the data; ${goal.kind} left out`);
+			return;
+		}
 		goals.push({ ...goal, only: onlyText(mine) });
 	};
 
@@ -294,6 +303,10 @@ function buildStep(step, stepNo, data, ctx) {
 	}
 	const placeable = gotos.filter((g) => g.r !== 0 || gotos.length === 1);
 
+	if (!goals.length && closed) {
+		report.count("step: every goal closed to these races (dropped)");
+		return null;
+	}
 	// A step of walking only: RXP's waypoints, nothing to tick.
 	if (!goals.length && (completewith || (!notes.length && !gotos.length))) {
 		if (gotos.length || tips.length || notes.length) report.count("step: waypoints/text only (dropped)");
@@ -310,7 +323,7 @@ function buildStep(step, stepNo, data, ctx) {
 	if (!usedMaps.length && mapId && goals.some((g) => ["accept", "turnin", "vendor", "train", "buy", "complete"].includes(g.kind))) usedMaps.push(mapId);
 	const orphanOf = (g) => {
 		const id = questOf(g);
-		return id != null && !ctx.accepted.has(id) ? id : null;
+		return id != null && !ctx.seen.has(id) ? id : null;
 	};
 	const orphanGoals = goals.filter((g) => orphanOf(g));
 	const base = {
@@ -328,6 +341,19 @@ function buildStep(step, stepNo, data, ctx) {
 	return [{ ...base, goals: rest }, orphanStep];
 }
 
+// A guide whose name gives no levels (dungeon quest guides): the range of the
+// quests it takes, from the lowest level they can be taken at to the highest quest.
+function levelsOf(quests, data) {
+	let lo = Infinity, hi = 0;
+	for (const id of quests) {
+		const q = data.quests[id];
+		if (!q || !(q.level > 0)) continue;
+		lo = Math.min(lo, q.minLevel > 0 ? q.minLevel : q.level);
+		hi = Math.max(hi, q.level);
+	}
+	return hi ? `${lo}-${hi}` : null;
+}
+
 export function convertGuide(parsed, data, opts) {
 	const { report, slug, packId } = opts;
 	const info = parseName(parsed.header.name);
@@ -338,11 +364,19 @@ export function convertGuide(parsed, data, opts) {
 			if (id && !titles.has(id)) titles.set(id, plain(l.text).replace(/^(accept|turn in)\s+/i, ""));
 		}
 	}
-	const accepted = opts.accepted || new Set();
+	// `before`: quests accepted in the guides that hand off into this one.
+	// `seen` grows with this guide's accepts in route order; a goal for a quest
+	// not seen yet goes in a step of its own that waits for the quest.
+	const before = opts.before || new Set();
+	const accepted = new Set(before);
 	for (const s of parsed.steps) for (const l of s.lines) {
 		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^(\d+)/) || [])[1]));
 	}
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, seen: opts.seen || new Set(), native: opts.native || new Set() };
+	const hc = parseCondition(parsed.header.faction).only;
+	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
+	const faction = hc.faction ? hc.faction[0] : null;
+	const races = hc.race || df.race || [];
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, seen: new Set(before), native: opts.native || new Set(), faction, races };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
@@ -356,19 +390,17 @@ export function convertGuide(parsed, data, opts) {
 		}
 		return info.zone;
 	})();
-	const hc = parseCondition(parsed.header.faction).only;
-	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
 	const guide = {
 		name: parsed.header.name || slug,
 		title: info.zone || parsed.header.name,
-		faction: hc.faction ? hc.faction[0] : null,
+		faction,
 		classes: hc.class || df.class || null,
-		races: hc.race || df.race || [],
-		levels: info.levels || null,
+		races,
+		levels: info.levels || levelsOf(accepted, data) || (String(parsed.header.subgroup || "").match(/\b(\d+-\d+)\b/) || [])[1] || null,
 		zone,
 		defaultMap,
 		sourceSteps: parsed.steps.length,
 		steps,
 	};
-	return render(guide, { report, slug, packId, next: opts.next });
+	return render(guide, { report, slug, packId, next: opts.next || [] });
 }
