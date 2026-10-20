@@ -7,7 +7,8 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { extractGuides, parseGuide, parseName } from "../src/rxp/parse.mjs";
-import { convertGuide, Report } from "../src/emit.mjs";
+import { convertGuide } from "../src/rxp/convert.mjs";
+import { Report } from "../src/ir.mjs";
 import { loadData } from "../src/data.mjs";
 
 function args(argv) {
