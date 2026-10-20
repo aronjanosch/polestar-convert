@@ -502,7 +502,7 @@ function buildStep(step, stepNo, data, ctx) {
 		}
 		// RXP shows text alone beside the steps up to its target; Polestar lists no
 		// notes beside the route, so it becomes a step of its own: a task to tick,
-		// at RXP's first waypoint.
+		// in the middle of RXP's waypoints.
 		if (goals.length && goals.every((g) => g.kind === "note")) {
 			const spot = at(gotos.find((g) => g.uiMap && !g.cond) || gotos.find((g) => g.uiMap));
 			for (const g of goals) { g.kind = "task"; g.at = spot; }
