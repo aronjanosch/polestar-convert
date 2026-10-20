@@ -55,6 +55,7 @@ export function planChain(guides, report) {
 			const name = cut >= 0 ? opt.slice(cut + 1) : opt;
 			let hit = byKey.get(`${group}\\${name}`);
 			if (!hit) hit = (byName.get(name) || []).find((o) => sideOf(o) === sideOf(g)) || null;
+			if (hit && !covers(hit, g)) { report.note(g.header.name, 0, `next guide "${opt}" is not for every character of this one (left out)`, g.header.next); continue; }
 			if (hit && !out.includes(hit)) out.push(hit);
 			else if (!hit) report.note(g.header.name, 0, `next guide "${opt}" is not in this run (left out)`, g.header.next);
 		}
@@ -80,6 +81,18 @@ export function planChain(guides, report) {
 		before.set(g, quests);
 	}
 	return { slug, next, before };
+}
+
+// Whether every character guide `g` is for may follow `to`: what `to` names of
+// class and race (header and RXP's defaultfor) holds for all of `g`'s.
+function covers(to, g) {
+	const who = (x) => {
+		const h = parseCondition(x.header.faction).only;
+		const d = parseCondition(String(x.header.defaultfor || "").replace(/,/g, " ")).only;
+		return { class: h.class || d.class || null, race: h.race || d.race || null };
+	};
+	const t = who(to), m = who(g);
+	return ["class", "race"].every((k) => !t[k] || (m[k] && m[k].every((n) => t[k].includes(n))));
 }
 
 function acceptsOf(g) {
