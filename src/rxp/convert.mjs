@@ -265,11 +265,7 @@ function buildStep(step, stepNo, data, ctx) {
 		}
 		if (l.kind === "note") {
 			const t = plain(l.text);
-			// RXP ticks a `+` line by hand; beside the route it would never check off.
-			if (t && completewith) {
-				const o = l.cond ? onlyText(parseCondition(l.cond).only) : "";
-				if (o || !l.cond) { goals.push({ kind: "task", text: bare(t), only: o }); formatNeeds = 5; report.count("along + line -> task"); }
-			} else if (t && !l.cond) notes.push(bare(t));
+			if (t && !l.cond) notes.push(bare(t));
 			else if (t) {
 				const o = onlyText(parseCondition(l.cond).only);
 				if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
