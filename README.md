@@ -67,6 +67,10 @@ goals instead of tasks.
 - Commands Polestar has no verb for (`.cast`, `.destroy`, `.deathskip`, ...)
   become `task` lines, which need Polestar 0.3.0 (pack format 5).
 
+A whole pack plays much faster one guide per process:
+`tools/playtest-parallel.sh <pack> [--polestar <clone>] [--jobs N]` (the same
+plays as `polestar playtest`; exit 1 when any is stuck or failed).
+
 ## Tests
 
 `npm test` (Node 24+, no dependencies).
