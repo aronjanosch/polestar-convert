@@ -3,7 +3,7 @@
 // names and places come from Polestar's data; what it does not know is left out
 // and listed, never guessed.
 
-import { evaluate, pairsOf, toWhens, onlyString, onlyFor, show, RACE_NAMES, CLASS_NAMES } from "./cond.mjs";
+import { evaluate, pairsOf, toWhens, onlyString, onlyFor, show, localOnly, RACE_NAMES, CLASS_NAMES } from "./cond.mjs";
 import { worldToZone, questOpenTo, questEndPlaced, eliteOf } from "../data.mjs";
 import { render } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
@@ -54,7 +54,12 @@ function textOf(node, ctx, pairs) {
 		else if (k.zone != null) parts.push(k.label || entityName(ctx, "zone", k.zone));
 		else if (k.taxi != null) parts.push(k.label || entityName(ctx, "taxi", k.taxi));
 		else if (k.skill != null) parts.push(k.label || String(k.skill));
-		else if (k.location != null) parts.push(k.label || "");
+		else if (k.location != null) {
+			// The step's own location N, as coordinates.
+			const l = (ctx.stepLocations || [])[Number(k.location) - 1];
+			const p = l && parseLocation(arr(l)[0], ctx.data);
+			parts.push(k.label || (p ? `${p.x.toFixed(1)}, ${p.y.toFixed(1)}` : ""));
+		}
 		// A "NOTE:"/"TIP:" label starts a sentence of its own.
 		for (const f of ["red", "tip", "note"]) if (typeof k[f] === "string") parts.push((parts.length && !/\s$/.test(parts[parts.length - 1]) ? " " : "") + k[f]);
 		for (const f of ["bold", "italic"]) if (typeof k[f] === "string") parts.push(k[f]);
@@ -168,6 +173,7 @@ function buildStep(st, stepNo, ctx) {
 		if (v.residual) {
 			const w = toWhens(v.residual, names);
 			if (w) { whens = w.whens; if (w.near) report.count("step condition: quest state approximated"); report.count("step condition -> when"); }
+			else if (localOnly(v.residual)) report.count("step condition on location state (step kept for all)");
 			else { report.count("step condition at runtime Polestar cannot check (step kept for all)"); report.note(ctx.name, stepNo, "step condition not carried over", show(v.residual)); }
 		}
 		out.push(...buildVariant(st, stepNo, ctx, v.only, v.pairs, whens));
@@ -179,6 +185,7 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 	const { data, report, names } = ctx;
 	const sk = kv(st);
 	if (sk.completed) report.count("step `completed` expression (ignored)");
+	ctx.stepLocations = arr(sk.locations);
 
 	// Places: the step's locations a Forever character sees.
 	const places = [];
@@ -196,6 +203,7 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 	if (places.length) ctx.lastMap = places[places.length - 1].uiMap;
 	const atOf = (p) => (p ? { x: p.x, y: p.y, live: p.live, map: p.uiMap !== mapId ? p.uiMap : undefined } : undefined);
 
+	const wayIn = [...places].reverse().find((p) => !p.npc && !p.object) || null;
 	// Chunks: goals in the source's order, split where the `when` they need changes.
 	const chunks = [];
 	const chunk = (whens) => {
@@ -229,6 +237,7 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 			if (gv.residual) {
 				const w = toWhens(gv.residual, names);
 				if (w) { gWhens = w.whens; if (w.near) report.count("group condition: quest state approximated"); }
+				else if (localOnly(gv.residual)) report.count("group condition on the step's location state (kept for all)");
 				else { report.count("group condition at runtime Polestar cannot check (kept for all)"); report.note(ctx.name, stepNo, "group condition not carried over", show(gv.residual)); }
 			}
 			const groupPairs = gv.pairs;
@@ -252,11 +261,12 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 						if (w) { whens = [...new Set([...gWhens, ...w.whens])]; if (w.near) report.count("task condition: quest state approximated"); }
 						else if (typeof task === "string" || !Object.keys(tk).some((k) => k !== "condition" && k !== "color")) {
 							// Text: shown whatever the state.
-						} else { report.count("task condition at runtime Polestar cannot check (kept for all)"); report.note(ctx.name, stepNo, "task condition not carried over", show(tv.residual)); }
+						} else if (localOnly(tv.residual)) report.count("task condition on the step's location state (kept for all)");
+						else { report.count("task condition at runtime Polestar cannot check (kept for all)"); report.note(ctx.name, stepNo, "task condition not carried over", show(tv.residual)); }
 					}
 					const only = onlyString(onlyFor(tv.pairs, stepPairs)[0].only);
 					const c = chunk(whens);
-					addTask(task, { c, only, ctx, stepNo, refs, roleNpc, npcPlace, objectPlace, atOf, mapId, setTitle: (t) => { if (!title) title = t; }, eliteTips, format: (f) => { format = Math.max(format, f); }, pairs: tv.pairs, stepPairs, gk, group, merchantHere, trainerOf });
+					addTask(task, { c, only, ctx, stepNo, refs, roleNpc, npcPlace, objectPlace, atOf, mapId, setTitle: (t) => { if (!title) title = t; }, eliteTips, format: (f) => { format = Math.max(format, f); }, pairs: tv.pairs, stepPairs, gk, group, merchantHere, trainerOf, wayIn });
 				}
 			}
 		}
@@ -389,8 +399,12 @@ function addTask(task, t) {
 		else {
 			// The giver has no spawn in the data: Journey's own place for them.
 			const giver = ((ends && ends.npc) || []).map(npcPlace).find(Boolean) || ((ends && ends.object) || []).map(objectPlace).find(Boolean);
-			goal({ kind, quest: id, optional, at: atOf(giver) });
-			report.count(giver ? `${kind}: giver without a spawn, placed at Journey's location` : `${kind}: giver without a spawn, no place`);
+			// Else the last point of the step's way in (a dungeon's or a tram's entrance).
+			const place = giver || t.wayIn;
+			if (!place) { report.count(`${kind}: giver without a spawn, no place (dropped)`); report.note(ctx.name, stepNo, `quest ${id}: the data has no spawn for its ${kind === "accept" ? "giver" : "ender"} and the step no place; ${kind} left out`); return; }
+			goal({ kind, quest: id, optional, at: atOf(place) });
+			report.count(giver ? `${kind}: giver without a spawn, placed at Journey's location` : `${kind}: giver without a spawn, placed at the step's way in`);
+			if (!giver) report.note(ctx.name, stepNo, `quest ${id}: ${kind} placed at the step's last waypoint (check)`);
 		}
 		return;
 	}
@@ -466,7 +480,11 @@ function addTask(task, t) {
 		return;
 	}
 	if (k.level != null) {
-		goal({ kind: "level", level: Number(k.level), xp: k.xp != null ? Number(k.xp) : undefined, optional });
+		const level = Number(k.level), xp = k.xp != null ? Number(k.xp) : undefined;
+		// Polestar counts XP into a level by the 1.12 table; past its end, the next level.
+		const need = ctx.names.levelXp(level);
+		if (xp != null && need != null && xp >= need) { goal({ kind: "level", level: level + 1, optional }); report.count("level+xp past Polestar's XP table -> next level"); }
+		else goal({ kind: "level", level, xp, optional });
 		return;
 	}
 	if (k.learntaxi != null || k.taketaxi != null) {
@@ -498,11 +516,7 @@ function addTask(task, t) {
 		report.count(`${k.deposit ? "deposit" : "withdraw"} -> task`);
 		return;
 	}
-	if (k.button != null) {
-		if (k.guide) ctx.jumps.add(String(k.guide));
-		report.count("jump button (ignored)");
-		return;
-	}
+	if (k.button != null) { report.count("jump button (ignored)"); return; }
 	if (k.npc != null || k.gameobject != null || k.fromnpc != null) return; // who to talk to: the goals beside it say it
 	if (k.text != null) {
 		const text = textOf({ arr: [String(k.text)], kv: {} }, ctx, t.pairs);
@@ -526,6 +540,16 @@ export function convertGuide(info, guide, data, opts) {
 		data, names, report, universe, faction, fixed: opts.fixed || {}, name: info.description || info.guideID,
 		seen: new Set(opts.before || []), native: opts.native || new Set(), jumps: new Set(), lastMap: Number(info.zone) || null, bind: null,
 	};
+	// Where the guide's buttons lead on ("Go to 6-12 ..."): its hand-offs, the last
+	// one first. A button shown only when the guide is finished counts.
+	const jumpFixed = { ...ctx.fixed, COMPLETEONSTART: true, INCOMPLETEONSTART: false };
+	for (const st of arr(guide)) {
+		if (!isTable(st) || !evaluate(kv(st).condition, universe, { fixed: jumpFixed, local: true }).length) continue;
+		for (const g of arr(st)) for (const t of arr(g)) {
+			if (!isTable(t) || t.kv.guide == null) continue;
+			if (evaluate(t.kv.condition, universe, { fixed: jumpFixed, local: true }).length) ctx.jumps.add(String(t.kv.guide));
+		}
+	}
 	const steps = [];
 	arr(guide).forEach((st, i) => {
 		if (!isTable(st)) return;
@@ -536,12 +560,15 @@ export function convertGuide(info, guide, data, opts) {
 	const accepted = new Set(opts.before || []);
 	const out = [];
 	for (const s of steps) {
-		const orphan = (g) => { const q = questOf(g); return q != null && !accepted.has(q) && g.kind !== "accept" ? q : null; };
-		const lost = s.goals.filter(orphan);
-		const rest = s.goals.filter((g) => !orphan(g));
-		for (const g of rest) if (g.kind === "accept") accepted.add(g.quest);
+		// In the step's order: a turn-in after its accept in the same step is fine.
+		const lost = [], rest = [];
+		for (const g of s.goals) {
+			const q = questOf(g);
+			if (g.kind === "accept") accepted.add(g.quest);
+			(q != null && !accepted.has(q) ? lost : rest).push(g);
+		}
 		if (!lost.length) { out.push(s); continue; }
-		const ids = [...new Set(lost.map(orphan))];
+		const ids = [...new Set(lost.map(questOf))];
 		report.count(`goals for quests not accepted before -> when onquest (${lost.length})`);
 		const work = rest.some((g) => g.kind !== "goto");
 		if (work) out.push({ ...s, goals: rest });
@@ -556,11 +583,14 @@ export function convertGuide(info, guide, data, opts) {
 		for (const v of evaluate(info.recommended, universe, { fixed: ctx.fixed })) for (const p of v.pairs) set.add(RACE_NAMES[p.race]);
 		if (set.size && set.size < new Set(universe.map((p) => p.race)).size) races = [...set];
 	}
+	// A guide for some classes only (the catalog's condition).
+	const who = evaluate(info.condition, universe, { fixed: ctx.fixed });
+	const classes = who.length === 1 && who[0].only.class ? who[0].only.class : null;
 	const ir = {
 		name: ctx.name,
 		title,
 		faction,
-		classes: null,
+		classes,
 		races,
 		levels: info.levels || null,
 		zone: names.zone(info.zone),
@@ -571,5 +601,5 @@ export function convertGuide(info, guide, data, opts) {
 		steps: out,
 	};
 	const r = render(ir, { report, slug, packId, next: opts.next || [] });
-	return { ...r, jumps: [...ctx.jumps], accepted };
+	return { ...r, jumps: [...ctx.jumps].reverse(), accepted };
 }
