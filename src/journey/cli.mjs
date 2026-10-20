@@ -65,6 +65,8 @@ export function run(a) {
 	const real = (r) => r.text.split("\n").some((l) => /^ {2}(accept|turnin|kill|collect|complete|interact|level|vendor|train|buy|getfp|fly|sethome)\b/.test(l));
 	const startOf = (e) => Number(String(e.levels || "").split("-")[0]);
 	const report = new Report();
+	// What each guide does not carry, by Journey step id (like rxp-free-guides' reports/).
+	const gaps = {};
 	const chosen = entries.filter((e) => {
 		if (a.only && e.description !== a.only && e.guideID !== a.only && e.guideID !== a.only + "_FVR") return false;
 		if (!real(first.get(e.guideID))) { report.count("guide with nothing to do (placeholder, not written)"); return false; }
@@ -79,8 +81,16 @@ export function run(a) {
 		const next = (nextIds.get(e.guideID) || []).filter((id) => (a.only ? kept : written).has(id) && byId.get(id).faction === e.faction).map((id) => slugOf(byId.get(id)));
 		const r = convertGuide(e, guideOf(e), data, { report, slug: slugOf(e), packId, names, native, fixed, before: before.get(e.guideID), next });
 		writeFileSync(join(guidesDir, `${slugOf(e)}.guide`), r.text);
+		gaps[`${slugOf(e)}.guide`] = r.gaps;
 		console.log(`${slugOf(e)}: ${r.stepsIn} Journey steps -> ${r.stepsOut} steps, pack format ${r.format}`);
 	}
+
+	const reportsDir = join(a.pack, "reports");
+	if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
+	const settings = { ah: fixed.AH, groups: fixed.GROUPS, hardcore: false, nativeVerbs: [...native] };
+	writeFileSync(join(reportsDir, "journey-gaps.json"), JSON.stringify({ source: "Journey (local install)", settings, guides: gaps }, null, 1) + "\n");
+	const total = Object.values(gaps).reduce((n, g) => n + g.length, 0);
+	console.log(`gaps: ${total} entries in ${join(reportsDir, "journey-gaps.json")}`);
 
 	console.log("\n== counts");
 	for (const [k, v] of [...report.counts].sort((x, y) => y[1] - x[1])) if (v) console.log(String(v).padStart(5), k);
