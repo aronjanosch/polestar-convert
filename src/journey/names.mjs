@@ -1,5 +1,5 @@
 // Names Journey refers to by id that `src/data.mjs` does not load: areas
-// (AreaTable) and spells (SpellName), from the Forever client tables a Polestar
+// (AreaTable), spells (SpellName) and buildings (WMOAreaTable), from the client tables a Polestar
 // clone caches in data/sources/wago/<build>/ (the build travel.json names), plus
 // lookups by id into Polestar's inns and flight points. Read only.
 
@@ -46,10 +46,15 @@ function table(file, idCol, nameCol) {
 
 export function loadNames(polestarDir, data) {
 	const tf = join(polestarDir, "data", "forever", "travel.json");
-	const build = existsSync(tf) ? JSON.parse(readFileSync(tf, "utf8")).foreverBuild : null;
+	const travel = existsSync(tf) ? JSON.parse(readFileSync(tf, "utf8")) : {};
+	const build = travel.foreverBuild || null;
 	const dir = build ? join(polestarDir, "data", "sources", "wago", build) : null;
 	const areas = dir ? table(join(dir, "AreaTable.csv"), "ID", "AreaName_lang") : new Map();
 	const spells = dir ? table(join(dir, "SpellName.csv"), "ID", "Name_lang") : new Map();
+	// Buildings: Journey numbers them as the Era client does (WMOAreaTable of the
+	// Era build travel.json names; cache it with Polestar's wago cachedTable).
+	const eraDir = travel.build ? join(polestarDir, "data", "sources", "wago", travel.build) : null;
+	const wmos = eraDir ? table(join(eraDir, "WMOAreaTable.csv"), "ID", "AreaName_lang") : new Map();
 	const nodeById = new Map((data.flights || []).map((n) => [n.id, n]));
 	// XP from one level to the next, as Polestar counts it (tools/lib/game/xp.js).
 	const xpLib = join(polestarDir, "tools", "lib", "game", "xp.js");
@@ -57,6 +62,7 @@ export function loadNames(polestarDir, data) {
 	return {
 		area: (id) => areas.get(Number(id)) || null,
 		spell: (id) => spells.get(Number(id)) || null,
+		wmo: (id) => wmos.get(Number(id)) || null,
 		zone: (id) => (data.zones[id] ? data.zones[id].name : null),
 		// The inn whose area is `areaId` (sethearthstone, HEARTHSTONE[a]) -> its location.
 		inn: (areaId) => {

@@ -3,8 +3,8 @@
 // names and places come from Polestar's data; what it does not know is left out
 // and listed, never guessed.
 
-import { evaluate, pairsOf, toWhens, onlyString, onlyFor, show, localOnly, RACE_NAMES, CLASS_NAMES } from "./cond.mjs";
-import { worldToZone, questOpenTo, questEndPlaced, eliteOf } from "../data.mjs";
+import { evaluate, pairsOf, whenAlts, consistent, onlyString, onlyFor, normalCase, RACE_NAMES, CLASS_NAMES } from "./cond.mjs";
+import { worldToZone, questOpenTo, questEndPlaced, eliteOf, innNamed } from "../data.mjs";
 import { render } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 
@@ -35,40 +35,103 @@ function parseLocation(text, data) {
 }
 const round = (v) => Math.round(v * 100) / 100;
 
-// Text of a Journey text task: strings and inline refs, flattened.
+// Whether a text piece's condition holds where the route stands: "yes", "no"
+// or "maybe" (state Polestar cannot know ahead, such as the level).
+function textCond(text, pairs, ctx) {
+	const vs = evaluate(text, pairs, { ...ctx.ev, local: true, route: ctx.route });
+	if (!vs.length) return "no";
+	return vs.some((v) => !v.residual) ? "yes" : "maybe";
+}
+
+// Text of a Journey text task: strings and inline refs, flattened. Of pieces
+// that say the same thing for different states, the one for the route's state;
+// where that is unknown, the first.
 function textOf(node, ctx, pairs) {
 	const parts = [];
+	const word = (t) => parts.push(String(t));
+	// A label ("NOTE:") stands apart from the words around it.
+	const apart = (t) => parts.push(` ${t} `);
 	const walk = (n) => {
 		if (n == null) return;
-		if (typeof n === "string") { parts.push(n); return; }
-		if (typeof n !== "object") { parts.push(String(n)); return; }
+		if (typeof n === "string") { word(n); return; }
+		if (typeof n !== "object") { word(n); return; }
 		if (!isTable(n)) return;
 		const k = n.kv;
-		if (k.condition && !holds(k.condition, pairs, ctx, true)) return;
-		if (k.npc != null) parts.push(k.label || entityName(ctx, "npc", k.npc));
-		else if (k.item != null) parts.push(k.label || entityName(ctx, "item", k.item));
-		else if (k.spell != null) parts.push(k.label || entityName(ctx, "spell", k.spell));
-		else if (k.quest != null) parts.push(k.label || entityName(ctx, "quest", k.quest));
-		else if (k.gameobject != null) parts.push(k.label || entityName(ctx, "object", k.gameobject));
-		else if (k.area != null) parts.push(k.label || (typeof k.area === "string" ? k.area : entityName(ctx, "area", k.area)));
-		else if (k.zone != null) parts.push(k.label || entityName(ctx, "zone", k.zone));
-		else if (k.taxi != null) parts.push(k.label || entityName(ctx, "taxi", k.taxi));
-		else if (k.skill != null) parts.push(k.label || String(k.skill));
-		else if (k.location != null) {
-			// The step's own location N, as coordinates.
-			const l = (ctx.stepLocations || [])[Number(k.location) - 1];
-			const p = l && parseLocation(arr(l)[0], ctx.data);
-			parts.push(k.label || (p ? `${p.x.toFixed(1)}, ${p.y.toFixed(1)}` : ""));
+		if (k.npc != null) word(k.label || entityName(ctx, "npc", k.npc));
+		else if (k.item != null) word(k.label || entityName(ctx, "item", k.item));
+		else if (k.spell != null) word(k.label || entityName(ctx, "spell", k.spell));
+		else if (k.quest != null) word(k.label || entityName(ctx, "quest", k.quest));
+		else if (k.skipped != null) word(entityName(ctx, "quest", k.skipped) + (k.note ? ` (${k.note})` : ""));
+		else if (k.gameobject != null) word(k.label || entityName(ctx, "object", k.gameobject));
+		else if (k.area != null) word(k.label || (typeof k.area === "string" ? k.area : entityName(ctx, "area", k.area)));
+		else if (k.wmoarea != null) word(k.label || wmoName(ctx, k.wmoarea));
+		else if (k.zone != null) word(k.label || entityName(ctx, "zone", k.zone));
+		else if (k.taxi != null) word(k.label || entityName(ctx, "taxi", k.taxi));
+		else if (k.skill != null) word(k.label || String(k.skill));
+		else if (k.illustration != null) word(k.label || "");
+		else if (k.location != null) word(k.label || locationText(ctx, Number(k.location)));
+		for (const f of ["red", "tip", "note"]) if (typeof k[f] === "string" && k.skipped == null) apart(k[f]);
+		for (const f of ["bold", "italic"]) if (typeof k[f] === "string") word(k[f]);
+		if (typeof k.paragraph === "string") apart(k.paragraph);
+		if (k.newline != null) word(" ");
+		let taken = false;
+		for (const x of n.arr) {
+			const cond = isTable(x) && x.kv.condition;
+			if (!cond) { taken = false; if (isTable(x) && x.arr.length && !Object.keys(x.kv).length) word(" "); walk(x); continue; }
+			const c = textCond(cond, pairs, ctx);
+			if (c === "no" || (c === "maybe" && taken)) continue;
+			if (c === "maybe") taken = true;
+			word(" ");
+			walk(x);
 		}
-		// A "NOTE:"/"TIP:" label starts a sentence of its own.
-		for (const f of ["red", "tip", "note"]) if (typeof k[f] === "string") parts.push((parts.length && !/\s$/.test(parts[parts.length - 1]) ? " " : "") + k[f]);
-		for (const f of ["bold", "italic"]) if (typeof k[f] === "string") parts.push(k[f]);
-		if (typeof k.paragraph === "string") parts.push(" " + k.paragraph);
-		if (k.newline) parts.push(" ");
-		for (const x of n.arr) walk(x);
 	};
 	walk(node);
-	return parts.join("").replace(/\|c[0-9a-fA-F]{8}|\|r/g, "").replace(/\s+/g, " ").trim();
+	return tidy(parts.join(""));
+}
+
+// Spaces and stops as a sentence wants them.
+function tidy(text) {
+	return text.replace(/\|c[0-9a-fA-F]{8}|\|r/g, "").replace(/\s+/g, " ").replace(/\s+([.,:;!?)])/g, "$1").replace(/\(\s+/g, "(")
+		.replace(/([^.])\.\.(?!\.)/g, "$1.").replace(/([.!?:])([A-Z])/g, "$1 $2").replace(/([a-z])\(/g, "$1 (").trim();
+}
+
+// A building's name (WMOAreaTable), when the data has it.
+function wmoName(ctx, id) {
+	const n = ctx.names.wmo ? ctx.names.wmo(id) : null;
+	if (n) return n;
+	ctx.report.count("text: building (wmoarea) name unknown to the data");
+	return "(see map)";
+}
+
+// The step's own location N in words: its label, the NPC there, else coordinates.
+function locationText(ctx, n) {
+	const l = (ctx.stepLocations || [])[n - 1];
+	if (!l) return "";
+	const lk = kv(l);
+	const p = parseLocation(arr(l)[0], ctx.data);
+	if (lk.npc != null && ctx.data.npcs[lk.npc]) return ctx.data.npcs[lk.npc].name;
+	const label = labelOf(ctx, lk);
+	if (label) return label;
+	return p ? `${p.x.toFixed(1)}, ${p.y.toFixed(1)}` : "";
+}
+
+// A location's label, its "%s" filled with the place it names ("Exit: %s").
+function labelOf(ctx, lk) {
+	if (!lk.label) return null;
+	if (!lk.label.includes("%s")) return lk.label;
+	const name = lk.wmoarea != null ? ctx.names.wmo && ctx.names.wmo(lk.wmoarea)
+		: lk.area != null ? (typeof lk.area === "string" ? lk.area : ctx.names.area(lk.area))
+		: lk.zone != null ? ctx.names.zone(lk.zone)
+		: lk.npc != null && ctx.data.npcs[lk.npc] ? ctx.data.npcs[lk.npc].name : null;
+	return name ? lk.label.replace("%s", name) : null;
+}
+
+// A step title: the first sentence, at most 60 letters, cut at a word.
+function titleOf(text) {
+	const first = String(text).split(/(?<=[.!?:])\s/)[0];
+	if (first.length <= 60) return first.replace(/:$/, "");
+	const cut = first.slice(0, 58);
+	return cut.slice(0, Math.max(cut.lastIndexOf(" "), 30)).replace(/[\s,;:]+$/, "") + "...";
 }
 
 // A text for each set of characters who read it alike: pieces of it may be for
@@ -103,7 +166,7 @@ function entityName(ctx, kind, id) {
 // Whether a condition holds for some of `pairs` (runtime parts read as possible;
 // with `local`, location state as "not yet").
 function holds(text, pairs, ctx, local) {
-	return evaluate(text, pairs, { local, fixed: ctx.fixed }).length > 0;
+	return evaluate(text, pairs, { ...ctx.ev, local }).length > 0;
 }
 
 // The ids a task group names (text refs and buttons), to match quest objectives.
@@ -162,21 +225,42 @@ function objectiveGoals(q, n, data, refs, ctx, stepNo) {
 	return [g || { kind: "complete", quest: q }];
 }
 
+// A condition and Journey's `completed` on the same node: it applies while the
+// condition holds and it is not done yet.
+function withCompleted(condition, completed) {
+	if (!completed) return condition;
+	return `(${condition || "true"}) and not (${completed})`;
+}
+
+// A residual -> the `when` lists of which one must hold (one list each: a copy
+// of the step or goal). Parts Polestar cannot check are left out and counted;
+// `where` null keeps quiet (texts).
+function altsOf(residual, ctx, stepNo, where) {
+	if (!residual) return [[]];
+	const { alts, unknown } = whenAlts(residual, ctx.names);
+	if (where) {
+		if (alts.length > 1) ctx.report.count(`${where} condition with OR -> ${alts.length} copies`);
+		if (alts.some((a) => a.length)) ctx.report.count(`${where} condition -> when`);
+		for (const u of unknown) {
+			const lit = parseLocal(u);
+			if (lit) ctx.report.count(`${where} condition on the step's location state (left out)`);
+			else { ctx.report.count(`${where} condition part Polestar cannot check: ${(u.match(/[A-Z][A-Z_]+/) || ["?"])[0]} (left out)`); ctx.report.note(ctx.name, stepNo, `${where} condition part left out`, u); }
+		}
+	}
+	return alts.length ? alts : [];
+}
+const parseLocal = (text) => /^(not )?(WITHIN|VISITED|EXITED|ACTIVE|CHECKPOINT|COMPLETE|ROOT_COMPLETED|TGLOCATION_ENABLED)\b/.test(text);
+
 function buildStep(st, stepNo, ctx) {
 	const { data, report, names, universe } = ctx;
 	const sk = kv(st);
 	const out = [];
-	const variants = evaluate(sk.condition, universe, { fixed: ctx.fixed });
+	// A step Journey counts as done already (`completed`) is one that does not apply.
+	const variants = evaluate(withCompleted(sk.condition, sk.completed), universe, ctx.ev);
+	if (sk.completed) report.count("step `completed` -> when not");
 	if (!variants.length) { report.count("step: for no Forever character (dropped)"); return out; }
 	for (const v of variants) {
-		let whens = [];
-		if (v.residual) {
-			const w = toWhens(v.residual, names);
-			if (w) { whens = w.whens; if (w.near) report.count("step condition: quest state approximated"); report.count("step condition -> when"); }
-			else if (localOnly(v.residual)) report.count("step condition on location state (step kept for all)");
-			else { report.count("step condition at runtime Polestar cannot check (step kept for all)"); report.note(ctx.name, stepNo, "step condition not carried over", show(v.residual)); }
-		}
-		out.push(...buildVariant(st, stepNo, ctx, v.only, v.pairs, whens));
+		for (const whens of altsOf(v.residual, ctx, stepNo, "step")) out.push(...buildVariant(st, stepNo, ctx, v.only, v.pairs, whens));
 	}
 	return out;
 }
@@ -184,7 +268,6 @@ function buildStep(st, stepNo, ctx) {
 function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 	const { data, report, names } = ctx;
 	const sk = kv(st);
-	if (sk.completed) report.count("step `completed` expression (ignored)");
 	ctx.stepLocations = arr(sk.locations);
 
 	// Places: the step's locations a Forever character sees.
@@ -195,7 +278,7 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 		const p = parseLocation(arr(l)[0], data);
 		if (!p) { report.count("location without a map frame (dropped)"); continue; }
 		if (p.flags.includes("H")) continue;
-		places.push({ ...p, npc: lk.npc, object: lk.gameobject, label: lk.label });
+		places.push({ ...p, npc: lk.npc, object: lk.gameobject, label: labelOf(ctx, lk) });
 	}
 	const npcPlace = (id) => places.find((p) => p.npc === id) || null;
 	const objectPlace = (id) => places.find((p) => p.object === id) || null;
@@ -204,10 +287,12 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 	const atOf = (p) => (p ? { x: p.x, y: p.y, live: p.live, map: p.uiMap !== mapId ? p.uiMap : undefined } : undefined);
 
 	const wayIn = [...places].reverse().find((p) => !p.npc && !p.object) || null;
-	// Chunks: goals in the source's order, split where the `when` they need changes.
+	// Chunks: goals in the source's order, one per Journey task group (so its words
+	// stay with its goals), split where the `when` they need changes.
 	const chunks = [];
+	let groupNo = 0;
 	const chunk = (whens) => {
-		const key = whens.join("|");
+		const key = groupNo + "#" + whens.join("|");
 		const last = chunks[chunks.length - 1];
 		if (last && last.key === key) return last;
 		const c = { key, whens, goals: [], tips: [], notes: [], along: [] };
@@ -223,7 +308,10 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 		if (!isTable(group)) return;
 		const gk = kv(group);
 		if (!arr(group).length) return; // buttons only
-		const gVariants = evaluate(gk.condition, stepPairs, { fixed: ctx.fixed });
+		// The banner at a guide's end ("... is complete!").
+		if (gk.bordercolor === "GUIDE_COMPLETE") { report.count("guide-complete banner (left out)"); return; }
+		groupNo++;
+		const gVariants = evaluate(withCompleted(gk.condition, gk.completed), stepPairs, ctx.ev);
 		if (!gVariants.length) return;
 		const refs = refsOf(group);
 		const merchantHere = arr(group).some((x) => isTable(x) && x.kv.merchant != null);
@@ -232,58 +320,90 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 		const roleNpc = (role) => cands.find((id) => data.npcs[id] && (data.npcs[id].roles || []).includes(role)) || null;
 		// A class trainer by the title the data gives them ("Warlock Trainer").
 		const trainerOf = (cls) => cands.find((id) => data.npcs[id] && data.npcs[id].subName === `${cls} Trainer`) || null;
-		for (const gv of gVariants) {
-			let gWhens = [];
-			if (gv.residual) {
-				const w = toWhens(gv.residual, names);
-				if (w) { gWhens = w.whens; if (w.near) report.count("group condition: quest state approximated"); }
-				else if (localOnly(gv.residual)) report.count("group condition on the step's location state (kept for all)");
-				else { report.count("group condition at runtime Polestar cannot check (kept for all)"); report.note(ctx.name, stepNo, "group condition not carried over", show(gv.residual)); }
-			}
+		// A vendor of the step who sells the item.
+		const sellerOf = (item) => cands.find((id) => ((data.items[item] || {}).vendors || []).includes(id)) || null;
+		// "Skip This?" offered beside the group's goals: they never hold the route.
+		const skippable = arr(group).some((x) => isTable(x) && x.kv.button != null && x.kv.goto === "next" && x.kv.optional === true);
+		for (const gv of gVariants) for (const gWhens of altsOf(gv.residual, ctx, stepNo, "group")) {
 			const groupPairs = gv.pairs;
-			// Buttons that do something: destroy an item.
+			const before = chunks.map((c) => c.goals.length);
+			// Buttons that do something: destroy an item, use the Hearthstone.
 			for (const b of arr(gk.buttons)) {
 				const bk = kv(b);
-				if (bk.destroy == null) continue;
 				if (bk.condition && !holds(bk.condition, groupPairs, ctx, false)) continue;
-				const item = Number(bk.destroy);
-				if (ctx.native.has("destroy") && data.items[item]) { chunk(gWhens).goals.push({ kind: "destroy", item, only: "" }); format = Math.max(format, 6); report.count("destroy button -> destroy"); }
-				else { chunk(gWhens).goals.push({ kind: "task", text: `Destroy ${entityName(ctx, "item", item)}`, only: "" }); format = Math.max(format, 5); report.count("destroy button -> task"); }
+				if (bk.destroy != null) {
+					const item = Number(bk.destroy);
+					if (ctx.native.has("destroy") && data.items[item]) { chunk(gWhens).goals.push({ kind: "destroy", item, only: "" }); format = Math.max(format, 6); report.count("destroy button -> destroy"); }
+					else { chunk(gWhens).goals.push({ kind: "task", text: `Destroy ${entityName(ctx, "item", item)}`, only: "" }); format = Math.max(format, 5); report.count("destroy button -> task"); }
+				} else if (bk.item != null && data.items[bk.item] && data.items[bk.item].name === "Hearthstone") {
+					// Where to: the inn the text names, else where the guide last bound.
+					const said = (textOf(group, ctx, groupPairs).match(/Hearth(?:stone)? (?:back )?to ([A-Z][\w' ]+?)(?:[.,:(]|$)/) || [])[1];
+					const inn = said ? innNamed(data, said, null) : null;
+					const location = inn ? inn.location : ctx.bind;
+					if (location) { chunk(gWhens).goals.push({ kind: "hearth", location, only: "" }); report.count("hearthstone button -> hearth"); }
+					else report.count("hearthstone button, place unknown (text only)");
+				}
 			}
+			let textTaken = false;
 			for (const task of arr(group)) {
 				const tk = isTable(task) ? task.kv : {};
-				// Who and when for this task, inside the group.
-				const tVariants = evaluate(tk.condition, groupPairs, { fixed: ctx.fixed });
-				for (const tv of tVariants) {
-					let whens = gWhens;
-					if (tv.residual) {
-						const w = toWhens(tv.residual, names);
-						if (w) { whens = [...new Set([...gWhens, ...w.whens])]; if (w.near) report.count("task condition: quest state approximated"); }
-						else if (typeof task === "string" || !Object.keys(tk).some((k) => k !== "condition" && k !== "color")) {
-							// Text: shown whatever the state.
-						} else if (localOnly(tv.residual)) report.count("task condition on the step's location state (kept for all)");
-						else { report.count("task condition at runtime Polestar cannot check (kept for all)"); report.note(ctx.name, stepNo, "task condition not carried over", show(tv.residual)); }
+				const isTextTask = typeof task === "string" || !Object.keys(tk).some((k) => k !== "condition" && k !== "color");
+				if (isTextTask) {
+					// Words: for the route's state; of alternatives Polestar cannot tell apart, the first.
+					if (!tk.condition) textTaken = false;
+					else {
+						const c = textCond(tk.condition, groupPairs, ctx);
+						if (c === "no" || (c === "maybe" && textTaken)) continue;
+						if (c === "maybe") textTaken = true;
 					}
-					const only = onlyString(onlyFor(tv.pairs, stepPairs)[0].only);
-					const c = chunk(whens);
-					addTask(task, { c, only, ctx, stepNo, refs, roleNpc, npcPlace, objectPlace, atOf, mapId, setTitle: (t) => { if (!title) title = t; }, eliteTips, format: (f) => { format = Math.max(format, f); }, pairs: tv.pairs, stepPairs, gk, group, merchantHere, trainerOf, wayIn });
+					for (const tv of evaluate(tk.condition, groupPairs, { ...ctx.ev, local: true, route: ctx.route })) {
+						for (const o of onlyFor(tv.pairs, stepPairs)) addTask(task, { c: chunk(gWhens), only: onlyString(o.only), ctx, stepNo, pairs: o.pairs, stepPairs });
+					}
+					continue;
 				}
+				// Who and when for this task, inside the group.
+				const tVariants = evaluate(tk.condition, groupPairs, ctx.ev);
+				for (const tv of tVariants) for (const tWhens of altsOf(tv.residual, ctx, stepNo, "task")) {
+					const whens = [...new Set([...gWhens, ...tWhens])];
+					for (const o of onlyFor(tv.pairs, stepPairs)) {
+						const c = chunk(whens);
+						addTask(task, { c, only: onlyString(o.only), ctx, stepNo, refs, roleNpc, npcPlace, objectPlace, atOf, mapId, setTitle: (t) => { if (!title) title = t; }, eliteTips, format: (f) => { format = Math.max(format, f); }, pairs: o.pairs, stepPairs, gk, group, merchantHere, trainerOf, sellerOf, wayIn });
+					}
+				}
+			}
+			// "Grind to level N" with nothing else to do: Journey's `completed` is the goal.
+			const lv = String(gk.completed || "").match(/^\s*LEVEL\s*>=\s*(\d+)\s*$/);
+			if (lv && !arr(group).some((t) => isTable(t) && !isText(t) && t.kv.npc == null)) {
+				chunk(gWhens).goals.push({ kind: "level", level: Number(lv[1]), only: "" });
+				report.count("group `completed` LEVEL >= N -> level");
+			}
+			if (skippable) {
+				chunks.forEach((c, i) => c.goals.slice(before[i] || 0).forEach((g) => { if (g.kind !== "note" && g.kind !== "goto") g.optional = true; }));
+				report.count("\"Skip This?\" beside goals -> optional");
 			}
 		}
 	});
+	const lv = String(sk.completed || "").match(/^\s*LEVEL\s*>=\s*(\d+)\s*$/);
+	if (lv && !chunks.some((c) => c.goals.some((g) => g.kind !== "note"))) {
+		main.goals.push({ kind: "level", level: Number(lv[1]), only: "" });
+		report.count("step `completed` LEVEL >= N -> level");
+	}
 
 	// Waypoints: checkpoints (doors, a search round), and pins without an NPC.
 	const path = places.filter((p) => p.flags.includes("C") && !p.npc && !p.object);
 	const spots = places.filter((p) => !p.flags.includes("C") && !p.npc && !p.object);
-	// Words of a chunk with no goals of its own go with the step's first goals.
-	const first = chunks.find((c) => c.goals.length) || chunks[0];
-	for (const c of chunks) {
-		if (c === first || c.goals.length) continue;
-		first.tips.push(...c.tips);
-		first.notes.push(...c.notes);
+	// Words of a chunk with no goals of its own go with the next goals (else the last).
+	for (let i = 0; i < chunks.length; i++) {
+		const c = chunks[i];
+		if (c.goals.length || c.along.length) continue;
+		const to = chunks.slice(i + 1).find((x) => x.goals.length) || [...chunks.slice(0, i)].reverse().find((x) => x.goals.length);
+		if (!to) continue;
+		to.tips.unshift(...c.tips);
+		to.notes.unshift(...c.notes);
 		c.tips = [];
 		c.notes = [];
 	}
+	const first = chunks.find((c) => c.goals.length) || chunks[0];
 
 	const steps = [];
 	const base = (c) => ({
@@ -318,12 +438,13 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 		}
 		if (!s.goals.length) {
 			// Words only: kept as a task the player ticks.
-			s.goals = [{ kind: "task", text: (s.tips[0] || s.notes[0]).slice(0, 200), only: "" }];
+			s.goals = [{ kind: "task", text: s.tips[0] || s.notes[0], only: "" }];
 			s.tips = s.tips.slice(1);
 			s.format = Math.max(s.format, 5);
 			report.count("text-only step -> task");
 		}
-		s.title = title || (s.tips[0] ? s.tips[0].slice(0, 60) : null);
+		s.tips = [...new Set(s.tips)];
+		s.title = title || (s.tips[0] ? titleOf(s.tips[0]) : null);
 		steps.push(s);
 	}
 	return steps;
@@ -393,6 +514,7 @@ function addTask(task, t) {
 		const q = data.quests[id];
 		if (!q) { report.count(`${kind}: quest unknown to the data (dropped)`); report.note(ctx.name, stepNo, `quest ${id} unknown to Polestar's data; ${kind} left out`); return; }
 		if (kind === "accept") ctx.seen.add(id);
+		else ctx.turned.add(id);
 		t.setTitle(q.title);
 		const ends = kind === "accept" ? q.start : q.end;
 		if (questEndPlaced(data, ends)) goal({ kind, quest: id, optional });
@@ -428,12 +550,21 @@ function addTask(task, t) {
 		const qid = k.questid != null ? Number(k.questid) : null;
 		const opt = optional || (typeof k.completed === "string" && /MONEY/.test(k.completed)) ? true : undefined;
 		const itemName = data.items[item] ? undefined : entityName(ctx, "item", item);
+		// Picked up before the quest is taken: counted in the bags.
+		if (qid && data.quests[qid] && !ctx.seen.has(qid)) {
+			const seller = t.sellerOf(item);
+			goal(seller ? { kind: "buy", item, itemName, count, npc: seller, optional: opt } : { kind: "collect", item, itemName, count, optional: opt });
+			report.count("getitem before its quest is taken -> bag count");
+			return;
+		}
 		if (qid && data.quests[qid]) {
 			const objs = data.quests[qid].objectives || [];
 			const oi = objs.findIndex((o) => o.type === "item" && o.id === item);
+			const seller = t.sellerOf(item);
+			if (oi >= 0 && seller) { goal({ kind: "buy", item, itemName, count: objs[oi].count || count, npc: seller, optional: opt }); report.count("getitem a vendor of the step sells -> buy"); return; }
 			if (oi >= 0) { goal({ kind: "collect", item, itemName, quest: qid, oi: oi + 1, optional: opt }); return; }
 		}
-		const vendor = roleNpc("vendor");
+		const vendor = t.sellerOf(item) || roleNpc("vendor");
 		const sold = data.items[item] && (data.items[item].vendors || []).length;
 		if (sold && (vendor || t.merchantHere)) {
 			goal({ kind: "buy", item, itemName, count, npc: vendor && (data.items[item].vendors || []).includes(vendor) ? vendor : undefined, optional: opt });
@@ -445,7 +576,7 @@ function addTask(task, t) {
 		const m = nameOf(k.merchant);
 		if (VENDOR_KINDS.has(m)) {
 			const npc = roleNpc(m === "REPAIRS" ? "repair" : "vendor") || roleNpc("vendor");
-			goal({ kind: "vendor", npc: npc || undefined, optional });
+			goal({ kind: "vendor", npc: npc || undefined, optional, comment: m === "SUPPLIES" ? "resupply: food and drink" : "repair and resupply" });
 			report.count(npc ? `merchant ${m} -> vendor <npc>` : `merchant ${m} -> vendor nearest`);
 		} else if (m === "TALENTS") {
 			// Each class at its own trainer, where the step names one.
@@ -532,34 +663,100 @@ function isText(t) {
 	return Object.keys(t.kv).every((k) => TEXT_KEYS.has(k));
 }
 
+// A runtime value Polestar cannot check, as the route's normal case: Journey's
+// own markers (`VAR.X`) are set once a step before this one has set them on
+// completion; the rest per normalCase. -> value or undefined (left as is).
+function assume(ctx, name, keys) {
+	const root = name.split(".")[0];
+	let v;
+	if (root === "VAR") v = ctx.varsSet.has(name);
+	else v = normalCase(root);
+	if (v !== undefined) {
+		if (!ctx.assumed.has(root)) ctx.assumed.set(root, new Set());
+		ctx.assumed.get(root).add(ctx.stepNo);
+	}
+	return v;
+}
+
 export function convertGuide(info, guide, data, opts) {
 	const { report, slug, packId, names } = opts;
 	const faction = info.faction === "Alliance" || info.faction === "Horde" ? info.faction : null;
 	const universe = pairsOf(data, faction);
 	const ctx = {
 		data, names, report, universe, faction, fixed: opts.fixed || {}, name: info.description || info.guideID,
-		seen: new Set(opts.before || []), native: opts.native || new Set(), jumps: new Set(), lastMap: Number(info.zone) || null, bind: null,
+		seen: new Set(opts.before || []), turned: new Set(),
+		// Where the route stands, for texts: taken 1, handed in 3, else 0.
+		route: (q) => (ctx.turned.has(q) ? 3 : ctx.seen.has(q) ? 1 : 0),
+		// Conditions read with Forever's fixed names and its quests.
+		ev: { fixed: opts.fixed || {}, questKnown: (id) => !!data.quests[id], assume: (name, keys) => assume(ctx, name, keys) },
+		varsSet: new Set(), assumed: new Map(), native: opts.native || new Set(), jumps: new Set(), lastMap: Number(info.zone) || null, bind: null,
 	};
 	// Where the guide's buttons lead on ("Go to 6-12 ..."): its hand-offs, the last
 	// one first. A button shown only when the guide is finished counts.
 	const jumpFixed = { ...ctx.fixed, COMPLETEONSTART: true, INCOMPLETEONSTART: false };
 	for (const st of arr(guide)) {
-		if (!isTable(st) || !evaluate(kv(st).condition, universe, { fixed: jumpFixed, local: true }).length) continue;
+		if (!isTable(st) || !evaluate(kv(st).condition, universe, { ...ctx.ev, fixed: jumpFixed, local: true }).length) continue;
 		for (const g of arr(st)) for (const t of arr(g)) {
 			if (!isTable(t) || t.kv.guide == null) continue;
-			if (evaluate(t.kv.condition, universe, { fixed: jumpFixed, local: true }).length) ctx.jumps.add(String(t.kv.guide));
+			if (evaluate(t.kv.condition, universe, { ...ctx.ev, fixed: jumpFixed, local: true }).length) ctx.jumps.add(String(t.kv.guide));
 		}
 	}
 	const steps = [];
 	arr(guide).forEach((st, i) => {
 		if (!isTable(st)) return;
+		ctx.stepNo = i + 1;
 		for (const s of buildStep(st, i + 1, ctx)) steps.push(s);
+		// Markers this step sets when done (`oncomplete = "VAR.X = true"`) hold from here on.
+		for (const node of [st, ...arr(st)]) {
+			for (const m of String(kv(node).oncomplete || "").matchAll(/(VAR\.[A-Za-z0-9_]+)\s*=\s*true/g)) ctx.varsSet.add(m[1]);
+		}
 	});
 	// A goal for a quest this guide has not accepted by then: its own step, only
 	// while the quest is in the log.
 	const accepted = new Set(opts.before || []);
 	const out = [];
-	for (const s of steps) {
+	const turned = new Set();
+	const doneAlready = (x) => {
+		// A copy for "already handed in" whose work is all about those quests: nothing left to do.
+		const done = x.whens.map((w) => (w.match(/^turnedin (\d+)$/) || [])[1]).filter(Boolean).map(Number);
+		const work = x.goals.filter((g) => g.kind !== "goto" && g.kind !== "note");
+		return done.length && work.length && work.every((g) => done.includes(g.quest));
+	};
+	const live = steps.filter((x) => {
+		if (!consistent(x.whens)) { report.count("step whose `when` lists contradict (no character sees it, dropped)"); return false; }
+		if (doneAlready(x)) { report.count("step for quests already handed in (dropped)"); return false; }
+		return true;
+	});
+	let carry = [];
+	for (const s0 of live) {
+		const s = { ...s0, goals: [] };
+		for (const g of s0.goals) {
+			const q = g.quest != null ? data.quests[g.quest] : null;
+			// A turn-in of a quest the route has handed in already (a slip in the source).
+			if (g.kind === "turnin" && turned.has(g.quest) && !s.whens.length && !g.only) {
+				report.count("turn-in of a quest already handed in (dropped)");
+				report.note(ctx.name, s.stepNo, `turnin ${g.quest} again after it was handed in; left out (check the source)`);
+				continue;
+			}
+			// An accept whose prerequisite the route has taken but not handed in, at the
+			// NPC that ends it: the hand-in the source leaves out.
+			if (g.kind === "accept" && q) {
+				const startNpcs = (q.start && q.start.npc) || [];
+				for (const pre of [...(q.preAll || []), ...(q.pre || [])]) {
+					const p = data.quests[pre];
+					if (!p || !accepted.has(pre) || turned.has(pre) || s.goals.some((x) => x.kind === "turnin" && x.quest === pre)) continue;
+					if (!((p.end && p.end.npc) || []).some((n) => startNpcs.includes(n))) continue;
+					s.goals.push({ kind: "turnin", quest: pre, only: g.only });
+					turned.add(pre);
+					report.count("turn-in of a prerequisite the source leaves out (added)");
+				}
+			}
+			if (g.kind === "turnin" && !s.whens.length && !g.only) turned.add(g.quest);
+			s.goals.push(g);
+		}
+		// Words of a step left with no goals go with the next one.
+		if (carry.length) { s.tips = [...carry, ...s.tips]; carry = []; }
+		if (!s.goals.some((g) => g.kind !== "note")) { carry = [...s.tips, ...s.goals.map((g) => g.text).filter(Boolean)]; continue; }
 		// In the step's order: a turn-in after its accept in the same step is fine.
 		const lost = [], rest = [];
 		for (const g of s.goals) {
@@ -572,7 +769,8 @@ export function convertGuide(info, guide, data, opts) {
 		report.count(`goals for quests not accepted before -> when onquest (${lost.length})`);
 		const work = rest.some((g) => g.kind !== "goto");
 		if (work) out.push({ ...s, goals: rest });
-		out.push({ ...s, goals: work ? lost : [...rest, ...lost], whens: [...s.whens, `onquest ${ids.join(",")}`], tips: work ? [] : s.tips });
+		const whens = [...s.whens, `onquest ${ids.join(",")}`];
+		if (ids.length > 1 || consistent(whens)) out.push({ ...s, goals: work ? lost : [...rest, ...lost], whens, tips: work ? [] : s.tips });
 	}
 
 	const title = String(info.description || "").replace(/^\d+-\d+\s+/, "") || info.guideID;
@@ -580,11 +778,11 @@ export function convertGuide(info, guide, data, opts) {
 	let races = [];
 	if (String(info.levels || "").startsWith("1-") && info.recommended) {
 		const set = new Set();
-		for (const v of evaluate(info.recommended, universe, { fixed: ctx.fixed })) for (const p of v.pairs) set.add(RACE_NAMES[p.race]);
+		for (const v of evaluate(info.recommended, universe, ctx.ev)) for (const p of v.pairs) set.add(RACE_NAMES[p.race]);
 		if (set.size && set.size < new Set(universe.map((p) => p.race)).size) races = [...set];
 	}
 	// A guide for some classes only (the catalog's condition).
-	const who = evaluate(info.condition, universe, { fixed: ctx.fixed });
+	const who = evaluate(info.condition, universe, ctx.ev);
 	const classes = who.length === 1 && who[0].only.class ? who[0].only.class : null;
 	const ir = {
 		name: ctx.name,
@@ -600,6 +798,7 @@ export function convertGuide(info, guide, data, opts) {
 		sourceSteps: arr(guide).length,
 		steps: out,
 	};
+	for (const [k, steps] of ctx.assumed) report.count(`steps with a condition on ${k} read as the route's normal case`, steps.size);
 	const r = render(ir, { report, slug, packId, next: opts.next || [] });
 	return { ...r, jumps: [...ctx.jumps].reverse(), accepted };
 }
