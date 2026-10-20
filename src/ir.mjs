@@ -26,7 +26,9 @@
 //   interact {object, quest, oi}  buy {item, itemName?, count, npc?}  (no npc: nearest)
 //   vendor {npc?}  train {npc?|class|profession, comment?}  use {item}
 //   level {level, xp?}  skill {skill, n}  task {text}  note {text}
-//   abandon {quest}  destroy {item}  goto {x, y, live, text?}
+//   abandon {quest}  destroy {item}  goto {x, y, live, map?, r?, text?}
+//   sethome {location?} (none: the nearest inn)  hearth {location}  getfp {location}  fly {location}
+// Any goal may carry `group: N | true` (needs a group).
 // `at` = {x, y, live, map?}: where the goal is, when the data does not know; `map`
 // when it is not the step's zone.
 
@@ -58,7 +60,9 @@ export function goalText(g) {
 		case "task": case "note": return `${g.kind} ${q(g.text)}`;
 		case "abandon": return `abandon ${g.quest}`;
 		case "destroy": return `destroy ${g.item}`;
-		case "goto": return `goto ${g.x},${g.y}${g.live ? "" : " era"}${g.text ? " " + q(g.text) : ""}`;
+		case "goto": return `goto ${g.x},${g.y}${g.text ? " " + q(g.text) : ""}${g.map != null ? " map " + g.map : ""}${g.r ? " r " + g.r : ""}${g.live ? "" : " era"}`;
+		case "sethome": return g.location ? `sethome ${q(g.location)}` : "sethome nearest";
+		case "hearth": case "getfp": case "fly": return `${g.kind} ${q(g.location)}`;
 		default: throw new Error(`unknown goal kind ${g.kind}`);
 	}
 }

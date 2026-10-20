@@ -4,6 +4,9 @@
 import { onlyText } from "./cond.mjs";
 import { goalText } from "./ir.mjs";
 
+// Polestar reads " -- " as the start of a comment, allowed on goal lines only.
+const free = (text) => String(text).replace(/\s--\s/g, " - ");
+
 export function render(guide, { report, slug, packId, next }) {
 	const steps = guide.steps;
 	// `along until <label>` waits for the next step so labelled. A source may
@@ -42,7 +45,7 @@ export function render(guide, { report, slug, packId, next }) {
 
 	steps.forEach((s, i) => {
 		format = Math.max(format, s.format);
-		out.push(`step${s.title ? " " + s.title.slice(0, 60) : ""}`);
+		out.push(`step${s.title ? " " + free(s.title.slice(0, 60)) : ""}`);
 		const only = onlyText(s.only);
 		if (only) out.push(`  only ${only}`);
 		for (const w of s.whens || []) out.push(`  when ${w}`);
@@ -64,18 +67,19 @@ export function render(guide, { report, slug, packId, next }) {
 			else if (waitsFor[i] >= 0) { out.push(`  along until ${labelName[waitsFor[i]]}`); along = true; format = Math.max(format, 4); }
 		}
 		if (waited.has(i)) out.push(`  label ${labelName[i]}`);
-		for (const t of s.tips.slice(0, 2)) if (t !== s.title) out.push(`  tip ${t}`);
+		for (const t of s.tips) if (t !== s.title) out.push(`  tip ${free(t)}`);
 		const loopable = s.goals.some((g) => ["kill", "collect", "interact"].includes(g.kind) && !g.at);
 		if (s.loop.length >= 2 && loopable) { out.push("  loop"); for (const g of s.loop) out.push(`  goto ${g.x},${g.y}${g.live ? "" : " era"}`); }
 		const optional = s.completesWith && !along && !s.goals.every((g) => ["money", "note"].includes(g.kind));
 		for (const g of s.goals) {
 			let line = `  ${goalText(g)}`;
+			if (g.group) line += g.group === true ? " group" : ` group ${g.group}`;
 			if (g.only) line += ` only ${g.only}`;
 			if ((optional || g.optional) && !["note", "task"].includes(g.kind)) line += " optional";
 			if (g.comment) line += ` -- ${g.comment}`;
 			out.push(line);
 		}
-		for (const n of s.notes.slice(0, 2)) out.push(`  note ${n}`);
+		for (const n of s.notes) out.push(`  note ${free(n)}`);
 		out.push("");
 	});
 	report.count("steps in: " + guide.sourceSteps, 0);

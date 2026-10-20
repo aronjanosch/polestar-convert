@@ -5,18 +5,33 @@
 
 import { parseCondition, onlyText, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
-import { worldToZone, zoneName, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf } from "../data.mjs";
+import { worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
 import { render } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 
 const IGNORED = new Set([
-	"target", "mob", "unitscan", "itemcount", "isOnQuest", "isQuestTurnedIn", "isQuestComplete", "cooldown", "macro", "timer",
+	"target", "mob", "unitscan", "itemcount", "cooldown", "macro", "timer",
 	"skipgossip", "skipgossipid", "zoneskip", "subzone", "subzoneskip", "maxlevel", "disablecheckbox", "is", "item", "addquestitem",
-	"bindlocation", "trainer", "dungeon", "itemStat", "zone", "isQuestAvailable",
+	"bindlocation", "trainer", "dungeon", "itemStat", "zone", "link", "line", "solo",
 ]);
-const TASKS = new Set(["hs", "home", "fp", "deathskip", "abandon", "destroy", "cast", "equip"]);
+const TASKS = new Set(["hs", "home", "fp", "fly", "deathskip", "abandon", "destroy", "cast", "equip", "usespell", "bankdeposit", "bankwithdraw"]);
+// A label as Polestar takes it: letters, digits, `-` and `_`.
+const labelOf = (text) => String(text || "").trim().replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || null;
+// RXP's quest conditions on a step -> Polestar's `when` predicate and its `!`.
+// RXP skips the step unless one of the quests named holds.
+const WHEN_OF = {
+	isOnQuest: ["onquest", false], isNotOnQuest: ["onquest", true],
+	isQuestTurnedIn: ["turnedin", false], isQuestComplete: ["complete", false],
+	isQuestNotComplete: ["complete", true], isQuestAvailable: ["available", false],
+};
+// Goals Polestar checks off in an `along` step (not tasks, gotos or visits).
+const ALONG_KINDS = new Set(["kill", "collect", "complete", "buy", "accept", "turnin", "note"]);
+const GROUP_KINDS = new Set(["accept", "turnin", "complete", "kill", "collect", "interact", "use"]);
 const PROFESSIONS = new Set(["Mining", "Herbalism", "Skinning", "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Leatherworking", "Tailoring", "First Aid", "Cooking", "Fishing"]);
-const DROP_TAGS = new Set(["hardcore", "ssf", "ah"]);
+// RXP's variant tags: `#hardcore` steps only in hardcore mode; `#ssf` (buy at a
+// vendor) or `#ah` (look at the auction house) by RXP's self-found setting, off
+// by default, as here unless `selfFound`.
+const dropTags = (selfFound) => new Set(["hardcore", selfFound ? "ah" : "ssf"]);
 
 
 function parseGoto(args, data, ctx) {
@@ -32,7 +47,8 @@ function parseGoto(args, data, ctx) {
 		if (!z) { ctx.report.count("goto: map without frame"); return null; }
 		return { uiMap, x: z.x, y: z.y, live: z.live, r: parts[3] != null ? parseFloat(parts[3]) : null };
 	}
-	return { uiMap: null, x, y, live: false, r: parts[3] != null ? parseFloat(parts[3]) : null, zoneText: mapPart };
+	// Zone percentages on the map RXP names, in the Era frame RXP writes them in.
+	return { uiMap: zoneIdNamed(data, mapPart), x, y, live: false, r: parts[3] != null ? parseFloat(parts[3]) : null, zoneText: mapPart };
 }
 
 function normName(text) {
@@ -78,12 +94,12 @@ function buildStep(step, stepNo, data, ctx) {
 	if (cond.never) { report.count("step: impossible condition (dropped)"); return null; }
 
 	for (const t of step.tags) {
-		if (DROP_TAGS.has(t.name)) { report.count(`step: #${t.name} variant (dropped)`); return null; }
+		if (ctx.drop.has(t.name)) { report.count(`step: #${t.name} variant (dropped)`); return null; }
 	}
 	const tag = (n) => step.tags.find((t) => t.name === n);
 	const completewith = tag("completewith");
 	const isLoop = !!tag("loop");
-	const labelDef = tag("label") ? tag("label").args : null;
+	const labelDef = tag("label") ? labelOf(tag("label").args) : null;
 	for (const t of step.tags) {
 		if (!["completewith", "label", "loop", "softcore", "optional"].includes(t.name)) report.count(`tag #${t.name} (ignored)`);
 	}
@@ -93,7 +109,7 @@ function buildStep(step, stepNo, data, ctx) {
 	const targets = [];
 	let buyText = false;
 	for (const l of step.lines) {
-		if (l.kind === "cmd" && l.name === "goto") {
+		if (l.kind === "cmd" && (l.name === "goto" || l.name === "waypoint")) {
 			const g = parseGoto(l.args, data, ctx);
 			if (g) { g.cond = l.cond; gotos.push(g); }
 		} else if (l.kind === "cmd" && l.name === "target") {
@@ -161,6 +177,7 @@ function buildStep(step, stepNo, data, ctx) {
 	let title = null;
 	let formatNeeds = 4;
 	let closed = 0;
+	let group = null;
 	const add = (goal, lineCond) => {
 		const lc = parseCondition(lineCond);
 		const mine = {};
@@ -255,7 +272,11 @@ function buildStep(step, stepNo, data, ctx) {
 			const itemId = Number(item);
 			const known = data.items[itemId];
 			const itemName = known ? undefined : plain(l.comment || l.text || "item " + itemId);
-			if (buyText) {
+			if (buyText && !npcFor("vendor") && !((known || {}).vendors || []).length) {
+				// No vendor sells it: bought at the auction house, so the bag counts.
+				add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
+				report.count("buy without a vendor (auction house) -> collect");
+			} else if (buyText) {
 				const npc = npcFor("vendor");
 				add({ kind: "buy", item: itemId, itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
 				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", l.comment || "");
@@ -277,9 +298,11 @@ function buildStep(step, stepNo, data, ctx) {
 			// "Train [Mining]": a profession has its own trainers, not the class trainer.
 			const prof = (note.match(/\[([^\]]+)\]/) || [])[1];
 			if (prof && PROFESSIONS.has(prof)) {
+				// Polestar finds a profession's trainer by its own data; without that, the one RXP targets.
 				const pnpc = npcFor("trainer");
-				add({ kind: "train", profession: prof, npc: pnpc ? pnpc.id : undefined }, l.cond);
-				report.count(".train profession -> train <Profession>");
+				if (pnpc || data.hasProfessions) add({ kind: "train", profession: prof, npc: pnpc ? pnpc.id : undefined }, l.cond);
+				else { add({ kind: "task", text: note }, l.cond); formatNeeds = 5; }
+				report.count(pnpc || data.hasProfessions ? ".train profession -> train <Profession>" : ".train profession, trainer unknown -> task");
 				continue;
 			}
 			const npc = npcFor("trainer");
@@ -321,6 +344,32 @@ function buildStep(step, stepNo, data, ctx) {
 			// Counting the character's money does not hold up in play (selling junk, repairs):
 			// RXP's step is ticked by the player, so the goal is dropped and the text stays.
 			report.count(".money (dropped: not a reliable goal)");
+		} else if (n === "fp" && flightNamed(data, String(l.args || "").trim() || (plain(l.text).match(/Get the (.+?) flight path/i) || [])[1], ctx.faction, firstPt)) {
+			add({ kind: "getfp", location: flightNamed(data, String(l.args || "").trim() || (plain(l.text).match(/Get the (.+?) flight path/i) || [])[1], ctx.faction, firstPt) }, l.cond);
+			report.count(".fp -> getfp");
+		} else if (WHEN_OF[n]) {
+			const [kind, neg] = WHEN_OF[n];
+			const ids = String(l.args).split(",").map((x) => Number(x.trim())).filter((x) => x > 0);
+			if (l.cond || !ids.length) report.count(`.${n} on a class line or without ids (ignored)`);
+			else if (kind === "onquest" || ids.length === 1) { whens.push(`${neg ? "!" : ""}${kind} ${ids.join(",")}`); report.count(`.${n} -> when ${neg ? "!" : ""}${kind}`); }
+			else report.count(`.${n} with several quests (Polestar takes one; ignored)`);
+		} else if (n === "fly" && flightNamed(data, String(l.args || "").trim(), ctx.faction, firstPt)) {
+			add({ kind: "fly", location: flightNamed(data, String(l.args || "").trim(), ctx.faction, firstPt) }, l.cond);
+			report.count(".fly -> fly");
+		} else if (n === "group") {
+			// The step needs a group (of N): shown on its quest work.
+			group = Number(l.args) >= 2 ? Number(l.args) : true;
+			report.count(".group -> group");
+		} else if (n === "home") {
+			const inn = innNamed(data, (plain(l.text).match(/Hearthstone to (.+?)\.?$/i) || [])[1] || String(l.args || "").trim(), firstPt);
+			add({ kind: "sethome", location: inn ? inn.location : undefined }, l.cond);
+			ctx.bind = inn ? inn.location : null;
+			report.count(inn ? ".home -> sethome" : ".home -> sethome nearest");
+		} else if (n === "hs" && ((plain(l.text).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1] || ctx.bind)) {
+			const name = (plain(l.text).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1];
+			const inn = name ? innNamed(data, name, null) : null;
+			add({ kind: "hearth", location: inn ? inn.location : name || ctx.bind }, l.cond);
+			report.count(".hs -> hearth");
 		} else if (ctx.native.has(n) && nativeGoal(n, l, data)) {
 			// A verb Polestar has gained (abandon, destroy): the goal checks itself instead of a tick.
 			const g = nativeGoal(n, l, data);
@@ -333,7 +382,7 @@ function buildStep(step, stepNo, data, ctx) {
 			add({ kind: "task", text: t }, l.cond);
 			formatNeeds = 5;
 			report.count(`.${n} -> task`);
-		} else if (n === "goto") {
+		} else if (n === "goto" || n === "waypoint") {
 			// handled below
 		} else if (IGNORED.has(n)) {
 			report.count(`.${n} (ignored)`);
@@ -343,20 +392,33 @@ function buildStep(step, stepNo, data, ctx) {
 		}
 	}
 
-	if (goals.length && goals.every((g) => g.kind === "note")) {
+	if (!completewith && goals.length && goals.every((g) => g.kind === "note")) {
 		for (const g of goals) g.kind = "task";
 		formatNeeds = 5;
 		report.count("instruction-only step -> task");
 	}
-	const placeable = gotos.filter((g) => g.r !== 0 || gotos.length === 1);
+	// Loop points in one map frame, as Polestar wants them.
+	const placeable = gotos.filter((g) => (g.r !== 0 || gotos.length === 1) && g.live === (gotos[0] || {}).live);
 
 	if (!goals.length && closed) {
 		report.count("step: every goal closed to these races (dropped)");
 		return null;
 	}
-	// A step of walking only: RXP's waypoints, nothing to tick.
+	// A step done along the way (`#completewith`): its waypoints are the way to the
+	// next step, and its text is shown beside the steps it runs alongside.
+	if (completewith) {
+		const only = onlyText(cond.only);
+		for (const g of gotos) if (g.uiMap) ctx.path.push({ ...g, only });
+		if (!goals.length && (tips.length || notes.length)) {
+			for (const t of [...tips, ...notes]) goals.push({ kind: "note", text: t, only: "" });
+			if (!title) title = tips[0] || notes[0];
+			tips.length = 0;
+			notes.length = 0;
+			report.count("along text -> note beside the next steps");
+		}
+	}
 	if (!goals.length && (completewith || (!notes.length && !gotos.length))) {
-		if (gotos.length || tips.length || notes.length) report.count("step: waypoints/text only (dropped)");
+		if (gotos.length || tips.length || notes.length) report.count("step: waypoints only (kept as the way into the next step)");
 		return null;
 	}
 	if (!goals.length && !notes.length && gotos.length) {
@@ -365,7 +427,14 @@ function buildStep(step, stepNo, data, ctx) {
 		goals.push({ kind: "goto", x: g.x, y: g.y, live: g.live, text: tips[0] ? tips[0].slice(0, 40) : undefined, only: "" });
 	}
 
-	const allAlong = goals.length > 0 && goals.every((g) => ["kill", "collect", "complete", "buy"].includes(g.kind) && /quest \d+\.\d+|xN|buy|complete/.test(g.text + " buy complete"));
+	if (group) for (const g of goals) if (GROUP_KINDS.has(g.kind)) g.group = group;
+	const allAlong = goals.length > 0 && goals.every((g) => ALONG_KINDS.has(g.kind) || ((g.kind === "use" || g.kind === "interact") && g.quest != null));
+	// The way here: the waypoints of the steps done along the way before this one.
+	if (!completewith && !isLoop && ctx.path.length) {
+		goals.unshift(...ctx.path.map((p) => ({ kind: "goto", x: p.x, y: p.y, live: p.live, map: p.uiMap, r: p.r > 0 ? p.r : undefined, only: p.only })));
+		report.count("waypoints -> path into the next step", ctx.path.length);
+		ctx.path = [];
+	}
 	// A goal the data places (giver, vendor, trainer) sits where RXP's own .goto points.
 	if (!usedMaps.length && mapId && goals.some((g) => ["accept", "turnin", "vendor", "train", "buy", "complete"].includes(g.kind))) usedMaps.push(mapId);
 	const orphanOf = (g) => {
@@ -375,7 +444,7 @@ function buildStep(step, stepNo, data, ctx) {
 	const orphanGoals = goals.filter((g) => orphanOf(g));
 	const base = {
 		stepNo, title: title || tips[0] || notes[0] || null, only: cond.only, goals, tips: [...eliteTips, ...tips], notes, whens, maps: usedMaps, loop: isLoop ? placeable : [],
-		completesWith: completewith ? completewith.args : null, label: labelDef, format: formatNeeds, allAlong,
+		completesWith: completewith ? (completewith.args.trim() === "next" ? "next" : labelOf(completewith.args)) : null, label: labelDef, format: formatNeeds, allAlong,
 	};
 	if (!orphanGoals.length) return [base];
 	// A quest taken up in an earlier file (or left out of this one): its goals go
@@ -434,7 +503,7 @@ export function convertGuide(parsed, data, opts) {
 	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
 	const faction = hc.faction ? hc.faction[0] : null;
 	const races = hc.race || df.race || [];
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, seen: new Set(before), native: opts.native || new Set(), faction, races, loose: new Set(), lastPlace: null };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, seen: new Set(before), native: opts.native || new Set(), faction, races, loose: new Set(), lastPlace: null, path: [], bind: null, drop: dropTags(opts.selfFound) };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
@@ -446,7 +515,13 @@ export function convertGuide(parsed, data, opts) {
 			const m = l.args.match(/^(\d+)\//);
 			if (m) { defaultMap = Number(m[1]); return zoneName(data, defaultMap); }
 		}
-		return info.zone;
+		const named = zoneIdNamed(data, info.zone);
+		if (named) defaultMap = named;
+		if (named) return zoneName(data, named);
+		// Else the zone of the first step that is somewhere.
+		const first = steps.find((s) => (s.maps || []).length);
+		if (first) defaultMap = first.maps[0];
+		return first ? zoneName(data, first.maps[0]) : null;
 	})();
 	const guide = {
 		name: parsed.header.name || slug,

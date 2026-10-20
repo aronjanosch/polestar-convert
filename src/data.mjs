@@ -34,7 +34,13 @@ export function loadData(polestarDir) {
 		if (!npcByName.has(key)) npcByName.set(key, []);
 		npcByName.get(key).push(npc);
 	}
-	return { quests, npcs, zones, frames, items, races, objects, journal, npcByName };
+	// Inns and flight points (`polestar travel build`), when built.
+	const tf = join(dir, "travel.json");
+	const travel = existsSync(tf) ? JSON.parse(readFileSync(tf, "utf8")) : null;
+	const inns = travel ? travel.inns || [] : [];
+	const flights = travel && travel.taxi ? travel.taxi.nodes || [] : [];
+	const hasProfessions = existsSync(join(dir, "professions.json"));
+	return { quests, npcs, zones, frames, items, races, objects, journal, inns, flights, hasProfessions, npcByName };
 }
 
 // The elite a goal needs, by name, or null: a `kill` of an elite (rank 1-3:
@@ -49,6 +55,34 @@ export function eliteOf(data, goal) {
 	if (!drops || Object.keys(drops.object || {}).length || (it.vendors || []).length) return null;
 	const from = Object.keys(drops.npc || {}).map(Number);
 	return from.length && from.every(elite) ? data.npcs[from[0]].name : null;
+}
+
+const near = (pt) => (o) => (pt && o.map === pt.uiMap ? Math.hypot(o.x - pt.x, o.y - pt.y) : 1e9);
+const closest = (list, pt) => [...list].sort((a, b) => near(pt)(a) - near(pt)(b))[0] || null;
+
+// The inn RXP names ("Southshore", or a zone: "Desolace"), nearest to `pt`
+// when several fit; null when none does.
+export function innNamed(data, name, pt) {
+	const want = String(name || "").trim().toLowerCase();
+	if (!want) return null;
+	const byName = data.inns.filter((i) => i.location.toLowerCase() === want || (i.names || []).some((n) => n.toLowerCase() === want));
+	if (byName.length) return closest(byName, pt);
+	const zoneIds = Object.entries(data.zones).filter(([, z]) => String(z.name).toLowerCase() === want).map(([id]) => Number(id));
+	return closest(data.inns.filter((i) => zoneIds.includes(i.map)), pt);
+}
+
+// The flight point RXP names ("Crossroads", "Redridge Mountains", "Azshara")
+// for `faction`: by its short name, full name or zone; nearest to `pt` when
+// several fit. -> its short name (what `getfp` takes) or null.
+export function flightNamed(data, name, faction, pt) {
+	const want = String(name || "").trim().toLowerCase();
+	const side = faction === "Alliance" ? 1 : faction === "Horde" ? 2 : null;
+	const mine = data.flights.filter((n) => !side || n.faction === side || n.faction === 3);
+	const zoneOf = (n) => String((data.zones[n.map] || {}).name || "").toLowerCase();
+	const hits = mine.filter((n) => n.short.toLowerCase() === want || n.name.toLowerCase() === want || n.name.toLowerCase().startsWith(want + ","))
+		.concat(mine.filter((n) => zoneOf(n) === want));
+	const hit = hits.length ? (hits[0].short.toLowerCase() === want ? hits[0] : closest(hits, pt)) : null;
+	return hit ? hit.short : null;
 }
 
 // Whether the data places the NPC or object a quest starts or ends at
@@ -96,6 +130,14 @@ export function worldToZone(data, uiMap, x, y) {
 }
 
 function round(v) { return Math.round(v * 100) / 100; }
+
+// The uiMapID of a zone RXP names ("Tirisfal Glades,30.2,71.7"): one with a map frame.
+export function zoneIdNamed(data, name) {
+	const want = String(name || "").trim().toLowerCase();
+	const framed = (id) => (data.frames.era || {})[id] || (data.frames.forever || {})[id];
+	const hits = Object.entries(data.zones).filter(([id, z]) => String(z.name).toLowerCase() === want && framed(id)).map(([id]) => Number(id));
+	return hits.length ? hits[0] : null;
+}
 
 export function zoneName(data, uiMap) {
 	const z = data.zones[uiMap];

@@ -94,6 +94,7 @@ export function plain(text) {
 		.replace(/\|cRXP_[A-Z]+_/g, "")
 		.replace(/\|c[0-9a-fA-F]{8}/g, "")
 		.replace(/\|r/g, "")
+		.replace(/::\d+/g, "")
 		.replace(/\s+/g, " ")
 		.trim();
 }
