@@ -5,7 +5,7 @@ guide pack (WoW: Forever). It ships no guide content: you point it at your own
 install, it writes `.guide` files into your own pack, and Polestar's `lint` and
 `playtest` check the result. Keep the output to yourself.
 
-Status: early. Source adapter: RestedXP (`rxp`). Journey is next.
+Status: early. Source adapters: RestedXP (`rxp`), Journey (`journey`).
 
 ## Use
 
@@ -20,6 +20,15 @@ node polestar-convert/bin/polestar-convert.mjs rxp \
 cd my-pack && node ../polestar/tools/polestar.js lint && node ../polestar/tools/polestar.js playtest
 ```
 
+Journey (all guides of the install's catalog, chained by Journey's own
+"go to the next guide" buttons):
+
+```sh
+node polestar-convert/bin/polestar-convert.mjs journey \
+  --dir "<WoW>/Interface/AddOns/Journey" --polestar polestar --pack my-pack \
+  [--only "1-6 Tirisfal Glades" | --only H01TG] [--native-verbs destroy]
+```
+
 The run prints a report: what was dropped, what became a `task`/`note`, and
 what needs a human look.
 
@@ -31,6 +40,8 @@ src/rxp/convert.mjs  RXP adapter: steps -> intermediate guide (src/ir.mjs)
 src/ir.mjs           the intermediate form and goal text; no source format in it
 src/emit.mjs         intermediate guide -> Polestar .guide text
 src/data.mjs         Polestar's reference data (ids, names, coordinates)
+src/journey/         Journey adapter: decode slots, Lua tables, conditions, steps
+                     (format: JOURNEY-FORMAT.md; IR wishes: JOURNEY-IR-NOTES.md)
 ```
 
 A new source (Journey, Zygor) is an adapter that fills the intermediate form;

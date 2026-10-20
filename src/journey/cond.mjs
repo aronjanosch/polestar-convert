@@ -160,6 +160,14 @@ function compare(c, x, y) {
 	return false;
 }
 
+// Whether a residual depends on the step's own location state only (WITHIN,
+// ACTIVE, ...): words for the way through a step, not for who or when.
+export function localOnly(e) {
+	if (!e || isConst(e)) return true;
+	if (e.op === "name" || e.op === "index") return LOCAL_STATE.has(rootName(e));
+	return ["a", "b"].every((k) => !e[k] || localOnly(e[k]));
+}
+
 export function show(e) {
 	switch (e.op) {
 		case "bool": case "num": return String(e.v);

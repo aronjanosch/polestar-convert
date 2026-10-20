@@ -5,6 +5,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { createRequire } from "node:module";
 
 // Minimal CSV: quoted fields with "" escapes, no newlines inside fields.
 function csvRows(text) {
@@ -50,6 +51,9 @@ export function loadNames(polestarDir, data) {
 	const areas = dir ? table(join(dir, "AreaTable.csv"), "ID", "AreaName_lang") : new Map();
 	const spells = dir ? table(join(dir, "SpellName.csv"), "ID", "Name_lang") : new Map();
 	const nodeById = new Map((data.flights || []).map((n) => [n.id, n]));
+	// XP from one level to the next, as Polestar counts it (tools/lib/game/xp.js).
+	const xpLib = join(polestarDir, "tools", "lib", "game", "xp.js");
+	const levelXp = existsSync(xpLib) ? createRequire(import.meta.url)(xpLib).LEVEL_XP : null;
 	return {
 		area: (id) => areas.get(Number(id)) || null,
 		spell: (id) => spells.get(Number(id)) || null,
@@ -61,5 +65,6 @@ export function loadNames(polestarDir, data) {
 		},
 		// A taxi node by its TaxiNodes id -> { short, name, faction, ... } | null.
 		taxi: (id) => nodeById.get(Number(id)) || null,
+		levelXp: (level) => (levelXp ? levelXp[level] ?? null : null),
 	};
 }

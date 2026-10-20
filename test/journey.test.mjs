@@ -56,7 +56,7 @@ const DATA = {
 	races: { Orc: { Horde: { classes: ["WARRIOR", "SHAMAN"] } }, Troll: { Horde: { classes: ["WARRIOR", "PRIEST"] } } },
 	inns: [], flights: [],
 };
-const NAMES = { area: () => null, spell: () => null, zone: (id) => (DATA.zones[id] || {}).name || null, inn: () => null, taxi: () => null };
+const NAMES = { area: () => null, spell: () => null, zone: (id) => (DATA.zones[id] || {}).name || null, inn: () => null, taxi: () => null, levelXp: () => null };
 const UNIVERSE = [
 	{ cls: "WARRIOR", race: "ORC", faction: "HORDE" }, { cls: "SHAMAN", race: "ORC", faction: "HORDE" },
 	{ cls: "WARRIOR", race: "TROLL", faction: "HORDE" }, { cls: "PRIEST", race: "TROLL", faction: "HORDE" },
