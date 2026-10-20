@@ -286,15 +286,15 @@ function alternative(st, ctx, stepNo) {
 		for (const s of buildVariant(st, stepNo, ctx, v.only, v.pairs, whens)) {
 			if (!s.title && s.tips[0]) s.title = titleOf(s.tips[0]);
 			s.goals = [
-				{ kind: "note", text: `Only if ${why.length ? why.join(" and ") : "Journey's condition holds"}: otherwise skip this step.`, only: "" },
-				...s.goals.map((g) => (g.kind === "note" ? g : { ...g, optional: true })),
+				{ kind: "note", text: `Only if ${why.length ? why.join(" and ") : "Journey's condition holds"}: otherwise use Skip.`, only: "" },
+				...s.goals,
 			];
 			out.push(s);
 		}
 	}
 	if (out.length) {
-		ctx.report.count("step for a state Polestar cannot check -> optional alternative with a note");
-		gap(ctx, "alternative for a state Polestar cannot check (optional)", why.join(", ") || sk.condition);
+		ctx.report.count("step for a state Polestar cannot check -> kept, note: only if ..., else Skip");
+		gap(ctx, "step for a state Polestar cannot check (note: only if ..., else Skip)", why.join(", ") || sk.condition);
 	}
 	return out;
 }
@@ -446,8 +446,11 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 				report.count("group `completed` LEVEL >= N -> level");
 			}
 			if (skippable) {
-				chunks.forEach((c, i) => c.goals.slice(before[i] || 0).forEach((g) => { if (g.kind !== "note" && g.kind !== "goto") g.optional = true; }));
-				report.count("\"Skip This?\" beside goals -> optional");
+				// Journey offers to skip the step; Polestar's Skip does that. Optional goals
+				// would not do: a step of optional goals only is passed at once.
+				const c = chunk(gWhens);
+				if (!c.goals.some((g) => g.kind === "note" && /use Skip/.test(g.text))) c.goals.unshift({ kind: "note", text: "Journey offers to skip this step: use Skip if you want to.", only: "" });
+				report.count("\"Skip This?\" -> note (Polestar's Skip)");
 			}
 		}
 	});
@@ -475,7 +478,7 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 
 	const steps = [];
 	const base = (c) => ({
-		stepNo, title: null, only: stepOnly, whens: [...new Set([...stepWhens, ...c.whens])], goals: c.goals, tips: c.tips, notes: c.notes,
+		stepNo, journeyId: ctx.stepId, title: null, only: stepOnly, whens: [...new Set([...stepWhens, ...c.whens])], goals: c.goals, tips: c.tips, notes: c.notes,
 		// A step with no place of its own keeps the zone it is in.
 		maps: mapId && places.length ? [mapId] : [], loop: [], label: null, completesWith: null, allAlong: false, format,
 	});
@@ -726,10 +729,10 @@ function addTask(task, t) {
 		return;
 	}
 	if (k.button != null) {
-		if (k.goto === "next" && k.optional === true) { report.count("skip button (goals made optional)"); gap(ctx, "skip choice (goals optional)", k.button); return; }
+		if (k.goto === "next" && k.optional === true) { gap(ctx, "skip choice (note: use Skip)", k.button); return; }
 		if (k.guide == null && k.goto == null) { report.count("button without a jump (ignored)"); return; }
 		const skip = /^(skip|i already did|click when done|click for next)/i.test(String(k.button).trim());
-		c.goals.push({ kind: "note", text: skip ? `You may skip this step ("${bare(k.button).replace(/\?$/, "")}" in Journey).` : `Choice in Journey: "${bare(k.button)}".`, only });
+		c.goals.push({ kind: "note", text: skip ? `Journey offers "${bare(k.button).replace(/\?$/, "")}" here: use Skip if it applies.` : `Choice in Journey: "${bare(k.button)}".`, only });
 		report.count("jump button -> note");
 		gap(ctx, "jump the player chooses (note only)", `${k.button} -> ${k.guide ? k.guide + " " : ""}${k.goto || ""}`);
 		return;
@@ -877,6 +880,19 @@ export function convertGuide(info, guide, data, opts) {
 		if (work) out.push({ ...s, goals: rest });
 		const whens = [...s.whens, `onquest ${ids.join(",")}`];
 		if (ids.length > 1 || consistent(whens)) out.push({ ...s, goals: work ? lost : [...rest, ...lost], whens, tips: work ? [] : s.tips });
+	}
+
+	// A step nothing holds (notes and optional goals only) is passed at once:
+	// a manual task keeps it in front of the player until ticked or skipped.
+	for (const s of out) {
+		if (s.goals.some((g) => g.kind !== "note" && !g.optional)) continue;
+		const text = s.tips[0] || (s.goals.find((g) => g.kind === "note") || {}).text || s.title;
+		if (!text) continue;
+		if (s.tips[0] === text) s.tips = s.tips.slice(1);
+		s.goals.push({ kind: "task", text, only: "" });
+		s.format = Math.max(s.format, 5);
+		report.count("step with nothing that holds it -> manual task");
+		ctx.gaps.push({ step: s.journeyId || null, kind: "manual task (nothing Polestar checks)", detail: text.slice(0, 80) });
 	}
 
 	const title = String(info.description || "").replace(/^\d+-\d+\s+/, "") || info.guideID;
