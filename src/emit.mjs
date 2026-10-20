@@ -13,6 +13,7 @@ const IGNORED = new Set([
 	"bindlocation", "trainer", "dungeon", "itemStat", "zone", "isQuestAvailable",
 ]);
 const TASKS = new Set(["hs", "home", "fp", "deathskip", "abandon", "destroy", "cast", "equip"]);
+const PROFESSIONS = new Set(["Mining", "Herbalism", "Skinning", "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Leatherworking", "Tailoring", "First Aid", "Cooking", "Fishing"]);
 const DROP_TAGS = new Set(["hardcore", "ssf", "ah"]);
 
 function bare(text) { return String(text).replace(/"/g, "'"); }
@@ -164,6 +165,7 @@ function buildStep(step, stepNo, data, ctx) {
 		const lineQuestId = Number((l.args.match(/^(\d+)/) || [])[1]);
 		if (n === "accept" || n === "turnin") {
 			const known = data.quests[lineQuestId];
+			if (n === "accept") ctx.seen.add(lineQuestId);
 			if (known) add(`${n} ${lineQuestId}`, l.cond, n);
 			else {
 				const title = plain(l.text).replace(/^(accept|turn in)\s+/i, "");
@@ -192,7 +194,11 @@ function buildStep(step, stepNo, data, ctx) {
 				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", l.comment || "");
 			} else if (qid && data.quests[Number(qid)]) {
 				const hit = resolveObjective(data.quests[Number(qid)], "", itemId);
-				if (hit) add(`collect ${itemId}${name} quest ${qid}.${hit.index}`, l.cond, "collect");
+				// RXP often collects ahead of the accept; Polestar wants the accept first,
+				// so an early pick-up counts the bag instead of the quest objective.
+				const early = !ctx.seen.has(Number(qid)) && ctx.accepted.has(Number(qid));
+				if (early) { add(`collect ${itemId}${name} x${count || (hit && hit.obj.count) || 1}`, l.cond, "collect"); report.count("collect before accept -> bag count"); }
+				else if (hit) add(`collect ${itemId}${name} quest ${qid}.${hit.index}`, l.cond, "collect");
 				else add(`collect ${itemId}${name} x${count || 1}`, l.cond, "collect");
 			} else add(`collect ${itemId}${name} x${count || 1}`, l.cond, "collect");
 		} else if (n === "vendor") {
@@ -200,8 +206,16 @@ function buildStep(step, stepNo, data, ctx) {
 			add(npc ? `vendor ${npc.id}` : "vendor nearest", l.cond, "vendor");
 			if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", plain(l.text));
 		} else if (n === "train") {
-			const npc = npcFor("trainer");
 			const note = plain(l.text);
+			// "Train [Mining]": a profession has its own trainers, not the class trainer.
+			const prof = (note.match(/\[([^\]]+)\]/) || [])[1];
+			if (prof && PROFESSIONS.has(prof)) {
+				const pnpc = npcFor("trainer");
+				add(`train ${PROFESSIONS.size && prof.includes(" ") ? q(prof) : prof}${pnpc ? " npc " + pnpc.id : ""}`, l.cond, "train");
+				report.count(".train profession -> train <Profession>");
+				continue;
+			}
+			const npc = npcFor("trainer");
 			const lineClasses = parseCondition(l.cond).only.class || cond.only.class || CLASSES;
 			if (npc) add(`train ${npc.id}${note ? " -- " + note : ""}`, l.cond, "train");
 			else {
@@ -304,7 +318,7 @@ export function convertGuide(parsed, data, opts) {
 	for (const s of parsed.steps) for (const l of s.lines) {
 		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^(\d+)/) || [])[1]));
 	}
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, seen: opts.seen || new Set() };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
