@@ -5,14 +5,14 @@
 
 import { parseCondition, onlyText, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
-import { worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
+import { goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
 import { render } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 
 const IGNORED = new Set([
 	"target", "mob", "unitscan", "itemcount", "cooldown", "macro", "timer",
 	"skipgossip", "skipgossipid", "subzone", "disablecheckbox", "is", "item", "addquestitem",
-	"trainer", "itemStat", "zone", "link", "line", "solo",
+	"trainer", "itemStat", "zone", "link", "line", "solo", "enabledungeon",
 ]);
 const TASKS = new Set(["hs", "home", "fp", "fly", "deathskip", "abandon", "destroy", "cast", "equip", "usespell", "bankdeposit", "bankwithdraw"]);
 // A label as Polestar takes it: letters, digits, `-` and `_`.
@@ -28,6 +28,7 @@ const WHEN_OF = {
 // accepts or hand-ins: the route passes an along step at once, and a quest not
 // taken then would hold its later goals.
 const ALONG_KINDS = new Set(["kill", "collect", "complete", "buy", "note"]);
+const PLACE_KINDS = new Set(["kill", "collect", "interact", "use", "complete"]);
 const GROUP_KINDS = new Set(["accept", "turnin", "complete", "kill", "collect", "interact", "use"]);
 const PROFESSIONS = new Set(["Mining", "Herbalism", "Skinning", "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Leatherworking", "Tailoring", "First Aid", "Cooking", "Fishing"]);
 // RXP's variant tags: `#hardcore` steps only in hardcore mode; `#ssf` (buy at a
@@ -228,6 +229,12 @@ function buildStep(step, stepNo, data, ctx) {
 		if (quest && goal.kind === "accept" && !preTaken(quest)) {
 			ctx.loose.add(goal.quest);
 			report.count("accept whose prerequisite the guide never takes -> later goals wait for the quest");
+		}
+		// Where the data knows no place for it, the arrow points where RXP sends the player.
+		const here = firstPt && firstPt.uiMap ? firstPt : prevPlace;
+		if (PLACE_KINDS.has(goal.kind) && !goal.at && !isLoop && here && !goalPlaced(data, goal)) {
+			goal = { ...goal, at: at(here) };
+			report.count(`${goal.kind} without a place in the data -> RXP's goto`);
 		}
 		const elite = eliteOf(data, goal);
 		if (elite) {
@@ -552,16 +559,20 @@ function levelsOf(quests, data) {
 
 // Where the guide sits in Polestar's menu: RXP's dungeon quest guides under
 // Dungeons, each other RXP group in a folder of its own ("RXP Forever Dungeon Guide").
-function menuPlace(group) {
+function menuPlace(group, subgroup) {
+	const sub = String(subgroup || "").replace(/<<.*$/, "").trim();
 	const name = String(group || "").replace(/<<.*$/, "").replace(/\(([AH])\)/g, "").replace(/^(RestedXP|RXP)\s+/i, "").replace(/\s+/g, " ").trim();
 	if (!name) return { category: "Leveling" };
 	if (/dungeon quest/i.test(name)) return { category: "Dungeons" };
-	return { category: "Leveling", folder: `RXP ${name}` };
+	return { category: "Leveling", folder: `RXP ${name}${sub ? " · " + sub : ""}` };
 }
 
 export function convertGuide(parsed, data, opts) {
 	const { report, slug, packId } = opts;
-	const info = parseName(parsed.header.name);
+	// RXP's `#displayname` is the name it shows (the name itself can be an internal key).
+	// One with a condition ("<< Paladin") names it for some characters only: not the title.
+	const shown = (parsed.header.flags || []).find((f) => f.startsWith("displayname ") && !f.includes("<<")) || "";
+	const info = parseName(shown.slice("displayname ".length).trim() || parsed.header.name);
 	const titles = new Map();
 	for (const s of parsed.steps) for (const l of s.lines) {
 		if (l.kind === "cmd" && (l.name === "accept" || l.name === "turnin") && l.text) {
@@ -610,7 +621,7 @@ export function convertGuide(parsed, data, opts) {
 		levels: info.levels || levelsOf([...accepted].filter((id) => !before.has(id)), data) || (String(parsed.header.subgroup || "").match(/\b(\d+-\d+)\b/) || [])[1] || null,
 		zone,
 		defaultMap,
-		...menuPlace(parsed.header.group),
+		...menuPlace(parsed.header.group, parsed.header.subgroup),
 		sourceSteps: parsed.steps.length,
 		steps,
 	};

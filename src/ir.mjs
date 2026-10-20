@@ -43,18 +43,18 @@ export function goalText(g) {
 	switch (g.kind) {
 		case "accept": case "turnin": case "complete":
 			return `${g.kind} ${g.quest}${g.title ? " " + q(g.title) : ""}${atText(g.at)}${g.item ? " item " + g.item : ""}`;
-		case "kill": return `kill ${g.npc} quest ${g.quest}.${g.oi}`;
-		case "interact": return `interact ${g.object} quest ${g.quest}.${g.oi}`;
+		case "kill": return `kill ${g.npc} quest ${g.quest}.${g.oi}${atText(g.at)}`;
+		case "interact": return `interact ${g.object} quest ${g.quest}.${g.oi}${atText(g.at)}`;
 		case "collect":
-			if (g.quest != null && g.oi != null) return `collect ${g.item}${nameText(g)} quest ${g.quest}.${g.oi}`;
-			return `collect ${g.item}${nameText(g)} x${g.count || 1}`;
+			if (g.quest != null && g.oi != null) return `collect ${g.item}${nameText(g)} quest ${g.quest}.${g.oi}${atText(g.at)}`;
+			return `collect ${g.item}${nameText(g)} x${g.count || 1}${atText(g.at)}`;
 		case "buy": return `buy ${g.item}${nameText(g)} x${g.count || 1} ${g.npc ? "npc " + g.npc : "nearest"}`;
 		case "vendor": return g.npc ? `vendor ${g.npc}` : "vendor nearest";
 		case "train":
 			if (g.profession) return `train ${g.profession.includes(" ") ? q(g.profession) : g.profession}${g.npc ? " npc " + g.npc : ""}`;
 			if (g.class) return "train class";
 			return `train ${g.npc}`;
-		case "use": return `use ${g.item}`;
+		case "use": return `use ${g.item}${atText(g.at)}`;
 		case "level": return `level ${g.level}${g.xp != null ? "+" + g.xp : ""}`;
 		case "skill": return `skill ${q(g.skill)} ${g.n}`;
 		case "task": case "note": return `${g.kind} ${q(g.text)}`;

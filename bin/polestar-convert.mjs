@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import { join, dirname } from "node:path";
 import { extractGuides, parseGuide, parseName } from "../src/rxp/parse.mjs";
 import { convertGuide } from "../src/rxp/convert.mjs";
-import { planChain } from "../src/rxp/chain.mjs";
+import { planChain, expandIncludes } from "../src/rxp/chain.mjs";
 import { Report } from "../src/ir.mjs";
 import { loadData } from "../src/data.mjs";
 
@@ -53,9 +53,10 @@ const files = a.list
 	? [...readFileSync(a.list, "utf8").matchAll(/<Script file="([^"]+)"/g)].map((m) => m[1]).filter((f) => !/Import\.lua$/i.test(f))
 		.map((f) => resolveLoose(dirname(dirname(a.list)), f) || (console.error(`missing: ${f}`), null)).filter(Boolean)
 	: [a.file];
-const parsed = files.flatMap((f) => extractGuides(readFileSync(f, "utf8")).map(parseGuide));
+const report0 = new Report();
+const parsed = expandIncludes(files.flatMap((f) => extractGuides(readFileSync(f, "utf8")).map(parseGuide)), report0);
 
-const report = new Report();
+const report = report0;
 // Slugs, hand-offs and the quests taken on the way in come from the whole file,
 // so a guide picked alone still knows what the guides before it accept.
 const plan = planChain(parsed, report);
@@ -69,7 +70,7 @@ const keep = (g) => {
 	const lo = Number(String(r.levels || "").split("-")[0]);
 	return lo > 0 && lo <= Number(a["max-start"]);
 };
-const chosen = parsed.filter((g) => (!a.only || (g.header.name || "") === a.only) && keep(g));
+const chosen = parsed.filter((g) => !plan.hidden.has(g) && (!a.only || (g.header.name || "") === a.only) && keep(g));
 if (!chosen.length) { console.error("no guide matches"); process.exit(1); }
 const kept = new Set(chosen);
 

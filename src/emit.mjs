@@ -28,7 +28,8 @@ export function render(guide, { report, slug, packId, next }) {
 	const out = [];
 	// Polestar's `zone` is sticky, but a class-only step's zone does not reach the
 	// characters who skipped it, so the next step names its zone again.
-	let curMap = guide.defaultMap;
+	// Without a zone in the header, every step names its own.
+	let curMap = guide.zone ? guide.defaultMap : null;
 	let conditionalMap = null;
 	out.push(`guide ${packId}/${slug}`);
 	out.push(`title ${guide.title}`);
