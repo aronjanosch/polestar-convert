@@ -27,7 +27,7 @@ const WHEN_OF = {
 // Goals Polestar checks off in an `along` step (not tasks, gotos or visits). Not
 // accepts or hand-ins: the route passes an along step at once, and a quest not
 // taken then would hold its later goals.
-const ALONG_KINDS = new Set(["kill", "collect", "complete", "buy", "note"]);
+const ALONG_KINDS = new Set(["kill", "collect", "complete", "buy", "note", "destroy", "abandon"]);
 const PLACE_KINDS = new Set(["kill", "collect", "interact", "use", "complete"]);
 const GROUP_KINDS = new Set(["accept", "turnin", "complete", "kill", "collect", "interact", "use"]);
 const PROFESSIONS = new Set(["Mining", "Herbalism", "Skinning", "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Leatherworking", "Tailoring", "First Aid", "Cooking", "Fishing"]);
@@ -121,6 +121,8 @@ function buildStep(step, stepNo, data, ctx) {
 	const cond = parseCondition(step.cond);
 	cond.unknown.forEach((u) => report.note(ctx.name, stepNo, `unknown condition word "${u}"`, step.cond));
 	if (cond.never) { report.count("step: impossible condition (dropped)"); return null; }
+	// The header's races limit the whole guide: a step for other races never shows.
+	if (ctx.races.length && cond.only.race && !cond.only.race.some((r) => ctx.races.includes(r))) { report.count("step: for races the guide is not for (dropped)"); return null; }
 
 	for (const t of step.tags) {
 		if (ctx.drop.has(t.name) || !variantShown(t)) { report.count(`step: #${t.name} variant (dropped)`); return null; }
@@ -218,7 +220,8 @@ function buildStep(step, stepNo, data, ctx) {
 		for (const k of Object.keys(lc.only)) mine[k] = lc.only[k];
 		const quest = goal.quest != null ? data.quests[goal.quest] : null;
 		const races = mine.race || cond.only.race || (ctx.races.length ? ctx.races : null);
-		if (quest && !questOpenTo(data, quest, ctx.faction, races)) {
+		if (goal.kind !== "accept" && ctx.races.length && mine.race && !mine.race.some((r) => ctx.races.includes(r))) { report.count("goal for races the guide is not for (dropped)"); return; }
+		if (quest &&!questOpenTo(data, quest, ctx.faction, races)) {
 			closed++;
 			report.count("goal for a quest the data closes to these races (dropped)");
 			report.note(ctx.name, stepNo, `quest ${goal.quest} (${quest.title}) is not open to ${ctx.faction || "these"} races in the data; ${goal.kind} left out`);
@@ -262,7 +265,11 @@ function buildStep(step, stepNo, data, ctx) {
 		}
 		if (l.kind === "note") {
 			const t = plain(l.text);
-			if (t && !l.cond) notes.push(bare(t));
+			// RXP ticks a `+` line by hand; beside the route it would never check off.
+			if (t && completewith) {
+				const o = l.cond ? onlyText(parseCondition(l.cond).only) : "";
+				if (o || !l.cond) { goals.push({ kind: "task", text: bare(t), only: o }); formatNeeds = 5; report.count("along + line -> task"); }
+			} else if (t && !l.cond) notes.push(bare(t));
 			else if (t) {
 				const o = onlyText(parseCondition(l.cond).only);
 				if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
