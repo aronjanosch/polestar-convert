@@ -29,13 +29,14 @@ test("header, goals with only/optional/comment, zone change and pack format", ()
 	assert.match(r.text, /^  task "Skip the cutscene"$/m);
 });
 
-test("a step that completes with a later label becomes along, the label is written, goals stay required", () => {
+test("a step that completes with a later label runs along through it, goals stay required", () => {
 	const r = run([
 		step({ title: "Kill", completesWith: "camp", allAlong: true, goals: [{ kind: "kill", npc: 3, quest: 9, oi: 1, only: "" }] }),
 		step({ label: "camp", goals: [{ kind: "turnin", quest: 9, only: "" }] }),
+		step({ goals: [{ kind: "accept", quest: 10, only: "" }] }),
 	]);
-	assert.match(r.text, /^  along until camp$/m);
-	assert.match(r.text, /^  label camp$/m);
+	assert.match(r.text, /^  along until camp-end$/m);
+	assert.match(r.text, /^  label camp-end$/m);
 	assert.doesNotMatch(r.text, /optional/);
 });
 

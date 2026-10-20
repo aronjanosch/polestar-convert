@@ -57,7 +57,8 @@ export function goalText(g) {
 		case "use": return `use ${g.item}${atText(g.at)}`;
 		case "level": return `level ${g.level}${g.xp != null ? "+" + g.xp : ""}`;
 		case "skill": return `skill ${q(g.skill)} ${g.n}`;
-		case "task": case "note": return `${g.kind} ${q(g.text)}`;
+		case "task": return `task ${q(g.text)}${atText(g.at)}`;
+		case "note": return `note ${q(g.text)}`;
 		case "abandon": return `abandon ${g.quest}`;
 		case "destroy": return `destroy ${g.item}`;
 		case "goto": return `goto ${g.x},${g.y}${g.text ? " " + q(g.text) : ""}${g.map != null ? " map " + g.map : ""}${g.r ? " r " + g.r : ""}${g.live ? "" : " era"}`;

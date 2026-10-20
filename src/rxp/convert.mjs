@@ -214,6 +214,7 @@ function buildStep(step, stepNo, data, ctx) {
 	let formatNeeds = 4;
 	let closed = 0;
 	let group = null;
+	let info = false;
 	const add = (goal, lineCond) => {
 		const lc = parseCondition(lineCond);
 		const mine = {};
@@ -497,6 +498,15 @@ function buildStep(step, stepNo, data, ctx) {
 			notes.length = 0;
 			report.count("along text -> note beside the next steps");
 		}
+		// RXP shows text alone beside the steps up to its target; Polestar lists no
+		// notes beside the route, so it becomes a task, at RXP's first waypoint,
+		// that the next step for these characters takes in (mergeInfo).
+		if (goals.length && goals.every((g) => g.kind === "note")) {
+			const spot = at(gotos.find((g) => g.uiMap));
+			for (const g of goals) { g.kind = "task"; g.at = spot; }
+			formatNeeds = 5;
+			info = true;
+		}
 	}
 	if (!goals.length && (completewith || (!notes.length && !gotos.length))) {
 		if (gotos.length || tips.length || notes.length) report.count("step: waypoints only (kept as the way into the next step)");
@@ -531,7 +541,7 @@ function buildStep(step, stepNo, data, ctx) {
 	const orphanGoals = goals.filter((g) => orphanOf(g));
 	const base = {
 		stepNo, title: title || tips[0] || notes[0] || null, only: cond.only, goals, tips: [...eliteTips, ...tips], notes, whens, maps: usedMaps, loop: isLoop ? placeable : [],
-		completesWith: completewith ? (completewith.args.trim() === "next" ? "next" : labelOf(completewith.args)) : null, sticky, label: labelDef, format: formatNeeds, allAlong,
+		completesWith: completewith ? (completewith.args.trim() === "next" ? "next" : labelOf(completewith.args)) : null, sticky, label: labelDef, format: formatNeeds, allAlong, info: info && !whens.length,
 	};
 	if (!orphanGoals.length) return [base];
 	// A quest taken up in an earlier file (or left out of this one): its goals go
@@ -558,6 +568,50 @@ function levelsOf(quests, data) {
 		hi = Math.max(hi, q.level);
 	}
 	return hi ? `${lo}-${Math.max(lo, hi)}` : null;
+}
+
+// The characters an `only` text names, as a set; null is everyone.
+const whoOf = (text) => (text ? new Set(text.split(",").map((w) => w.trim()).filter(Boolean)) : null);
+
+// A step of text alone done along the way: each of its tasks goes first into
+// the next step that every character it is for sees, as RXP shows it with
+// the steps after it. With no such step it stays a step of its own.
+function mergeInfo(steps, report) {
+	for (let i = steps.length - 1; i >= 0; i--) {
+		const s = steps[i];
+		if (!s.info) continue;
+		const stepWho = whoOf(onlyText(s.only));
+		const left = [];
+		const target = (who) => steps.findIndex((o, j) => {
+			if (j <= i || o.info || (o.whens || []).length || (o.completesWith && o.allAlong) || (o.sticky && o.allAlong)) return false;
+			const covers = whoOf(onlyText(o.only));
+			return !covers || (who && [...who].every((w) => covers.has(w)));
+		});
+		const put = (g, who, t) => {
+			const covers = whoOf(onlyText(steps[t].only));
+			const only = who && !(covers && covers.size === who.size) ? [...who].join(",") : "";
+			steps[t].goals.unshift({ ...g, only });
+			steps[t].format = Math.max(steps[t].format, s.format);
+			for (const m of s.maps || []) if (!(steps[t].maps || []).includes(m)) (steps[t].maps = steps[t].maps || []).push(m);
+			report.count("along text -> task in the next step");
+		};
+		for (const g of s.goals) {
+			const who = whoOf(g.only) || stepWho;
+			if (!who) { const t = target(null); if (t >= 0) put(g, null, t); else left.push(g); continue; }
+			// Each character's own next step: those that share one share the task there.
+			const at = new Map();
+			for (const w of who) { const j = target(new Set([w])); at.set(j, [...(at.get(j) || []), w]); }
+			for (const [j, ws] of at) {
+				if (j >= 0) put(g, new Set(ws), j);
+				else left.push({ ...g, only: ws.join(",") });
+			}
+		}
+		if (left.length) { s.goals = left; s.completesWith = null; report.count("along text -> task step of its own"); }
+		else {
+			if (s.label && steps[i + 1] && !steps[i + 1].label) steps[i + 1].label = s.label;
+			steps.splice(i, 1);
+		}
+	}
 }
 
 // Where the guide sits in Polestar's menu: RXP's dungeon quest guides under
@@ -600,6 +654,8 @@ export function convertGuide(parsed, data, opts) {
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
 	});
+
+	mergeInfo(steps, report);
 
 	let defaultMap = null;
 	const zone = (() => {
