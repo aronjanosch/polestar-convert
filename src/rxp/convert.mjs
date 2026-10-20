@@ -74,10 +74,10 @@ function parseGoto(args, data, ctx) {
 		uiMap = Number(world[1]);
 		const z = worldToZone(data, uiMap, x, y);
 		if (!z) { ctx.report.count("goto: map without frame"); return null; }
-		return { uiMap, x: z.x, y: z.y, live: z.live, r: parts[3] != null ? parseFloat(parts[3]) : null };
+		return { uiMap, x: z.x, y: z.y, live: z.live, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0" };
 	}
 	// Zone percentages on the map RXP names, in the Era frame RXP writes them in.
-	return { uiMap: zoneIdNamed(data, mapPart), x, y, live: false, r: parts[3] != null ? parseFloat(parts[3]) : null, zoneText: mapPart };
+	return { uiMap: zoneIdNamed(data, mapPart), x, y, live: false, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0", zoneText: mapPart };
 }
 
 function normName(text) {
@@ -486,29 +486,47 @@ function buildStep(step, stepNo, data, ctx) {
 		report.count("step: every goal closed to these races (dropped)");
 		return null;
 	}
-	// A step done along the way (`#completewith`): its waypoints are the way to the
-	// next step, and its text is shown beside the steps it runs alongside.
+	// A step done along the way (`#completewith`), sorted by what RXP's step holds:
+	// - text and a farming signal (.mob, .money, .itemcount <N, an .xp target):
+	//   work here first, a step of its own with a task to tick, in the middle of
+	//   RXP's points;
+	// - text and arrow points only: the way to the next step, the text a note there;
+	// - text alone: a reminder beside the steps up to its target, as a task in
+	//   Along the way (Polestar lists no notes there);
+	// - goals: along as they are. Only arrow points of steps that neither farm nor
+	//   fight are a way to walk; the rest are rounds Polestar finds spots for itself.
+	let forceAlong = false;
 	if (completewith) {
 		const only = onlyText(cond.only);
-		const textOnly = !goals.length || goals.every((g) => g.kind === "note");
-		// A farming round of text alone is the task's place, not a way to walk.
-		if (!textOnly) for (const g of gotos) if (g.uiMap) ctx.path.push({ ...g, only });
+		const farm = step.lines.some((l) => l.kind === "cmd" && (l.name === "mob" || l.name === "money"
+			|| (l.name === "itemcount" && l.args.includes("<")) || (l.name === "xp" && !/,\s*1\s*$/.test(l.args))));
+		const fights = goals.some((g) => ["kill", "collect", "complete", "interact"].includes(g.kind));
+		const way = gotos.filter((g) => g.uiMap && !g.noArrow);
 		if (!goals.length && (tips.length || notes.length)) {
 			for (const t of [...tips, ...notes]) goals.push({ kind: "note", text: t, only: "" });
 			if (!title) title = tips[0] || notes[0];
 			tips.length = 0;
 			notes.length = 0;
-			report.count("along text -> note beside the next steps");
 		}
-		// RXP shows text alone beside the steps up to its target; Polestar lists no
-		// notes beside the route, so it becomes a step of its own: a task to tick,
-		// in the middle of RXP's waypoints.
-		if (goals.length && goals.every((g) => g.kind === "note")) {
-			const placed = gotos.filter((g) => g.uiMap);
-			const spot = at(placed[Math.floor((placed.length - 1) / 2)]);
-			for (const g of goals) { g.kind = "task"; g.at = spot; }
+		const textOnly = goals.every((g) => g.kind === "note");
+		if (!farm && !fights) for (const g of way) ctx.path.push({ ...g, only });
+		if (goals.length && textOnly) {
+			if (farm) {
+				const placed = gotos.filter((g) => g.uiMap);
+				const spot = at(placed[Math.floor((placed.length - 1) / 2)]);
+				for (const g of goals) { g.kind = "task"; g.at = spot; }
+				info = true;
+				report.count("along text: work here first -> task step");
+			} else if (way.length) {
+				ctx.pendingNotes.push(...goals.map((g) => ({ ...g, only: g.only || only })));
+				goals.length = 0;
+				report.count("along text: way -> note in the next step");
+			} else {
+				for (const g of goals) g.kind = "task";
+				forceAlong = true;
+				report.count("along text: reminder -> task in Along the way");
+			}
 			formatNeeds = 5;
-			info = true;
 		}
 	}
 	if (!goals.length && (completewith || (!notes.length && !gotos.length))) {
@@ -523,12 +541,23 @@ function buildStep(step, stepNo, data, ctx) {
 
 	// Group work holds no solo player: optional, as Polestar does with elites.
 	if (group) for (const g of goals) if (GROUP_KINDS.has(g.kind)) { g.group = group; g.optional = true; }
-	const allAlong = goals.length > 0 && goals.every((g) => ALONG_KINDS.has(g.kind) || ((g.kind === "use" || g.kind === "interact") && g.quest != null));
+	const allAlong = forceAlong || goals.length > 0 && goals.every((g) => ALONG_KINDS.has(g.kind) || ((g.kind === "use" || g.kind === "interact") && g.quest != null));
 	// The way here: the waypoints of the steps done along the way before this one.
+	// Of the way, a goal with a place of its own keeps the last point and those on
+	// other maps (leaving a city); one without keeps every point. Repeats go.
 	if (!completewith && !isLoop && ctx.path.length) {
-		goals.unshift(...ctx.path.map((p) => ({ kind: "goto", x: p.x, y: p.y, live: p.live, map: p.uiMap, r: p.r > 0 ? p.r : undefined, only: p.only, optional: true })));
-		report.count("waypoints -> path into the next step", ctx.path.length);
+		const seenAt = new Set();
+		let way = ctx.path.filter((p) => { const k = `${p.uiMap}:${p.x}:${p.y}`; return !seenAt.has(k) && seenAt.add(k); });
+		const placedGoal = goals.some((g) => g.at || ["accept", "turnin", "vendor", "train", "buy", "complete", "kill", "collect", "interact"].includes(g.kind));
+		const here = mapId || (ctx.lastPlace || {}).uiMap;
+		if (placedGoal) way = way.filter((p, i) => i === way.length - 1 || (here && p.uiMap !== here));
+		goals.unshift(...way.map((p) => ({ kind: "goto", x: p.x, y: p.y, live: p.live, map: p.uiMap, r: p.r > 0 ? p.r : undefined, only: p.only, optional: true })));
+		report.count("waypoints -> path into the next step", way.length);
 		ctx.path = [];
+	}
+	if (!completewith && ctx.pendingNotes.length) {
+		goals.push(...ctx.pendingNotes);
+		ctx.pendingNotes = [];
 	}
 	// A goal the data places (giver, vendor, trainer) sits where RXP's own .goto points.
 	if (!usedMaps.length && mapId && goals.some((g) => ["accept", "turnin", "vendor", "train", "buy", "complete"].includes(g.kind))) usedMaps.push(mapId);
@@ -608,7 +637,7 @@ export function convertGuide(parsed, data, opts) {
 	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
 	const faction = hc.faction ? hc.faction[0] : null;
 	const races = hc.race || df.race || [];
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), native: opts.native || new Set(), faction, races, loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], bind: null, drop: dropTags(opts.selfFound) };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), native: opts.native || new Set(), faction, races, loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
