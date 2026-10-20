@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decodeSlot, parseLua, parseCatalog } from "../src/journey/parse.mjs";
-import { evaluate, toWhens, onlyString, parseExpr, show } from "../src/journey/cond.mjs";
+import { evaluate, toWhens, whenAlts, onlyString, parseExpr, show } from "../src/journey/cond.mjs";
 import { convertGuide } from "../src/journey/convert.mjs";
 import { Report } from "../src/ir.mjs";
 
@@ -56,7 +56,7 @@ const DATA = {
 	races: { Orc: { Horde: { classes: ["WARRIOR", "SHAMAN"] } }, Troll: { Horde: { classes: ["WARRIOR", "PRIEST"] } } },
 	inns: [], flights: [],
 };
-const NAMES = { area: () => null, spell: () => null, zone: (id) => (DATA.zones[id] || {}).name || null, inn: () => null, taxi: () => null, levelXp: () => null };
+const NAMES = { area: () => null, spell: () => null, wmo: () => null, zone: (id) => (DATA.zones[id] || {}).name || null, inn: () => null, taxi: () => null, levelXp: () => null };
 const UNIVERSE = [
 	{ cls: "WARRIOR", race: "ORC", faction: "HORDE" }, { cls: "SHAMAN", race: "ORC", faction: "HORDE" },
 	{ cls: "WARRIOR", race: "TROLL", faction: "HORDE" }, { cls: "PRIEST", race: "TROLL", faction: "HORDE" },
@@ -83,13 +83,18 @@ test("conditions: Forever names fold, classes and races become only lists", () =
 });
 
 test("runtime state becomes when, where Polestar can check it", () => {
-	const w = (text) => { const [v] = evaluate(text, UNIVERSE); return toWhens(v.residual, NAMES); };
-	assert.deepEqual(w("QUEST[5] == NONE"), { whens: ["!onquest 5", "!turnedin 5"], near: false });
-	assert.deepEqual(w("QUEST[5] >= TURNEDIN and LEVEL >= 4"), { whens: ["turnedin 5", "level>=4"], near: false });
-	assert.deepEqual(w("QUEST[5] >= ACCEPTED"), { whens: ["onquest 5"], near: true });
-	assert.deepEqual(w("ITEM[7] == 0"), { whens: ["!has 7"], near: false });
-	assert.deepEqual(w("QUEST[5] == ACCEPTED or QUEST[6] == ACCEPTED"), null);
-	assert.equal(w("SPELL[99]"), null);
+	const res = (text) => evaluate(text, UNIVERSE)[0].residual;
+	const w = (text) => toWhens(res(text), NAMES);
+	const alts = (text) => whenAlts(res(text), NAMES);
+	assert.deepEqual(w("QUEST[5] == NONE"), { whens: ["!onquest 5", "!turnedin 5"] });
+	assert.deepEqual(w("QUEST[5] >= TURNEDIN and LEVEL >= 4"), { whens: ["turnedin 5", "level>=4"] });
+	assert.deepEqual(w("ITEM[7] == 0"), { whens: ["!has 7"] });
+	// "Has or had it": two exclusive copies.
+	assert.deepEqual(alts("QUEST[5] >= ACCEPTED").alts, [["onquest 5"], ["turnedin 5", "!onquest 5"]]);
+	assert.deepEqual(alts("QUEST[5] == ACCEPTED or LEVEL < 3").alts, [["onquest 5", "!complete 5"], ["level<3"]]);
+	// What Polestar cannot check is left out and listed.
+	assert.deepEqual(alts("SPELL[99] and LEVEL >= 2"), { alts: [["level>=2"]], unknown: ["SPELL[99]"] });
+	assert.deepEqual(alts("not (QUEST[5] >= TURNEDIN or ITEM[7] == 0)").alts, [["!turnedin 5", "has 7"]]);
 	// Location state reads as "not yet" for texts and waypoints.
 	assert.equal(evaluate("WITHIN[1]", UNIVERSE, { local: true }).length, 0);
 });
@@ -110,7 +115,8 @@ test("converts an invented guide into Polestar's DSL", () => {
 	// A TBC-only step is gone.
 	assert.doesNotMatch(r.text, /accept 101/);
 	assert.ok(lines.includes("  destroy 30"));
-	assert.ok(lines.includes("  vendor nearest"));
+	assert.ok(lines.includes("  vendor nearest -- resupply: food and drink"));
+	assert.doesNotMatch(r.text, /when turnedin 100/);
 	assert.ok(lines.includes("  level 3+400"));
 	assert.equal(r.format, 6);
 	assert.deepEqual(r.jumps, ["H02X"]);

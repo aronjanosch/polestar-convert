@@ -23,6 +23,14 @@ const FIXED = { ERA: true, FOREVER: true, PHASE: 6, MOPPHASE: 2, HC: false, AH: 
 // Runtime names Polestar has no predicate for, read as "nothing has happened yet
 // on this step" when only a text or a waypoint depends on them.
 const LOCAL_STATE = new Set(["WITHIN", "VISITED", "EXITED", "ACTIVE", "CHECKPOINT", "COMPLETE", "ROOT_COMPLETED", "TGLOCATION_ENABLED"]);
+// What Polestar cannot check, read as the route's normal case: no such spell
+// learnt or cast yet, alive, not grouped, not on a flight, the objective still
+// open, no such buff. -> value, or undefined to keep it.
+const NORMAL = { SPELL: false, PETSPELL: false, SPELLCAST: false, GHOST: false, DEAD: false, DEADORGHOST: false, DIED: false, SPIRITRESSED: false, ALIVE: true, INGROUP: false, ONTAXI: false, INVEHICLE: false, OBJECTIVE: false, BUFF: false, DEBUFF: false };
+export function normalCase(name) {
+	return Object.prototype.hasOwnProperty.call(NORMAL, name) ? NORMAL[name] : undefined;
+}
+
 // Runtime names: anything that is neither fixed nor who the character is.
 const RUNTIME = new Set(["QUEST", "OBJECTIVE", "OBJECTIVECOUNT", "ITEM", "BANKITEM", "LEVEL", "LEVELD", "XP", "XPMAX", "MONEY",
 	"SPELL", "PETSPELL", "SPELLCAST", "HASTAXI", "HEARTHSTONE", "ZONE", "AREA", "WMOAREA", "PARENTWMOAREA", "CONTINENT", "BUFF", "BUFFCOUNT", "DEBUFF", "REP",
@@ -113,6 +121,7 @@ function fold(e, who, opts) {
 			if (n in FIXED) { const v = FIXED[n]; return typeof v === "number" ? { op: "num", v } : B(v); }
 			if (n in QUEST_STATES) return { op: "num", v: QUEST_STATES[n] };
 			if (n in CLASS_NAMES || n in RACE_NAMES || n === "HORDE" || n === "ALLIANCE") return B(who.has(n));
+			if (RUNTIME.has(rootName(e)) && opts.assume) { const v = opts.assume(n, null); if (v !== undefined) return typeof v === "number" ? { op: "num", v } : B(!!v); }
 			if (RUNTIME.has(rootName(e))) return opts.local && LOCAL_STATE.has(n) ? (n === "ACTIVE" || n === "CHECKPOINT" ? { op: "num", v: 0 } : B(false)) : e;
 			if (GUIDE_ID.test(n)) return B(true);
 			// Any other name (TBC, WOTLK, SOD2, SOM1, JOYOUS, DEV, ...) is unset on Forever.
@@ -121,7 +130,14 @@ function fold(e, who, opts) {
 		case "index": {
 			const keys = e.keys.map((k) => fold(k, who, opts));
 			const ne = { ...e, keys };
+			// Texts: the quest's state where the route stands (taken, handed in), and
+			// objectives not done yet.
+			if (opts.route && e.name === "QUEST" && keys[0].op === "num") return { op: "num", v: opts.route(keys[0].v) };
+			if (opts.route && e.name === "OBJECTIVE") return B(false);
+			// A quest Forever does not have (another version's): never taken.
+			if (opts.questKnown && (e.name === "QUEST" || e.name === "OBJECTIVE") && keys[0].op === "num" && !opts.questKnown(keys[0].v)) return e.name === "QUEST" ? { op: "num", v: 0 } : B(false);
 			if (opts.local && LOCAL_STATE.has(rootName(e))) return B(false);
+			if (opts.assume && keys.every(isConst)) { const v = opts.assume(e.name, keys.map((k) => k.v)); if (v !== undefined) return typeof v === "number" ? { op: "num", v } : B(!!v); }
 			return ne;
 		}
 		case "not": {
@@ -237,94 +253,126 @@ export function onlyString(only) {
 
 // ---- residual -> Polestar `when` ------------------------------------------
 
-// A quest state set ({0,1,2,3}) -> `when` predicates that hold for exactly
-// those states, or null. NONE 0, ACCEPTED 1, COMPLETED 2, TURNEDIN 3.
-const QUEST_SETS = {
+// A quest state set ({0,1,2,3}) -> `when` terms (OR of ANDs) that hold for
+// exactly those states. NONE 0, ACCEPTED 1, COMPLETED 2, TURNEDIN 3.
+const QUEST_CONJ = {
 	"3": ["turnedin"], "0,1,2": ["!turnedin"], "1,2": ["onquest"], "0,3": ["!onquest"], "2": ["complete"],
 	"0,1,3": ["!complete"], "0": ["!onquest", "!turnedin"], "0,1": ["!complete", "!turnedin"], "1": ["onquest", "!complete"],
-	"0,2": null, "0,2,3": null, "1,3": null,
 };
-// Sets with no exact form, close enough for the steps they guard: "has or had it"
-// is `onquest` (a step for a quest already handed in is done anyway).
-const QUEST_NEAR = { "1,2,3": ["onquest"], "2,3": ["complete"], "0,1,2,3": [] };
+// The others as disjoint unions of those.
+const QUEST_SPLIT = { "1,2,3": ["1,2", "3"], "2,3": ["2", "3"], "0,2": ["0", "2"], "0,2,3": ["0,3", "2"], "1,3": ["1", "3"] };
 
-function questWhen(cmp, value, q) {
+function questTerms(cmp, value, q) {
 	const states = [0, 1, 2, 3].filter((s) => compare(cmp, s, value));
 	const key = states.join(",");
-	if (QUEST_SETS[key]) return { preds: QUEST_SETS[key].map((p) => `${p} ${q}`) };
-	if (QUEST_NEAR[key]) return { preds: QUEST_NEAR[key].map((p) => `${p} ${q}`), near: true };
-	return null;
+	if (!states.length) return [];
+	if (states.length === 4) return [[]];
+	const parts = QUEST_CONJ[key] ? [key] : QUEST_SPLIT[key];
+	return parts.map((k) => QUEST_CONJ[k].map((p) => `${p} ${q}`));
 }
 
 const flip = { "<": ">", "<=": ">=", ">": "<", ">=": "<=", "==": "==", "~=": "~=" };
 const neg = { "<": ">=", "<=": ">", ">": "<=", ">=": "<", "==": "~=", "~=": "==" };
 
-// One literal (a comparison, an index, or `not` of one) -> { preds, near? } | null.
-// `names` resolves zones and areas to the names Polestar compares.
-function literalWhen(e, names, negate = false) {
-	if (e.op === "not") return literalWhen(e.a, names, !negate);
-	if (e.op === "index" || e.op === "name") return literalWhen({ op: "cmp", cmp: "~=", a: e, b: B(false) }, names, negate);
+// One literal (a comparison, an index, or `not` of one) -> `when` terms (OR of
+// ANDs), or null when Polestar has no predicate for it. `names` resolves zones,
+// areas and inns to the names Polestar compares.
+function literalTerms(e, names, negate = false) {
+	if (e.op === "not") return literalTerms(e.a, names, !negate);
+	if (e.op === "index" || e.op === "name") return literalTerms({ op: "cmp", cmp: "~=", a: e, b: B(false) }, names, negate);
 	if (e.op !== "cmp") return null;
 	let { cmp, a, b } = e;
 	if (isConst(a) && !isConst(b)) { [a, b] = [b, a]; cmp = flip[cmp]; }
 	if (negate) cmp = neg[cmp];
 	const key = a.op === "index" && a.keys.every(isConst) ? a.keys.map((k) => k.v) : null;
 	const root = a.op === "index" ? a.name : a.op === "name" ? a.name : null;
-	if (root === "QUEST" && key && b.op === "num") return questWhen(cmp, b.v, key[0]);
+	if (root === "QUEST" && key && b.op === "num") return questTerms(cmp, b.v, key[0]);
 	if ((root === "LEVEL" || root === "LEVELD") && b.op === "num") {
-		if (cmp === "==") return { preds: [`level>=${b.v}`, `level<${b.v + 1}`] };
-		if (cmp === "~=") return null;
-		return { preds: [`level${cmp}${b.v}`] };
+		if (cmp === "==") return [[`level>=${b.v}`, `level<${b.v + 1}`]];
+		if (cmp === "~=") return [[`level<${b.v}`], [`level>=${b.v + 1}`]];
+		return [[`level${cmp}${b.v}`]];
 	}
-	if (root === "MONEY" && b.op === "num" && cmp !== "==" && cmp !== "~=") return { preds: [`money${cmp}${b.v}`] };
+	if (root === "MONEY" && b.op === "num" && cmp !== "==" && cmp !== "~=") return [[`money${cmp}${b.v}`]];
 	if (root === "ITEM" && key && b.op === "num") {
 		const n = b.v;
 		const has = (k) => (k <= 1 ? `has ${key[0]}` : `has ${key[0]} x${k}`);
-		const not = (k) => "!" + has(k);
-		if (cmp === ">=") return { preds: n <= 0 ? [] : [has(n)] };
-		if (cmp === ">") return { preds: [has(n + 1)] };
-		if (cmp === "<") return { preds: n <= 0 ? null : [not(n)] };
-		if (cmp === "<=") return { preds: [not(n + 1)] };
-		if (cmp === "==" && n === 0) return { preds: [not(1)] };
-		if (cmp === "~=" && n === 0) return { preds: [has(1)] };
+		if (cmp === ">=") return [n <= 0 ? [] : [has(n)]];
+		if (cmp === ">") return [[has(n + 1)]];
+		if (cmp === "<") return n <= 0 ? [] : [["!" + has(n)]];
+		if (cmp === "<=") return [["!" + has(n + 1)]];
+		if (cmp === "==" && n === 0) return [["!" + has(1)]];
+		if (cmp === "~=" && n === 0) return [[has(1)]];
 		return null;
 	}
-	if (root === "ITEM" && key && isB(b) && !b.v) return { preds: [cmp === "==" ? `!has ${key[0]}` : `has ${key[0]}`] };
-	if (root === "ZONE" && b.op === "num" && (cmp === "==" || cmp === "~=") && names && names.zone(b.v)) return { preds: [`${cmp === "~=" ? "!" : ""}zone "${names.zone(b.v)}"`] };
-	if (root === "AREA" && b.op === "num" && (cmp === "==" || cmp === "~=") && names && names.area(b.v)) return { preds: [`${cmp === "~=" ? "!" : ""}subzone "${names.area(b.v)}"`] };
-	if (root === "HEARTHSTONE" && key && isB(b) && !b.v && names && names.inn(key[0])) return { preds: [`${cmp === "==" ? "!" : ""}bound "${names.inn(key[0])}"`] };
+	if (root === "ITEM" && key && isB(b) && !b.v) return [[cmp === "==" ? `!has ${key[0]}` : `has ${key[0]}`]];
+	if (root === "ZONE" && b.op === "num" && (cmp === "==" || cmp === "~=") && names && names.zone(b.v)) return [[`${cmp === "~=" ? "!" : ""}zone "${names.zone(b.v)}"`]];
+	if (root === "AREA" && b.op === "num" && (cmp === "==" || cmp === "~=") && names && names.area(b.v)) return [[`${cmp === "~=" ? "!" : ""}subzone "${names.area(b.v)}"`]];
+	// Journey reads WMOAREA from the subzone text (PARENTWMOAREA from the zone text).
+	if ((root === "WMOAREA" || root === "PARENTWMOAREA") && b.op === "num" && (cmp === "==" || cmp === "~=") && names && names.wmo && names.wmo(b.v)) return [[`${cmp === "~=" ? "!" : ""}${root === "WMOAREA" ? "subzone" : "zone"} "${names.wmo(b.v)}"`]];
+	if (root === "HEARTHSTONE" && key && isB(b) && !b.v && names && names.inn(key[0])) return [[`${cmp === "==" ? "!" : ""}bound "${names.inn(key[0])}"`]];
 	return null;
 }
 
-// Residual -> { whens: [...], near: bool } when it is a conjunction of literals
-// Polestar can check; else null.
-export function toWhens(e, names) {
-	if (!e || (isB(e) && e.v)) return { whens: [], near: false };
-	const parts = [];
-	const walk = (x) => { if (x.op === "and") { walk(x.a); walk(x.b); } else parts.push(x); };
-	walk(e);
-	const whens = [];
-	let near = false;
-	for (const p of parts) {
-		// `onquest a or onquest b` is Polestar's `onquest a,b`.
-		if (p.op === "or") {
-			const ors = [];
-			const w2 = (x) => { if (x.op === "or") { w2(x.a); w2(x.b); } else ors.push(x); };
-			w2(p);
-			const lits = ors.map((o) => literalWhen(o, names));
-			if (lits.every((l) => l && l.preds.length === 1 && /^onquest \d+$/.test(l.preds[0]))) {
-				whens.push("onquest " + lits.map((l) => l.preds[0].split(" ")[1]).join(","));
-				near = near || lits.some((l) => l.near);
-				continue;
-			}
-			return null;
+// Whether a `when` list can hold at all: no predicate with its opposite.
+export function consistent(whens) {
+	return !whens.some((p) => whens.includes(negatePred(p)));
+}
+
+// The opposite of one `when` predicate.
+function negatePred(p) {
+	const m = p.match(/^(level|money)(<=|>=|<|>)(.+)$/);
+	if (m) return `${m[1]}${neg[m[2]]}${m[3]}`;
+	return p.startsWith("!") ? p.slice(1) : "!" + p;
+}
+
+const MAX_TERMS = 8;
+
+// Residual -> { alts: [[pred, ...], ...], unknown: [text] }: Polestar `when` lists
+// of which one must hold (each list ANDs its predicates), made exclusive of the
+// ones before where that takes one predicate each. A part Polestar cannot check
+// counts as holding (the step then applies more often, never less) and is
+// listed in `unknown`.
+export function whenAlts(e, names) {
+	const unknown = [];
+	const and = (x, y) => {
+		const out = [];
+		for (const a of x) for (const b of y) out.push([...a, ...b]);
+		return out;
+	};
+	const dnf = (x, negate) => {
+		if (isB(x)) return x.v !== negate ? [[]] : [];
+		if (x.op === "not") return dnf(x.a, !negate);
+		if (x.op === "and" || x.op === "or") {
+			const l = dnf(x.a, negate), r = dnf(x.b, negate);
+			return (x.op === "and") !== negate ? and(l, r) : [...l, ...r];
 		}
-		const l = literalWhen(p, names);
-		if (!l || !l.preds) return null;
-		whens.push(...l.preds);
-		near = near || !!l.near;
-	}
-	return { whens: [...new Set(whens)], near };
+		const t = literalTerms(x, names, negate);
+		if (!t) { unknown.push((negate ? "not " : "") + show(x)); return [[]]; }
+		return t;
+	};
+	let terms = !e ? [[]] : dnf(e, false);
+	// Tidy: dedupe, drop contradictions, absorb by an always-true term.
+	terms = terms.map((t) => [...new Set(t)]).filter((t) => !t.some((p) => t.includes(negatePred(p))));
+	if (terms.some((t) => !t.length)) return { alts: [[]], unknown };
+	const seen = new Set();
+	terms = terms.filter((t) => { const k = [...t].sort().join("&"); if (seen.has(k)) return false; seen.add(k); return true; });
+	if (terms.length > MAX_TERMS) return { alts: [[]], unknown: [...unknown, `${terms.length} alternatives`] };
+	// Exclusive: each term also "not" every earlier one-predicate term.
+	const alts = [];
+	terms.forEach((t, i) => {
+		const extra = [];
+		for (const prev of terms.slice(0, i)) if (prev.length === 1) extra.push(negatePred(prev[0]));
+		const all = [...new Set([...t, ...extra])];
+		if (!all.some((p) => all.includes(negatePred(p)))) alts.push(all);
+	});
+	return { alts, unknown };
+}
+
+// The single `when` list a residual comes to, or null when it needs several or
+// has parts Polestar cannot check.
+export function toWhens(e, names) {
+	const r = whenAlts(e, names);
+	return r.alts.length === 1 && !r.unknown.length ? { whens: r.alts[0] } : null;
 }
 
 // ---- the whole condition --------------------------------------------------
