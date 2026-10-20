@@ -130,7 +130,8 @@ function buildStep(step, stepNo, data, ctx) {
 		if (first) report.note(ctx.name, stepNo, "place of an unknown quest taken from the step's first .goto (check)", step.lines[lineIdx].args);
 		return first || null;
 	};
-	const at = (g) => (g ? ` @${g.x},${g.y}${g.live ? "" : " era"}` : "");
+	const usedMaps = [];
+	const at = (g) => { if (g && g.uiMap) usedMaps.push(g.uiMap); return g ? ` @${g.x},${g.y}${g.live ? "" : " era"}` : ""; };
 
 	// Pass 2: goals.
 	const goals = [];
@@ -177,7 +178,11 @@ function buildStep(step, stepNo, data, ctx) {
 			const m = l.args.match(/^(\d+)(?:,(\d+))?/);
 			const quest = data.quests[Number(m[1])];
 			if (!quest) { add(`complete ${m[1]} ${q(ctx.titles.get(Number(m[1])) || plain(l.text) || "quest " + m[1])}${at(placeFor(li))}`, l.cond, "complete"); report.note(ctx.name, stepNo, `quest ${m[1]} unknown to the data`, l.args); continue; }
-			if (m[2] == null) { add(`complete ${m[1]}`, l.cond, "complete"); continue; }
+			if (m[2] == null) {
+				// A quest without objectives completes by the turn-in; a `complete` would only warn.
+				if ((quest.objectives || []).length === 0) { report.count("complete on a quest without objectives (dropped)"); continue; }
+				add(`complete ${m[1]}`, l.cond, "complete"); continue;
+			}
 			const hit = resolveObjective(quest, l.comment || l.text || "", null);
 			if (hit && hit.obj.type === "kill") add(`kill ${hit.obj.id} quest ${m[1]}.${hit.index}`, l.cond, "kill");
 			else if (hit && hit.obj.type === "item") add(`collect ${hit.obj.id} quest ${m[1]}.${hit.index}`, l.cond, "collect");
@@ -280,17 +285,20 @@ function buildStep(step, stepNo, data, ctx) {
 	}
 	if (!goals.length && !notes.length && gotos.length) {
 		const g = gotos[gotos.length - 1];
+		if (g.uiMap) usedMaps.push(g.uiMap);
 		goals.push({ text: `goto ${g.x},${g.y}${g.live ? "" : " era"}${tips[0] ? " " + q(tips[0].slice(0, 40)) : ""}`, only: "", kind: "goto" });
 	}
 
 	const allAlong = goals.length > 0 && goals.every((g) => ["kill", "collect", "complete", "buy"].includes(g.kind) && /quest \d+\.\d+|xN|buy|complete/.test(g.text + " buy complete"));
+	// A goal the data places (giver, vendor, trainer) sits where RXP's own .goto points.
+	if (!usedMaps.length && mapId && goals.some((g) => ["accept", "turnin", "vendor", "train", "buy", "complete"].includes(g.kind))) usedMaps.push(mapId);
 	const orphanOf = (g) => {
 		const m = g.text.match(/^(?:turnin|complete) (\d+)/) || g.text.match(/ quest (\d+)\./);
 		return m && !ctx.accepted.has(Number(m[1])) ? Number(m[1]) : null;
 	};
 	const orphanGoals = goals.filter((g) => orphanOf(g));
 	const base = {
-		stepNo, title: title || tips[0] || notes[0] || null, cond, goals, tips, notes, whens, gotos: isLoop ? placeable : [],
+		stepNo, title: title || tips[0] || notes[0] || null, cond, goals, tips, notes, whens, usedMaps, gotos: isLoop ? placeable : [],
 		isLoop, completewith: completewith ? completewith.args : null, labelDef, formatNeeds, hasPlaced, allAlong,
 	};
 	if (!orphanGoals.length) return [base];
@@ -299,7 +307,7 @@ function buildStep(step, stepNo, data, ctx) {
 	const ids = [...new Set(orphanGoals.map(orphanOf))];
 	report.count(`goals for quests accepted elsewhere -> when onquest (${orphanGoals.length})`);
 	const rest = goals.filter((g) => !orphanOf(g));
-	const orphanStep = { ...base, goals: orphanGoals, tips: [], notes: [], whens: [...whens, `onquest ${ids.join(",")}`], labelDef: null, completewith: null, isLoop: false, gotos: [] };
+	const orphanStep = { ...base, usedMaps: [], goals: orphanGoals, tips: [], notes: [], whens: [...whens, `onquest ${ids.join(",")}`], labelDef: null, completewith: null, isLoop: false, gotos: [] };
 	if (!rest.length) return [{ ...orphanStep, tips, notes }];
 	return [{ ...base, goals: rest }, orphanStep];
 }
@@ -329,13 +337,18 @@ export function convertGuide(parsed, data, opts) {
 	steps.forEach((s, i) => { if (s.labelDef) labels.set(s.labelDef, i); });
 	let format = 4;
 	const out = [];
+	let defaultMap = null;
 	const zone = (() => {
 		for (const s of parsed.steps) for (const l of s.lines) if (l.kind === "cmd" && l.name === "goto") {
 			const m = l.args.match(/^(\d+)\//);
-			if (m) return zoneName(data, Number(m[1]));
+			if (m) { defaultMap = Number(m[1]); return zoneName(data, defaultMap); }
 		}
 		return info.zone;
 	})();
+	// Polestar's `zone` is sticky, but a class-only step's zone does not reach the
+	// characters who skipped it, so the next step names its zone again.
+	let curMap = defaultMap;
+	let conditionalMap = null;
 	out.push(`guide ${packId}/${slug}`);
 	out.push(`title ${info.zone || parsed.header.name}`);
 	const hc = parseCondition(parsed.header.faction).only;
@@ -359,6 +372,17 @@ export function convertGuide(parsed, data, opts) {
 		const only = onlyText(s.cond.only);
 		if (only) out.push(`  only ${only}`);
 		for (const w of s.whens || []) out.push(`  when ${w}`);
+		const maps = [...(s.isLoop && s.goals.some((g) => ["kill", "collect", "interact"].includes(g.kind)) ? s.gotos.map((g) => g.uiMap) : []), ...(s.usedMaps || [])].filter(Boolean);
+		if (maps.length) {
+			const m = maps[0];
+			const conditional = !!only || (s.whens || []).length > 0;
+			if (m !== curMap || (conditionalMap !== null && conditionalMap !== m)) {
+				out.push(`  zone map ${m}`);
+				report.count("zone map set");
+			}
+			if (conditional) conditionalMap = m;
+			else { curMap = m; conditionalMap = null; }
+		}
 		let along = false;
 		if (s.completewith && s.allAlong) {
 			if (s.completewith === "next") { out.push("  along"); along = true; }
