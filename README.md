@@ -50,6 +50,53 @@ goals instead of tasks.
 - Commands Polestar has no verb for (`.cast`, `.destroy`, `.deathskip`, ...)
   become `task` lines, which need Polestar 0.3.0 (pack format 5).
 
+## How it differs from RestedXP
+
+The route, quests and text are RXP's; how a step runs is Polestar's. The rule:
+a step RXP shows holds in Polestar until it is done, ticked or skipped.
+Nothing passes unseen.
+
+- **Text alone** (`+…` or `>>…` with no goal, often `#completewith`) is a
+  step of its own: a `task` to tick, at RXP's first waypoint (`@x,y`). RXP
+  closes such a step itself when its target step is done; here you tick it
+  or skip it.
+  - Polestar's *Along the way* never lists notes, and `along until X` ends
+    when the route *reaches* X, so text left there never showed.
+- **Countable work beside the route** (`#completewith` or `#sticky` with kills,
+  items or quest objectives) is an `along` step. It stays listed up to and
+  through its target, as in RXP: the label goes on the step after the target
+  (`<target>-end`).
+- **`destroy` / `abandon`** hold their step; they check themselves off.
+- **Farming rounds** (RXP's `.goto …,40,0` beside text) are not written as
+  waypoints. For kills and items, Polestar finds the spots itself (*Next spot*).
+- **A step whose goals are all optional** (elite, group, `#optional`) keeps
+  them required, since Polestar passes such a step at once. Skip it to leave
+  it. If it is about one quest the player may not have, it shows only while on
+  that quest (`when onquest`). An optional turn-in stays optional.
+- **Steps and goals for races the guide is not for** are left out (RXP's
+  "You have selected a guide meant for Undead" in an Undead guide).
+- **The play style is fixed:** not self-found (`#ah` kept, `#ssf` dropped),
+  softcore, 1× XP, Season 0, phase 6. Group steps are kept, as optional
+  group work.
+
+### Known gaps
+
+- Step numbers count every class's steps ("3 / 72"); RXP counts only yours.
+  A Polestar change, not the converter's.
+- A step with no title shows its first goal as the heading, so a one-task step
+  reads twice. RXP has no titles to give it.
+- `.subzoneskip` area ids have no name table: N lines.
+- Six `#include`s name guides outside the list.
+- `.cast`, `.usespell` and skill conditions stay tasks until Polestar has verbs
+  for them.
+
+### Against petllama/rxp-free-guides
+
+petllama writes RXP's text beside the route as `along` notes, which Polestar
+never lists, and splits class variants into one step per class, so the same
+text appears several times. Here the text is a task in one step, with `only`
+per line.
+
 ## Tests
 
 `npm test` (Node 24+, no dependencies).
