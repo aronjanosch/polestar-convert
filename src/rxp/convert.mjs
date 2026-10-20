@@ -5,7 +5,7 @@
 
 import { parseCondition, onlyText, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
-import { worldToZone, zoneName, findNpc, questOpenTo } from "../data.mjs";
+import { worldToZone, zoneName, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf } from "../data.mjs";
 import { render } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 
@@ -102,6 +102,16 @@ function buildStep(step, stepNo, data, ctx) {
 		if ((l.text || "").includes("RXP_BUY")) buyText = true;
 	}
 	const mapId = (gotos.find((g) => g.uiMap) || {}).uiMap || null;
+	// The guide's last place before this step: where the player stands when nothing better is known.
+	const prevPlace = ctx.lastPlace;
+	ctx.lastPlace = [...gotos].reverse().find((g) => g.uiMap) || prevPlace;
+	// preAll: every one done; else pre: one of them.
+	const preTaken = (quest) => {
+		const all = quest.preAll || [];
+		if (all.length) return all.every((p) => ctx.accepted.has(p));
+		const any = quest.pre || [];
+		return !any.length || any.some((p) => ctx.accepted.has(p));
+	};
 	const firstPt = gotos.length ? gotos[gotos.length - 1] : null;
 	const npcFor = (role) => {
 		const cands = [];
@@ -125,7 +135,19 @@ function buildStep(step, stepNo, data, ctx) {
 		// Last resort: the step's first place. A guess, so the report lists it.
 		const first = gotos.find((g) => g.uiMap);
 		if (first) report.note(ctx.name, stepNo, "place of an unknown quest taken from the step's first .goto (check)", step.lines[lineIdx].args);
-		return first || null;
+		if (!first && prevPlace) report.note(ctx.name, stepNo, "place taken from the guide's last .goto before this step (check)", step.lines[lineIdx].args);
+		return first || prevPlace || null;
+	};
+	// The item a `.collect` or `.use` before the line in this step names, or null.
+	const starterItem = (lineIdx) => {
+		for (let i = lineIdx - 1; i >= 0; i--) {
+			const c = step.lines[i];
+			if (c.kind === "cmd" && (c.name === "collect" || c.name === "use")) {
+				const id = Number(String(c.args).split(",")[0]);
+				if (data.items[id]) return id;
+			}
+		}
+		return null;
 	};
 	const usedMaps = [];
 	const at = (g) => { if (g && g.uiMap) usedMaps.push(g.uiMap); return g ? { x: g.x, y: g.y, live: g.live } : undefined; };
@@ -134,6 +156,7 @@ function buildStep(step, stepNo, data, ctx) {
 	const goals = [];
 	const whens = [];
 	const tips = [];
+	const eliteTips = [];
 	const notes = [];
 	let title = null;
 	let formatNeeds = 4;
@@ -150,7 +173,20 @@ function buildStep(step, stepNo, data, ctx) {
 			report.note(ctx.name, stepNo, `quest ${goal.quest} (${quest.title}) is not open to ${ctx.faction || "these"} races in the data; ${goal.kind} left out`);
 			return;
 		}
-		goals.push({ ...goal, only: onlyText(mine) });
+		// A quest whose prerequisites no guide on the way in or this one takes: the
+		// game may not offer it, so it and its goals must not hold the route.
+		if (quest && goal.kind === "accept" && !preTaken(quest)) {
+			ctx.loose.add(goal.quest);
+			report.count("accept whose prerequisite the chain never takes -> optional");
+		}
+		const loose = goal.quest != null && ctx.loose.has(goal.quest);
+		const elite = eliteOf(data, goal);
+		if (elite) {
+			const tip = `${elite} is elite: grouping up is advised.`;
+			if (!eliteTips.includes(tip)) eliteTips.push(tip);
+			report.count(`${goal.kind} of elite work -> optional`);
+		}
+		goals.push({ ...goal, only: onlyText(mine), optional: elite || loose ? true : undefined });
 	};
 
 	for (let li = 0; li < step.lines.length; li++) {
@@ -181,8 +217,19 @@ function buildStep(step, stepNo, data, ctx) {
 		if (n === "accept" || n === "turnin") {
 			const known = data.quests[lineQuestId];
 			if (n === "accept") ctx.seen.add(lineQuestId);
-			if (known) add({ kind: n, quest: lineQuestId }, l.cond);
-			else {
+			if (known && questEndPlaced(data, n === "accept" ? known.start : known.end)) add({ kind: n, quest: lineQuestId }, l.cond);
+			else if (known && n === "accept" && starterItem(li)) {
+				// Started from an item the step picks up or uses first.
+				add({ kind: n, quest: lineQuestId, item: starterItem(li) }, l.cond);
+				report.count("accept: started by the item before it in the step");
+			} else if (known) {
+				// The giver is somewhere the data has no spawn (inside a dungeon): RXP's own
+				// place, else the codex's (the dungeon's entrance for a giver inside).
+				const place = placeFor(li);
+				const listed = place ? null : journalPlace(data, lineQuestId, n === "accept" ? "start" : "finish");
+				add({ kind: n, quest: lineQuestId, at: place ? at(place) : listed || undefined }, l.cond);
+				report.count(place ? `${n}: giver without a spawn, placed at RXP's goto` : listed ? `${n}: giver without a spawn, placed by the codex` : `${n}: giver without a spawn, no place`);
+			} else {
 				const title = plain(l.text).replace(/^(accept|turn in)\s+/i, "");
 				add({ kind: n, quest: lineQuestId, title, at: at(placeFor(li)) }, l.cond);
 				report.note(ctx.name, stepNo, `quest ${lineQuestId} unknown to the data; quoted by name`, l.text);
@@ -327,7 +374,7 @@ function buildStep(step, stepNo, data, ctx) {
 	};
 	const orphanGoals = goals.filter((g) => orphanOf(g));
 	const base = {
-		stepNo, title: title || tips[0] || notes[0] || null, only: cond.only, goals, tips, notes, whens, maps: usedMaps, loop: isLoop ? placeable : [],
+		stepNo, title: title || tips[0] || notes[0] || null, only: cond.only, goals, tips: [...eliteTips, ...tips], notes, whens, maps: usedMaps, loop: isLoop ? placeable : [],
 		completesWith: completewith ? completewith.args : null, label: labelDef, format: formatNeeds, allAlong,
 	};
 	if (!orphanGoals.length) return [base];
@@ -338,20 +385,22 @@ function buildStep(step, stepNo, data, ctx) {
 	const rest = goals.filter((g) => !orphanOf(g));
 	const orphanStep = { ...base, maps: [], goals: orphanGoals, tips: [], notes: [], whens: [...whens, `onquest ${ids.join(",")}`], label: null, completesWith: null, loop: [] };
 	if (!rest.length) return [{ ...orphanStep, tips, notes }];
-	return [{ ...base, goals: rest }, orphanStep];
+	// In the source's order: a hand-in written before an accept comes first.
+	return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [orphanStep, { ...base, goals: rest }] : [{ ...base, goals: rest }, orphanStep];
 }
 
-// A guide whose name gives no levels (dungeon quest guides): the range of the
-// quests it takes, from the lowest level they can be taken at to the highest quest.
+// A guide whose name gives no levels (dungeon quest guides): from the level at
+// which every quest it takes can be taken to the highest quest. It is run once,
+// with all its quests at hand, not levelled through.
 function levelsOf(quests, data) {
-	let lo = Infinity, hi = 0;
+	let lo = 0, hi = 0;
 	for (const id of quests) {
 		const q = data.quests[id];
 		if (!q || !(q.level > 0)) continue;
-		lo = Math.min(lo, q.minLevel > 0 ? q.minLevel : q.level);
+		lo = Math.max(lo, q.minLevel > 0 ? q.minLevel : q.level);
 		hi = Math.max(hi, q.level);
 	}
-	return hi ? `${lo}-${hi}` : null;
+	return hi ? `${lo}-${Math.max(lo, hi)}` : null;
 }
 
 export function convertGuide(parsed, data, opts) {
@@ -376,7 +425,7 @@ export function convertGuide(parsed, data, opts) {
 	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
 	const faction = hc.faction ? hc.faction[0] : null;
 	const races = hc.race || df.race || [];
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, seen: new Set(before), native: opts.native || new Set(), faction, races };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, seen: new Set(before), native: opts.native || new Set(), faction, races, loose: new Set(), lastPlace: null };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
@@ -396,7 +445,7 @@ export function convertGuide(parsed, data, opts) {
 		faction,
 		classes: hc.class || df.class || null,
 		races,
-		levels: info.levels || levelsOf(accepted, data) || (String(parsed.header.subgroup || "").match(/\b(\d+-\d+)\b/) || [])[1] || null,
+		levels: info.levels || levelsOf([...accepted].filter((id) => !before.has(id)), data) || (String(parsed.header.subgroup || "").match(/\b(\d+-\d+)\b/) || [])[1] || null,
 		zone,
 		defaultMap,
 		sourceSteps: parsed.steps.length,

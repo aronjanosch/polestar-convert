@@ -70,7 +70,7 @@ export function render(guide, { report, slug, packId, next }) {
 		for (const g of s.goals) {
 			let line = `  ${goalText(g)}`;
 			if (g.only) line += ` only ${g.only}`;
-			if (optional && !["note", "task"].includes(g.kind)) line += " optional";
+			if ((optional || g.optional) && !["note", "task"].includes(g.kind)) line += " optional";
 			if (g.comment) line += ` -- ${g.comment}`;
 			out.push(line);
 		}
