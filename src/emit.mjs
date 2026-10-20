@@ -23,11 +23,11 @@ export function render(guide, { report, slug, packId, next }) {
 	});
 	// -1: no `until`; -2: the target is the last step, so the list ends when done.
 	const waitsFor = steps.map((s, i) => {
-		if (!s.completesWith || s.completesWith === "next" || !s.allAlong) return -1;
-		const target = steps.findIndex((o, j) => j > i && o.label === s.completesWith);
+		if (!s.completesWith || !s.allAlong) return -1;
+		const target = s.completesWith === "next" ? (i + 1 < steps.length ? i + 1 : -1) : steps.findIndex((o, j) => j > i && o.label === s.completesWith);
 		if (target < 0) return -1;
 		if (target + 1 >= steps.length) return -2;
-		if (!labelName[target + 1]) labelName[target + 1] = `${labelName[target]}-end`;
+		if (!labelName[target + 1]) labelName[target + 1] = `${labelName[target] || `step${target + 1}`}-end`;
 		return target + 1;
 	});
 	const waited = new Set(waitsFor.filter((j) => j >= 0));
@@ -74,9 +74,8 @@ export function render(guide, { report, slug, packId, next }) {
 		// A step that stays listed until done (RXP `#sticky`) is an along step of its own.
 		if (s.sticky && !s.completesWith && s.allAlong) { out.push("  along"); along = true; }
 		else if (s.completesWith && s.allAlong) {
-			if (s.completesWith === "next") { out.push("  along"); along = true; }
-			else if (waitsFor[i] === -2) { out.push("  along"); along = true; }
-			else if (waitsFor[i] >= 0) { out.push(`  along until ${labelName[waitsFor[i]]}`); along = true; format = Math.max(format, 4); }
+			if (waitsFor[i] >= 0) { out.push(`  along until ${labelName[waitsFor[i]]}`); along = true; format = Math.max(format, 4); }
+			else if (s.completesWith === "next" || waitsFor[i] === -2) { out.push("  along"); along = true; }
 		}
 		if (waited.has(i)) out.push(`  label ${labelName[i]}`);
 		for (const t of s.tips) if (t !== s.title) out.push(`  tip ${free(t)}`);
@@ -88,7 +87,7 @@ export function render(guide, { report, slug, packId, next }) {
 		// step keeps its goals, and the player skips it by hand as in RXP.
 		const held = s.goals.filter((g) => g.kind !== "note");
 		const qs = new Set(held.map(questOf).filter((q) => q != null));
-		const keepAll = !along && held.length > 0 && held.every(isOptional) && qs.size <= 1 && !held.some((g) => g.kind === "turnin");
+		const keepAll = !along && held.length > 0 && held.every(isOptional) && !held.every((g) => g.kind === "goto") && qs.size <= 1 && !held.some((g) => g.kind === "turnin");
 		if (keepAll) {
 			report.count("step of optional goals only -> goals kept (skip by hand)");
 			// Kept for a quest the player may not have: shown only while on it.
