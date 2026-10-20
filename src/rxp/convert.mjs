@@ -490,7 +490,9 @@ function buildStep(step, stepNo, data, ctx) {
 	// next step, and its text is shown beside the steps it runs alongside.
 	if (completewith) {
 		const only = onlyText(cond.only);
-		for (const g of gotos) if (g.uiMap) ctx.path.push({ ...g, only });
+		const textOnly = !goals.length || goals.every((g) => g.kind === "note");
+		// A farming round of text alone is the task's place, not a way to walk.
+		if (!textOnly) for (const g of gotos) if (g.uiMap) ctx.path.push({ ...g, only });
 		if (!goals.length && (tips.length || notes.length)) {
 			for (const t of [...tips, ...notes]) goals.push({ kind: "note", text: t, only: "" });
 			if (!title) title = tips[0] || notes[0];
@@ -502,8 +504,7 @@ function buildStep(step, stepNo, data, ctx) {
 		// notes beside the route, so it becomes a task, at RXP's first waypoint,
 		// that the next step for these characters takes in (mergeInfo).
 		if (goals.length && goals.every((g) => g.kind === "note")) {
-			const spot = at(gotos.find((g) => g.uiMap));
-			for (const g of goals) { g.kind = "task"; g.at = spot; }
+			for (const g of goals) g.kind = "task";
 			formatNeeds = 5;
 			info = true;
 		}
