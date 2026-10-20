@@ -24,8 +24,10 @@ const WHEN_OF = {
 	isQuestTurnedIn: ["turnedin", false], isQuestComplete: ["complete", false],
 	isQuestNotComplete: ["complete", true], isQuestAvailable: ["available", false],
 };
-// Goals Polestar checks off in an `along` step (not tasks, gotos or visits).
-const ALONG_KINDS = new Set(["kill", "collect", "complete", "buy", "accept", "turnin", "note"]);
+// Goals Polestar checks off in an `along` step (not tasks, gotos or visits). Not
+// accepts or hand-ins: the route passes an along step at once, and a quest not
+// taken then would hold its later goals.
+const ALONG_KINDS = new Set(["kill", "collect", "complete", "buy", "note"]);
 const GROUP_KINDS = new Set(["accept", "turnin", "complete", "kill", "collect", "interact", "use"]);
 const PROFESSIONS = new Set(["Mining", "Herbalism", "Skinning", "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Leatherworking", "Tailoring", "First Aid", "Cooking", "Fishing"]);
 // RXP's variant tags: `#hardcore` steps only in hardcore mode; `#ssf` (buy at a
@@ -126,6 +128,7 @@ function buildStep(step, stepNo, data, ctx) {
 	const completewith = tag("completewith");
 	const isLoop = !!tag("loop");
 	const sticky = !!tag("sticky");
+	const optionalStep = !!tag("optional");
 	const labelDef = tag("label") ? labelOf(tag("label").args) : null;
 	for (const t of step.tags) {
 		if (!["completewith", "label", "loop", "softcore", "optional", "sticky", "season", "phase", "xprate", "era", "era/som", "softcoreserver", "ah", "ssf"].includes(t.name)) report.count(`tag #${t.name} (ignored)`);
@@ -148,12 +151,15 @@ function buildStep(step, stepNo, data, ctx) {
 	// The guide's last place before this step: where the player stands when nothing better is known.
 	const prevPlace = ctx.lastPlace;
 	ctx.lastPlace = [...gotos].reverse().find((g) => g.uiMap) || prevPlace;
-	// preAll: every one done; else pre: one of them.
+	// preAll: every one done; else pre: one of them. Only accepts written earlier
+	// in this guide count, and not optional ones: a player may start the guide
+	// straight from the menu, and a chain is as firm as its first quest.
+	const taken = (p) => ctx.ownSeen.has(p) && !ctx.loose.has(p);
 	const preTaken = (quest) => {
 		const all = quest.preAll || [];
-		if (all.length) return all.every((p) => ctx.accepted.has(p));
+		if (all.length) return all.every(taken);
 		const any = quest.pre || [];
-		return !any.length || any.some((p) => ctx.accepted.has(p));
+		return !any.length || any.some(taken);
 	};
 	const firstPt = gotos.length ? gotos[gotos.length - 1] : null;
 	const npcFor = (role) => {
@@ -217,20 +223,21 @@ function buildStep(step, stepNo, data, ctx) {
 			report.note(ctx.name, stepNo, `quest ${goal.quest} (${quest.title}) is not open to ${ctx.faction || "these"} races in the data; ${goal.kind} left out`);
 			return;
 		}
-		// A quest whose prerequisites no guide on the way in or this one takes: the
-		// game may not offer it, so it and its goals must not hold the route.
+		// A quest whose prerequisites this guide does not take before: the game may
+		// not offer it, so its later goals wait for it (when onquest).
 		if (quest && goal.kind === "accept" && !preTaken(quest)) {
 			ctx.loose.add(goal.quest);
-			report.count("accept whose prerequisite the chain never takes -> optional");
+			report.count("accept whose prerequisite the guide never takes -> later goals wait for the quest");
 		}
-		const loose = goal.quest != null && ctx.loose.has(goal.quest);
 		const elite = eliteOf(data, goal);
 		if (elite) {
 			const tip = `${elite} is elite: grouping up is advised.`;
 			if (!eliteTips.includes(tip)) eliteTips.push(tip);
 			report.count(`${goal.kind} of elite work -> optional`);
 		}
-		goals.push({ ...goal, only: onlyText(mine), optional: elite || loose ? true : undefined });
+		goals.push({ ...goal, only: onlyText(mine), optional: elite || optionalStep ? true : undefined });
+		// After the guide drops a quest, its later goals wait for it to be taken again.
+		if (goal.kind === "abandon") { ctx.maybeTaken.add(goal.quest); ctx.surelyTaken.delete(goal.quest); }
 	};
 
 	for (let li = 0; li < step.lines.length; li++) {
@@ -260,7 +267,7 @@ function buildStep(step, stepNo, data, ctx) {
 		if ((n === "accept" || n === "turnin") && !lineQuestId) { report.count(`.${n} (no quest id, ignored)`); continue; }
 		if (n === "accept" || n === "turnin") {
 			const known = data.quests[lineQuestId];
-			if (n === "accept") ctx.seen.add(lineQuestId);
+			if (n === "accept") { ctx.seen.add(lineQuestId); ctx.ownSeen.add(lineQuestId); }
 			if (known && questEndPlaced(data, n === "accept" ? known.start : known.end)) add({ kind: n, quest: lineQuestId }, l.cond);
 			else if (known && n === "accept" && starterItem(li)) {
 				// Started from an item the step picks up or uses first.
@@ -496,15 +503,20 @@ function buildStep(step, stepNo, data, ctx) {
 	const allAlong = goals.length > 0 && goals.every((g) => ALONG_KINDS.has(g.kind) || ((g.kind === "use" || g.kind === "interact") && g.quest != null));
 	// The way here: the waypoints of the steps done along the way before this one.
 	if (!completewith && !isLoop && ctx.path.length) {
-		goals.unshift(...ctx.path.map((p) => ({ kind: "goto", x: p.x, y: p.y, live: p.live, map: p.uiMap, r: p.r > 0 ? p.r : undefined, only: p.only })));
+		goals.unshift(...ctx.path.map((p) => ({ kind: "goto", x: p.x, y: p.y, live: p.live, map: p.uiMap, r: p.r > 0 ? p.r : undefined, only: p.only, optional: true })));
 		report.count("waypoints -> path into the next step", ctx.path.length);
 		ctx.path = [];
 	}
 	// A goal the data places (giver, vendor, trainer) sits where RXP's own .goto points.
 	if (!usedMaps.length && mapId && goals.some((g) => ["accept", "turnin", "vendor", "train", "buy", "complete"].includes(g.kind))) usedMaps.push(mapId);
+	// Accepts in a step with `when` may not happen: their quests' later goals wait
+	// for the quest, like those of quests taken in an earlier guide.
+	for (const g of goals) if (g.kind === "accept") (whens.length || g.optional || ctx.loose.has(g.quest) ? ctx.maybeTaken : ctx.surelyTaken).add(g.quest);
 	const orphanOf = (g) => {
 		const id = questOf(g);
-		return id != null && !ctx.seen.has(id) ? id : null;
+		if (id == null) return null;
+		const unsure = ctx.maybeTaken.has(id) && !ctx.surelyTaken.has(id) && !goals.some((a) => a.kind === "accept" && a.quest === id);
+		return !ctx.seen.has(id) || unsure ? id : null;
 	};
 	const orphanGoals = goals.filter((g) => orphanOf(g));
 	const base = {
@@ -514,13 +526,14 @@ function buildStep(step, stepNo, data, ctx) {
 	if (!orphanGoals.length) return [base];
 	// A quest taken up in an earlier file (or left out of this one): its goals go
 	// in their own step that only applies while the quest is in the log.
+	// One step per quest: a player holding one of them must not wait on another's goals.
 	const ids = [...new Set(orphanGoals.map(orphanOf))];
 	report.count(`goals for quests accepted elsewhere -> when onquest (${orphanGoals.length})`);
 	const rest = goals.filter((g) => !orphanOf(g));
-	const orphanStep = { ...base, maps: [], goals: orphanGoals, tips: [], notes: [], whens: [...whens, `onquest ${ids.join(",")}`], label: null, completesWith: null, loop: [] };
-	if (!rest.length) return [{ ...orphanStep, tips, notes }];
+	const orphanSteps = ids.map((id) => ({ ...base, maps: [], goals: orphanGoals.filter((g) => orphanOf(g) === id), tips: [], notes: [], whens: [...whens, `onquest ${id}`], label: null, completesWith: null, loop: [] }));
+	if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: base.tips, notes }; return orphanSteps; }
 	// In the source's order: a hand-in written before an accept comes first.
-	return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [orphanStep, { ...base, goals: rest }] : [{ ...base, goals: rest }, orphanStep];
+	return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, { ...base, goals: rest }] : [{ ...base, goals: rest }, ...orphanSteps];
 }
 
 // A guide whose name gives no levels (dungeon quest guides): from the level at
@@ -540,7 +553,7 @@ function levelsOf(quests, data) {
 // Where the guide sits in Polestar's menu: RXP's dungeon quest guides under
 // Dungeons, each other RXP group in a folder of its own ("RXP Forever Dungeon Guide").
 function menuPlace(group) {
-	const name = String(group || "").replace(/\(([AH])\)/g, "").replace(/^(RestedXP|RXP)\s+/i, "").replace(/\s+/g, " ").trim();
+	const name = String(group || "").replace(/<<.*$/, "").replace(/\(([AH])\)/g, "").replace(/^(RestedXP|RXP)\s+/i, "").replace(/\s+/g, " ").trim();
 	if (!name) return { category: "Leveling" };
 	if (/dungeon quest/i.test(name)) return { category: "Dungeons" };
 	return { category: "Leveling", folder: `RXP ${name}` };
@@ -568,7 +581,7 @@ export function convertGuide(parsed, data, opts) {
 	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
 	const faction = hc.faction ? hc.faction[0] : null;
 	const races = hc.race || df.race || [];
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, seen: new Set(before), native: opts.native || new Set(), faction, races, loose: new Set(), lastPlace: null, path: [], bind: null, drop: dropTags(opts.selfFound) };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), native: opts.native || new Set(), faction, races, loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], bind: null, drop: dropTags(opts.selfFound) };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);

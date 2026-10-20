@@ -7,7 +7,8 @@
 // therefore has to become the positive list of the other classes.
 
 export const CLASSES = ["Warrior", "Paladin", "Hunter", "Rogue", "Priest", "Shaman", "Mage", "Warlock", "Druid"];
-export const RACES = ["Human", "Dwarf", "Gnome", "NightElf", "Orc", "Troll", "Tauren", "Undead"];
+// Skyborne: WoW Forever's race, on both sides.
+export const RACES = ["Human", "Dwarf", "Gnome", "NightElf", "Orc", "Troll", "Tauren", "Undead", "Skyborne"];
 export const FACTIONS = ["Alliance", "Horde"];
 
 const ALIAS = new Map([
