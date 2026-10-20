@@ -1,0 +1,10 @@
+{
+  "name": "polestar-convert",
+  "version": "0.1.0",
+  "description": "Convert leveling guides you own (RestedXP, ...) into a local Polestar guide pack. Ships no guide content.",
+  "type": "module",
+  "private": true,
+  "bin": { "polestar-convert": "bin/polestar-convert.mjs" },
+  "scripts": { "test": "node --test test/" },
+  "engines": { "node": ">=24" }
+}
