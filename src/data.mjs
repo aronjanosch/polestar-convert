@@ -85,6 +85,19 @@ export function flightNamed(data, name, faction, pt) {
 	return hit ? hit.short : null;
 }
 
+// Whether Polestar's data gives a goal a place of its own (spawns of the npc,
+// object or a dropping source; a `complete`'s objectives are left to the guide).
+export function goalPlaced(data, goal) {
+	const spawned = (e) => !!(e && e.spawns && Object.keys(e.spawns).length);
+	if (goal.kind === "kill") return spawned(data.npcs[goal.npc]);
+	if (goal.kind === "interact") return spawned(data.objects[goal.object]);
+	if (goal.kind === "collect") {
+		const drops = (data.items[goal.item] || {}).drops || {};
+		return Object.keys(drops.npc || {}).some((id) => spawned(data.npcs[id])) || Object.keys(drops.object || {}).some((id) => spawned(data.objects[id]));
+	}
+	return false;
+}
+
 // Whether the data places the NPC or object a quest starts or ends at
 // (`start`/`end`): a giver inside a dungeon has no spawn on any map.
 export function questEndPlaced(data, ends) {
