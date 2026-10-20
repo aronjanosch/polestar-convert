@@ -11,8 +11,8 @@ import { bare, questOf } from "../ir.mjs";
 
 const IGNORED = new Set([
 	"target", "mob", "unitscan", "itemcount", "cooldown", "macro", "timer",
-	"skipgossip", "skipgossipid", "zoneskip", "subzone", "subzoneskip", "maxlevel", "disablecheckbox", "is", "item", "addquestitem",
-	"bindlocation", "trainer", "dungeon", "itemStat", "zone", "link", "line", "solo",
+	"skipgossip", "skipgossipid", "subzone", "disablecheckbox", "is", "item", "addquestitem",
+	"trainer", "itemStat", "zone", "link", "line", "solo",
 ]);
 const TASKS = new Set(["hs", "home", "fp", "fly", "deathskip", "abandon", "destroy", "cast", "equip", "usespell", "bankdeposit", "bankwithdraw"]);
 // A label as Polestar takes it: letters, digits, `-` and `_`.
@@ -31,7 +31,33 @@ const PROFESSIONS = new Set(["Mining", "Herbalism", "Skinning", "Alchemy", "Blac
 // RXP's variant tags: `#hardcore` steps only in hardcore mode; `#ssf` (buy at a
 // vendor) or `#ah` (look at the auction house) by RXP's self-found setting, off
 // by default, as here unless `selfFound`.
-const dropTags = (selfFound) => new Set(["hardcore", selfFound ? "ah" : "ssf"]);
+const dropTags = (selfFound) => new Set(["hardcore", "hardcoreserver", "som", selfFound ? "ah" : "ssf"]);
+// RXP's client variants as it reads them on Forever: season 0, phase 6, XP rate 1.
+function variantShown(tag) {
+	const arg = String(tag.args || "").replace(/<<.*$/, "").trim();
+	if (tag.name === "season") return arg.split(/[,;\s]+/).map(Number).includes(0);
+	if (tag.name === "phase") {
+		const m = arg.match(/^(\d+)(?:-(\d+))?$/);
+		return !m || (6 >= Number(m[1]) && (m[2] == null || 6 <= Number(m[2])));
+	}
+	if (tag.name === "xprate") {
+		const m = arg.match(/^([<>]?)\s*(\d+\.?\d*)(?:-(\d+\.?\d*))?/);
+		if (!m) return true;
+		const a = Number(m[2]);
+		if (m[1] === "<") return 1 < a;
+		if (m[1] === ">") return 1 > a;
+		return m[3] == null ? true : a <= 1 && 1 <= Number(m[3]);
+	}
+	return true;
+}
+// RXP's dungeon tags (DB/forever/db.lua) -> the dungeon as Polestar names it.
+const DUNGEONS = {
+	RFC: "Ragefire Chasm", DM: "Deadmines", DEADMINES: "Deadmines", VC: "Deadmines", WC: "Wailing Caverns", SFK: "Shadowfang Keep",
+	BFD: "Blackfathom Deeps", STOCKS: "Stormwind Stockade", STOCKADES: "Stormwind Stockade", GNOMER: "Gnomeregan", RFK: "Razorfen Kraul",
+	SM: "Scarlet Monastery", RFD: "Razorfen Downs", ULDA: "Uldaman", ZF: "Zul'Farrak", MARA: "Maraudon", ST: "Sunken Temple",
+	BRD: "Blackrock Depths", DME: "Dire Maul", DMW: "Dire Maul", DMN: "Dire Maul", SCHOLO: "Scholomance", STRAT: "Stratholme",
+	LBRS: "Blackrock Spire", HOT: "The Hall of Thanes", ROL: "Ruins of Lordaeron", ES: "Excavation Site: Wetlands", COD: "City of Dalaran",
+};
 
 
 function parseGoto(args, data, ctx) {
@@ -94,14 +120,15 @@ function buildStep(step, stepNo, data, ctx) {
 	if (cond.never) { report.count("step: impossible condition (dropped)"); return null; }
 
 	for (const t of step.tags) {
-		if (ctx.drop.has(t.name)) { report.count(`step: #${t.name} variant (dropped)`); return null; }
+		if (ctx.drop.has(t.name) || !variantShown(t)) { report.count(`step: #${t.name} variant (dropped)`); return null; }
 	}
 	const tag = (n) => step.tags.find((t) => t.name === n);
 	const completewith = tag("completewith");
 	const isLoop = !!tag("loop");
+	const sticky = !!tag("sticky");
 	const labelDef = tag("label") ? labelOf(tag("label").args) : null;
 	for (const t of step.tags) {
-		if (!["completewith", "label", "loop", "softcore", "optional"].includes(t.name)) report.count(`tag #${t.name} (ignored)`);
+		if (!["completewith", "label", "loop", "softcore", "optional", "sticky", "season", "phase", "xprate", "era", "era/som", "softcoreserver", "ah", "ssf"].includes(t.name)) report.count(`tag #${t.name} (ignored)`);
 	}
 
 	// Pass 1: places, names.
@@ -347,6 +374,43 @@ function buildStep(step, stepNo, data, ctx) {
 		} else if (n === "fp" && flightNamed(data, String(l.args || "").trim() || (plain(l.text).match(/Get the (.+?) flight path/i) || [])[1], ctx.faction, firstPt)) {
 			add({ kind: "getfp", location: flightNamed(data, String(l.args || "").trim() || (plain(l.text).match(/Get the (.+?) flight path/i) || [])[1], ctx.faction, firstPt) }, l.cond);
 			report.count(".fp -> getfp");
+		} else if (n === "dungeon") {
+			const arg = String(l.args || "").trim();
+			const name = DUNGEONS[arg.replace(/^!/, "").toUpperCase()];
+			if (!name || l.cond) report.count(`.dungeon ${name ? "on a class line" : "unknown"} (ignored)`);
+			else { whens.push(`${arg.startsWith("!") ? "!" : ""}dungeon ${JSON.stringify(name)}`); formatNeeds = Math.max(formatNeeds, 5); report.count(".dungeon -> when dungeon"); }
+		} else if (n === "zoneskip" || n === "subzoneskip") {
+			// Skipped while in that zone (flag 1: while not in it).
+			const [zones, flags] = String(l.args || "").split(",").map((x) => x.trim());
+			const names = (zones || "").split(/[+/]/).map((z) => (/^\d+$/.test(z) ? (n === "zoneskip" ? zoneName(data, Number(z)) : null) : z)).filter(Boolean);
+			const kind = n === "zoneskip" ? "zone" : "subzone";
+			const reverse = (Number(flags) || 0) & 1;
+			if (!names.length || l.cond || (reverse && names.length > 1)) report.count(`.${n} not expressible (ignored)`);
+			else { for (const z of names) whens.push(`${reverse ? "" : "!"}${kind} ${JSON.stringify(z)}`); report.count(`.${n} -> when ${reverse ? "" : "!"}${kind}`); }
+		} else if (n === "itemcount") {
+			// Shown while the bags hold that many (RXP: >= N by default, <N, >N, =N).
+			const [ids, rule] = String(l.args || "").split(",").map((x) => x.trim());
+			const m = String(rule || "").replace(/\s/g, "").match(/^([<>]?)(=?)(\d+)$/);
+			const id = /^\d+$/.test(ids || "") ? Number(ids) : null;
+			if (!m || !id || l.cond || (m[2] && !m[1])) report.count(".itemcount not expressible (ignored)");
+			else {
+				const total = Number(m[3]);
+				const neg = m[1] === "<";
+				const x = neg ? (m[2] ? total + 1 : total) : m[1] === ">" ? (m[2] ? total : total + 1) : total;
+				// "at least 0" always holds, "fewer than 0" never: no predicate for either.
+				if (x < 1) report.count(".itemcount of 0 (no condition)");
+				else { whens.push(`${neg ? "!" : ""}has ${id} x${x}`); report.count(".itemcount -> when has"); }
+			}
+		} else if (n === "bindlocation") {
+			// Skipped while the hearth is bound there (flag 1: while it is not).
+			const [area, flags] = String(l.args || "").split(",").map((x) => x.trim());
+			const inn = data.inns.find((i) => i.area === Number(area));
+			if (!inn || l.cond) report.count(".bindlocation not expressible (ignored)");
+			else { whens.push(`${(Number(flags) || 0) & 1 ? "" : "!"}bound ${JSON.stringify(inn.location)}`); report.count(".bindlocation -> when bound"); }
+		} else if (n === "maxlevel") {
+			const m = String(l.args || "").match(/^\s*(\d+)/);
+			if (!m || l.cond) report.count(".maxlevel not expressible (ignored)");
+			else { whens.push(`level<${Number(m[1]) + 1}`); report.count(".maxlevel -> when level"); }
 		} else if (WHEN_OF[n]) {
 			const [kind, neg] = WHEN_OF[n];
 			const ids = String(l.args).split(",").map((x) => Number(x.trim())).filter((x) => x > 0);
@@ -359,7 +423,7 @@ function buildStep(step, stepNo, data, ctx) {
 		} else if (n === "group") {
 			// The step needs a group (of N): shown on its quest work.
 			group = Number(l.args) >= 2 ? Number(l.args) : true;
-			report.count(".group -> group");
+			report.count(".group -> group, optional");
 		} else if (n === "home") {
 			const inn = innNamed(data, (plain(l.text).match(/Hearthstone to (.+?)\.?$/i) || [])[1] || String(l.args || "").trim(), firstPt);
 			add({ kind: "sethome", location: inn ? inn.location : undefined }, l.cond);
@@ -427,7 +491,8 @@ function buildStep(step, stepNo, data, ctx) {
 		goals.push({ kind: "goto", x: g.x, y: g.y, live: g.live, text: tips[0] ? tips[0].slice(0, 40) : undefined, only: "" });
 	}
 
-	if (group) for (const g of goals) if (GROUP_KINDS.has(g.kind)) g.group = group;
+	// Group work holds no solo player: optional, as Polestar does with elites.
+	if (group) for (const g of goals) if (GROUP_KINDS.has(g.kind)) { g.group = group; g.optional = true; }
 	const allAlong = goals.length > 0 && goals.every((g) => ALONG_KINDS.has(g.kind) || ((g.kind === "use" || g.kind === "interact") && g.quest != null));
 	// The way here: the waypoints of the steps done along the way before this one.
 	if (!completewith && !isLoop && ctx.path.length) {
@@ -444,7 +509,7 @@ function buildStep(step, stepNo, data, ctx) {
 	const orphanGoals = goals.filter((g) => orphanOf(g));
 	const base = {
 		stepNo, title: title || tips[0] || notes[0] || null, only: cond.only, goals, tips: [...eliteTips, ...tips], notes, whens, maps: usedMaps, loop: isLoop ? placeable : [],
-		completesWith: completewith ? (completewith.args.trim() === "next" ? "next" : labelOf(completewith.args)) : null, label: labelDef, format: formatNeeds, allAlong,
+		completesWith: completewith ? (completewith.args.trim() === "next" ? "next" : labelOf(completewith.args)) : null, sticky, label: labelDef, format: formatNeeds, allAlong,
 	};
 	if (!orphanGoals.length) return [base];
 	// A quest taken up in an earlier file (or left out of this one): its goals go
