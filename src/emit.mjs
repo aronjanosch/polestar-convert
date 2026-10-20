@@ -155,11 +155,19 @@ function buildStep(step, stepNo, data, ctx) {
 			if (!t) continue;
 			if ((l.text || "").includes("chatbubble")) continue; // "Talk to X": accept/turnin say it
 			if (!l.cond) tips.push(bare(t));
+			else {
+				const o = onlyText(parseCondition(l.cond).only);
+				if (o) { goals.push({ text: `note ${q(t)}`, only: o, kind: "note" }); report.count("class-specific text -> note only"); }
+			}
 			continue;
 		}
 		if (l.kind === "note") {
 			const t = plain(l.text);
 			if (t && !l.cond) notes.push(bare(t));
+			else if (t) {
+				const o = onlyText(parseCondition(l.cond).only);
+				if (o) { goals.push({ text: `note ${q(t)}`, only: o, kind: "note" }); report.count("class-specific text -> note only"); }
+			}
 			continue;
 		}
 		const n = l.name;
@@ -262,6 +270,7 @@ function buildStep(step, stepNo, data, ctx) {
 			else report.count("money: only `>` supported (ignored)");
 		} else if (TASKS.has(n)) {
 			const t = plain(l.text) || n;
+			if (n === "destroy") { const id = Number(l.args.split(",")[0]); if (data.items[id] && !l.cond) whens.push(`has ${id}`); }
 			add(`task ${q(t)}`, l.cond, "task");
 			formatNeeds = 5;
 			report.count(`.${n} -> task`);
@@ -392,7 +401,7 @@ export function convertGuide(parsed, data, opts) {
 		for (const t of s.tips.slice(0, 2)) if (t !== s.title) out.push(`  tip ${t}`);
 		const loopable = s.goals.some((g) => ["kill", "collect", "interact"].includes(g.kind) && !/ @/.test(g.text));
 		if (s.isLoop && s.gotos.length >= 2 && loopable) { out.push("  loop"); for (const g of s.gotos) out.push(`  goto ${g.x},${g.y}${g.live ? "" : " era"}`); }
-		const optional = s.completewith && !along;
+		const optional = s.completewith && !along && !s.goals.every((g) => ["money", "note"].includes(g.kind));
 		for (const g of s.goals) {
 			let line = `  ${g.text}`;
 			// a `-- note` stays last on the line
