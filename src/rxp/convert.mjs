@@ -504,7 +504,8 @@ function buildStep(step, stepNo, data, ctx) {
 		// notes beside the route, so it becomes a step of its own: a task to tick,
 		// in the middle of RXP's waypoints.
 		if (goals.length && goals.every((g) => g.kind === "note")) {
-			const spot = at(gotos.find((g) => g.uiMap && !g.cond) || gotos.find((g) => g.uiMap));
+			const placed = gotos.filter((g) => g.uiMap);
+			const spot = at(placed[Math.floor((placed.length - 1) / 2)]);
 			for (const g of goals) { g.kind = "task"; g.at = spot; }
 			formatNeeds = 5;
 			info = true;
