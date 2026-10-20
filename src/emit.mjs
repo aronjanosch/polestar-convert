@@ -264,10 +264,9 @@ function buildStep(step, stepNo, data, ctx) {
 			if (m && NAMES[m[1].toLowerCase()]) { add(`skill ${q(NAMES[m[1].toLowerCase()])} ${m[2]}`, l.cond, "skill"); report.count(".skill -> skill"); }
 			else report.count(".skill (ignored)");
 		} else if (n === "money") {
-			const m = l.args.match(/^>\s*([\d.]+)/);
-			const amt = m && copper(m[1]);
-			if (amt) { add(`money ${amt}`, l.cond, "money"); formatNeeds = 5; }
-			else report.count("money: only `>` supported (ignored)");
+			// Counting the character's money does not hold up in play (selling junk, repairs):
+			// RXP's step is ticked by the player, so the goal is dropped and the text stays.
+			report.count(".money (dropped: not a reliable goal)");
 		} else if (TASKS.has(n)) {
 			const t = plain(l.text) || n;
 			if (n === "destroy") { const id = Number(l.args.split(",")[0]); if (data.items[id] && !l.cond) whens.push(`has ${id}`); }
@@ -284,6 +283,11 @@ function buildStep(step, stepNo, data, ctx) {
 		}
 	}
 
+	if (goals.length && goals.every((g) => g.kind === "note")) {
+		for (const g of goals) { g.text = g.text.replace(/^note /, "task "); g.kind = "task"; }
+		formatNeeds = 5;
+		report.count("instruction-only step -> task");
+	}
 	const hasPlaced = goals.some((g) => ["accept", "turnin", "vendor", "train", "buy", "kill", "collect", "interact", "complete"].includes(g.kind));
 	const placeable = gotos.filter((g) => g.r !== 0 || gotos.length === 1);
 
