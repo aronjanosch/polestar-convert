@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// polestar-convert rxp --file <RXP guide .lua> --polestar <clone> --pack <pack dir> [--only "<name>"] [--native-verbs abandon,destroy]
+// polestar-convert rxp --file <RXP guide .lua> --polestar <clone> --pack <pack dir> [--only "<name>"] [--max-start N] [--native-verbs abandon,destroy]
 //
 // Reads guides you own from your own install and writes `.guide` files into a
 // local Polestar pack. It carries no guide content of its own.
@@ -24,7 +24,7 @@ function args(argv) {
 const a = args(process.argv.slice(2));
 const [cmd] = a._;
 if (cmd !== "rxp" || !a.file || !a.polestar || !a.pack) {
-	console.error('usage: polestar-convert rxp --file <guide.lua> --polestar <clone> --pack <pack dir> [--only "<guide name>"] [--native-verbs abandon,destroy]');
+	console.error('usage: polestar-convert rxp --file <guide.lua> --polestar <clone> --pack <pack dir> [--only "<guide name>"] [--max-start N] [--native-verbs abandon,destroy]');
 	process.exit(2);
 }
 
@@ -37,17 +37,27 @@ const guidesDir = join(a.pack, "guides");
 if (!existsSync(guidesDir)) mkdirSync(guidesDir, { recursive: true });
 
 const parsed = extractGuides(readFileSync(a.file, "utf8")).map(parseGuide);
-const chosen = parsed.filter((g) => !a.only || (g.header.name || "") === a.only);
-if (!chosen.length) { console.error("no guide matches"); process.exit(1); }
 
 const report = new Report();
 // Slugs, hand-offs and the quests taken on the way in come from the whole file,
-// so `--only` still knows what the guides before it accept.
+// so a guide picked alone still knows what the guides before it accept.
 const plan = planChain(parsed, report);
+const convert = (g, rep, next) => convertGuide(g, data, { report: rep, slug: plan.slug.get(g), packId, next, before: plan.before.get(g), native });
+// `--max-start N`: only guides that start at level N or below.
+const startsBy = (g) => {
+	if (a["max-start"] == null) return true;
+	const lo = Number(String(convert(g, new Report(), []).levels || "").split("-")[0]);
+	return lo > 0 && lo <= Number(a["max-start"]);
+};
+const chosen = parsed.filter((g) => (!a.only || (g.header.name || "") === a.only) && startsBy(g));
+if (!chosen.length) { console.error("no guide matches"); process.exit(1); }
+const kept = new Set(chosen);
+
 for (const g of chosen) {
 	const slug = plan.slug.get(g);
-	const next = plan.next.get(g).map((n) => plan.slug.get(n));
-	const r = convertGuide(g, data, { report, slug, packId, next, before: plan.before.get(g), native });
+	// A hand-off to a guide this run does not write would point nowhere.
+	const next = plan.next.get(g).filter((n) => kept.has(n)).map((n) => plan.slug.get(n));
+	const r = convert(g, report, next);
 	writeFileSync(join(guidesDir, `${slug}.guide`), r.text);
 	console.log(`${slug}: ${r.stepsIn} RXP steps -> ${r.stepsOut} steps, pack format ${r.format}`);
 }

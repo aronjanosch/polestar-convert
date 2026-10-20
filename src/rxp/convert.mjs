@@ -403,6 +403,15 @@ function levelsOf(quests, data) {
 	return hi ? `${lo}-${Math.max(lo, hi)}` : null;
 }
 
+// Where the guide sits in Polestar's menu: RXP's dungeon quest guides under
+// Dungeons, each other RXP group in a folder of its own ("RXP Forever Dungeon Guide").
+function menuPlace(group) {
+	const name = String(group || "").replace(/\(([AH])\)/g, "").replace(/^(RestedXP|RXP)\s+/i, "").replace(/\s+/g, " ").trim();
+	if (!name) return { category: "Leveling" };
+	if (/dungeon quest/i.test(name)) return { category: "Dungeons" };
+	return { category: "Leveling", folder: `RXP ${name}` };
+}
+
 export function convertGuide(parsed, data, opts) {
 	const { report, slug, packId } = opts;
 	const info = parseName(parsed.header.name);
@@ -448,6 +457,7 @@ export function convertGuide(parsed, data, opts) {
 		levels: info.levels || levelsOf([...accepted].filter((id) => !before.has(id)), data) || (String(parsed.header.subgroup || "").match(/\b(\d+-\d+)\b/) || [])[1] || null,
 		zone,
 		defaultMap,
+		...menuPlace(parsed.header.group),
 		sourceSteps: parsed.steps.length,
 		steps,
 	};
