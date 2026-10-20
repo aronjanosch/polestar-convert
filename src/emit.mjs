@@ -172,6 +172,7 @@ function buildStep(step, stepNo, data, ctx) {
 		}
 		const n = l.name;
 		const lineQuestId = Number((l.args.match(/^(\d+)/) || [])[1]);
+		if ((n === "accept" || n === "turnin") && !lineQuestId) { report.count(`.${n} (no quest id, ignored)`); continue; }
 		if (n === "accept" || n === "turnin") {
 			const known = data.quests[lineQuestId];
 			if (n === "accept") ctx.seen.add(lineQuestId);
@@ -184,6 +185,7 @@ function buildStep(step, stepNo, data, ctx) {
 			if (!title) title = plain(l.text).replace(/^(accept|turn in)\s+/i, "");
 		} else if (n === "complete") {
 			const m = l.args.match(/^(\d+)(?:,(\d+))?/);
+			if (!m) { report.count(".complete (unparsed, ignored)"); report.note(ctx.name, stepNo, "unparsed .complete", l.args); continue; }
 			const quest = data.quests[Number(m[1])];
 			if (!quest) { add(`complete ${m[1]} ${q(ctx.titles.get(Number(m[1])) || plain(l.text) || "quest " + m[1])}${at(placeFor(li))}`, l.cond, "complete"); report.note(ctx.name, stepNo, `quest ${m[1]} unknown to the data`, l.args); continue; }
 			if (m[2] == null) {
