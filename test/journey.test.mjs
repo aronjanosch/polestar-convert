@@ -137,8 +137,10 @@ test("open things become manual tasks and notes, and every gap is listed", () =>
 	assert.match(r.text, /note "Use Rune Stone"/);
 	assert.match(r.text, /note "Choice in Journey: \\"I Flew There\\"\."/);
 	// A step only for a state Polestar cannot check: optional, with a note.
-	assert.match(r.text, /step Teleport instead\.\n  note "Only if you know Teleport: Vale: otherwise skip this step\."\n  level 4 optional/);
+	assert.match(r.text, /step Teleport instead\.\n  note "Only if you know Teleport: Vale: otherwise use Skip\."\n  level 4\n/);
 	const kinds = new Set(r.gaps.map((g) => g.kind));
-	for (const k of ["cast (no goal in Polestar)", "jump the player chooses (note only)", "alternative for a state Polestar cannot check (optional)"]) assert.ok(kinds.has(k), k);
+	for (const k of ["cast (no goal in Polestar)", "jump the player chooses (note only)", "step for a state Polestar cannot check (note: only if ..., else Skip)"]) assert.ok(kinds.has(k), k);
 	assert.ok(r.gaps.every((g) => g.step));
+	// No step is left that nothing holds (Polestar would pass it at once).
+	for (const step of r.text.split("\n\nstep").slice(1)) assert.match(step, /\n  (?!note)[a-z]+ (?!.*optional)/);
 });
