@@ -13,6 +13,7 @@ export function loadData(polestarDir) {
 	const zones = read("zones.json");
 	const frames = read("map-frames.json");
 	const items = read("items.json");
+	const races = read("races.json");
 
 	const npcByName = new Map();
 	for (const npc of Object.values(npcs)) {
@@ -20,7 +21,20 @@ export function loadData(polestarDir) {
 		if (!npcByName.has(key)) npcByName.set(key, []);
 		npcByName.get(key).push(npc);
 	}
-	return { quests, npcs, zones, frames, items, npcByName };
+	return { quests, npcs, zones, frames, items, races, npcByName };
+}
+
+// Whether any race of `faction` (narrowed to `raceNames` when given) may take
+// the quest, by its race mask in the data: what Polestar's lint checks too.
+export function questOpenTo(data, quest, faction, raceNames) {
+	if (!quest || !quest.races || !data.races) return true;
+	const want = raceNames && raceNames.map((r) => (r === "Undead" ? "Scourge" : r));
+	let mask = 0n;
+	for (const [name, sides] of Object.entries(data.races)) {
+		if (want && !want.includes(name)) continue;
+		for (const [side, r] of Object.entries(sides)) if (!faction || side === faction) mask |= BigInt(r.bit);
+	}
+	return mask === 0n || (BigInt(quest.races) & mask) !== 0n;
 }
 
 // RXP "<uiMap>/<floor>,X,Y" world coordinates -> zone percentages (0-100).

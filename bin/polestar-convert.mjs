@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { extractGuides, parseGuide, parseName } from "../src/rxp/parse.mjs";
 import { convertGuide } from "../src/rxp/convert.mjs";
+import { planChain } from "../src/rxp/chain.mjs";
 import { Report } from "../src/ir.mjs";
 import { loadData } from "../src/data.mjs";
 
@@ -18,10 +19,6 @@ function args(argv) {
 		else out._.push(argv[i]);
 	}
 	return out;
-}
-
-function slugOf(name) {
-	return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 const a = args(process.argv.slice(2));
@@ -43,25 +40,14 @@ const parsed = extractGuides(readFileSync(a.file, "utf8")).map(parseGuide);
 const chosen = parsed.filter((g) => !a.only || (g.header.name || "") === a.only);
 if (!chosen.length) { console.error("no guide matches"); process.exit(1); }
 
-// Two guides can share a name (Alliance and Horde, or other editions): keep slugs unique.
-const slugOfGuide = new Map();
-const used = new Map();
-for (const g of chosen) {
-	let slug = slugOf(g.header.name || "guide");
-	const n = used.get(slug) || 0;
-	used.set(slug, n + 1);
-	if (n) slug += `-${slugOf(g.header.faction || "") || "x"}-${n + 1}`;
-	slugOfGuide.set(g, slug);
-}
-const slugs = new Map(chosen.map((g) => [g.header.name, slugOfGuide.get(g)]));
 const report = new Report();
-const accepted = new Set(); // quests accepted anywhere in this run
-const seen = new Set(); // quests whose accept has already been emitted, in route order
+// Slugs, hand-offs and the quests taken on the way in come from the whole file,
+// so `--only` still knows what the guides before it accept.
+const plan = planChain(parsed, report);
 for (const g of chosen) {
-	const slug = slugOfGuide.get(g);
-	const nextName = (g.header.next || "").split(";")[0].trim();
-	const next = slugs.get(nextName) || null;
-	const r = convertGuide(g, data, { report, slug, packId, next, accepted, seen, native });
+	const slug = plan.slug.get(g);
+	const next = plan.next.get(g).map((n) => plan.slug.get(n));
+	const r = convertGuide(g, data, { report, slug, packId, next, before: plan.before.get(g), native });
 	writeFileSync(join(guidesDir, `${slug}.guide`), r.text);
 	console.log(`${slug}: ${r.stepsIn} RXP steps -> ${r.stepsOut} steps, pack format ${r.format}`);
 }
