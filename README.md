@@ -23,6 +23,20 @@ cd my-pack && node ../polestar/tools/polestar.js lint && node ../polestar/tools/
 The run prints a report: what was dropped, what became a `task`/`note`, and
 what needs a human look.
 
+## Layout
+
+```
+src/rxp/parse.mjs    RXP Lua -> steps and lines
+src/rxp/convert.mjs  RXP adapter: steps -> intermediate guide (src/ir.mjs)
+src/ir.mjs           the intermediate form and goal text; no source format in it
+src/emit.mjs         intermediate guide -> Polestar .guide text
+src/data.mjs         Polestar's reference data (ids, names, coordinates)
+```
+
+A new source (Journey, Zygor) is an adapter that fills the intermediate form;
+`--native-verbs abandon,destroy` makes the renderer's input use Polestar's newer
+goals instead of tasks.
+
 ## Rules the converter keeps
 
 - Ids, names and coordinates come from Polestar's data, never from memory. What
