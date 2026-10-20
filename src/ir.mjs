@@ -20,26 +20,27 @@
 //   allAlong,               // its goals are all work done along the way
 //   format,                 // lowest pack format its goals need
 // }
-// Goal = { kind, only: "Warrior,Priest" | "", ...fields } with `kind` one of
-//   accept/turnin {quest, title?, at?}      complete {quest, title?, at?}
+// Goal = { kind, only: "Warrior,Priest" | "", optional?, ...fields } with `kind` one of
+//   accept/turnin {quest, title?, at?, item? (accept: started from it)}   complete {quest, title?, at?}
 //   kill {npc, quest, oi}  collect {item, itemName?, quest?, oi?, count?}
 //   interact {object, quest, oi}  buy {item, itemName?, count, npc?}  (no npc: nearest)
 //   vendor {npc?}  train {npc?|class|profession, comment?}  use {item}
 //   level {level, xp?}  skill {skill, n}  task {text}  note {text}
 //   abandon {quest}  destroy {item}  goto {x, y, live, text?}
-// `at` = {x, y, live}: where the goal is, when the data does not know.
+// `at` = {x, y, live, map?}: where the goal is, when the data does not know; `map`
+// when it is not the step's zone.
 
 export function q(text) { return `"${String(text).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`; }
 export function bare(text) { return String(text).replace(/"/g, "'"); }
 
-const atText = (at) => (at ? ` @${at.x},${at.y}${at.live ? "" : " era"}` : "");
+const atText = (at) => (at ? ` @${at.x},${at.y}${at.map != null ? " map " + at.map : ""}${at.live ? "" : " era"}` : "");
 const nameText = (g) => (g.itemName ? ` ${q(g.itemName)}` : "");
 
 // A goal's text without `only`/`optional`, and its trailing `-- comment`.
 export function goalText(g) {
 	switch (g.kind) {
 		case "accept": case "turnin": case "complete":
-			return `${g.kind} ${g.quest}${g.title ? " " + q(g.title) : ""}${atText(g.at)}`;
+			return `${g.kind} ${g.quest}${g.title ? " " + q(g.title) : ""}${atText(g.at)}${g.item ? " item " + g.item : ""}`;
 		case "kill": return `kill ${g.npc} quest ${g.quest}.${g.oi}`;
 		case "interact": return `interact ${g.object} quest ${g.quest}.${g.oi}`;
 		case "collect":
