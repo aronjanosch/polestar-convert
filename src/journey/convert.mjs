@@ -214,7 +214,7 @@ function objectiveGoals(q, n, data, refs, ctx, stepNo) {
 	const o = objs[i];
 	const named = (x) => x && ((x.type === "kill" && refs.npcs.has(x.id)) || (x.type === "item" && refs.items.has(x.id)) || (x.type === "object" && refs.objects.has(x.id)));
 	if (!o) {
-		ctx.report.note(ctx.name, stepNo, `quest ${q} has no objective ${n} in the data; whole quest used`);
+		gapNote(ctx, stepNo, `quest ${q} has no objective ${n} in the data; whole quest used`);
 		return [{ kind: "complete", quest: q }];
 	}
 	// Cross-check by the ids the step names: when it names another objective's
@@ -240,6 +240,16 @@ function withCompleted(condition, completed) {
 // A residual -> the `when` lists of which one must hold (one list each: a copy
 // of the step or goal). Parts Polestar cannot check are left out and counted;
 // `where` null keeps quiet (texts).
+// A gap for the report: what Journey has that the guide does not carry, by
+// Journey's own step id. Also listed under "needs a look".
+function gapNote(ctx, stepNo, what, line) {
+	ctx.report.note(ctx.name, stepNo, what, line);
+	gap(ctx, "needs a look", what + (line ? `: ${line}` : ""));
+}
+function gap(ctx, kind, detail) {
+	ctx.gaps.push({ step: ctx.stepId || null, kind, detail: String(detail) });
+}
+
 function altsOf(residual, ctx, stepNo, where) {
 	if (!residual) return [[]];
 	const { alts, unknown } = whenAlts(residual, ctx.names);
@@ -248,13 +258,46 @@ function altsOf(residual, ctx, stepNo, where) {
 		if (alts.some((a) => a.length)) ctx.report.count(`${where} condition -> when`);
 		for (const u of unknown) {
 			const lit = parseLocal(u);
-			if (lit) ctx.report.count(`${where} condition on the step's location state (left out)`);
-			else { ctx.report.count(`${where} condition part Polestar cannot check: ${(u.match(/[A-Z][A-Z_]+/) || ["?"])[0]} (left out)`); ctx.report.note(ctx.name, stepNo, `${where} condition part left out`, u); }
+			if (lit) { ctx.report.count(`${where} condition on the step's location state (left out)`); gap(ctx, "location state left out", u); }
+			else { ctx.report.count(`${where} condition part Polestar cannot check: ${(u.match(/[A-Z][A-Z_]+/) || ["?"])[0]} (left out)`); gapNote(ctx, stepNo, `${where} condition part left out`, u); }
 		}
 	}
 	return alts.length ? alts : [];
 }
 const parseLocal = (text) => /^(not )?(WITHIN|VISITED|EXITED|ACTIVE|CHECKPOINT|COMPLETE|ROOT_COMPLETED|TGLOCATION_ENABLED)\b/.test(text);
+
+// A step Journey shows only in a state Polestar cannot check (a spell known,
+// dead, in a group): kept as an alternative, its goals optional, with a note
+// saying when it applies. [] when it is not such a step.
+const ALT = { SPELL: ["know", true], GHOST: ["dead", true], DEAD: ["dead", true], DEADORGHOST: ["dead", true], ALIVE: ["dead", false], INGROUP: ["grouped", true] };
+function alternative(st, ctx, stepNo) {
+	const sk = kv(st);
+	const text = withCompleted(sk.condition, sk.completed);
+	if (!text || !/\b(SPELL|GHOST|DEAD|DEADORGHOST|ALIVE|INGROUP)\b/.test(text)) return [];
+	const ev = { ...ctx.ev, assume: (name, keys) => (ALT[name] ? ALT[name][1] : assume(ctx, name, keys)) };
+	const variants = evaluate(text, ctx.universe, ev);
+	if (!variants.length) return [];
+	const why = [];
+	for (const m of String(sk.condition || "").matchAll(/(not\s+)?SPELL\[(\d+)\]/g)) if (!m[1]) why.push(`you know ${entityName(ctx, "spell", Number(m[2]))}`);
+	if (/\b(GHOST|DEAD|DEADORGHOST)\b/.test(sk.condition || "")) why.push("you are dead");
+	if (/\bINGROUP\b/.test(sk.condition || "")) why.push("you are in a group");
+	const out = [];
+	for (const v of variants) for (const whens of altsOf(v.residual, ctx, stepNo, "step")) {
+		for (const s of buildVariant(st, stepNo, ctx, v.only, v.pairs, whens)) {
+			if (!s.title && s.tips[0]) s.title = titleOf(s.tips[0]);
+			s.goals = [
+				{ kind: "note", text: `Only if ${why.length ? why.join(" and ") : "Journey's condition holds"}: otherwise skip this step.`, only: "" },
+				...s.goals.map((g) => (g.kind === "note" ? g : { ...g, optional: true })),
+			];
+			out.push(s);
+		}
+	}
+	if (out.length) {
+		ctx.report.count("step for a state Polestar cannot check -> optional alternative with a note");
+		gap(ctx, "alternative for a state Polestar cannot check (optional)", why.join(", ") || sk.condition);
+	}
+	return out;
+}
 
 function buildStep(st, stepNo, ctx) {
 	const { data, report, names, universe } = ctx;
@@ -263,7 +306,12 @@ function buildStep(st, stepNo, ctx) {
 	// A step Journey counts as done already (`completed`) is one that does not apply.
 	const variants = evaluate(withCompleted(sk.condition, sk.completed), universe, ctx.ev);
 	if (sk.completed) report.count("step `completed` -> when not");
-	if (!variants.length) { report.count("step: for no Forever character (dropped)"); return out; }
+	if (!variants.length) {
+		const alt = alternative(st, ctx, stepNo);
+		if (alt.length) return alt;
+		report.count("step: for no Forever character (dropped)");
+		return out;
+	}
 	for (const v of variants) {
 		for (const whens of altsOf(v.residual, ctx, stepNo, "step")) out.push(...buildVariant(st, stepNo, ctx, v.only, v.pairs, whens));
 	}
@@ -350,7 +398,18 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 					const inn = said ? innNamed(data, said, null) : null;
 					const location = inn ? inn.location : ctx.bind;
 					if (location) { chunk(gWhens).goals.push({ kind: "hearth", location, only: "" }); report.count("hearthstone button -> hearth"); }
-					else report.count("hearthstone button, place unknown (text only)");
+					else { report.count("hearthstone button, place unknown (text only)"); gap(ctx, "hearth, place unknown", textOf(group, ctx, groupPairs)); }
+				} else if (bk.spell != null) {
+					// A spell to cast: Polestar cannot see it, the player ticks it.
+					chunk(gWhens).goals.push({ kind: "task", text: `Cast ${entityName(ctx, "spell", bk.spell)}`, only: "" });
+					format = Math.max(format, 5);
+					report.count("spell button -> task");
+					gap(ctx, "cast (no goal in Polestar)", `spell ${bk.spell}`);
+				} else if (bk.item != null && data.items[bk.item]) {
+					// A helper beside the step's goals, which check the work: a note, not a task to tick.
+					chunk(gWhens).goals.push({ kind: "note", text: `Use ${data.items[bk.item].name}`, only: "" });
+					report.count("item button -> note");
+					gap(ctx, "use item (no goal Polestar checks here)", `item ${bk.item}`);
 				}
 			}
 			let textTaken = false;
@@ -531,7 +590,7 @@ function addTask(task, t) {
 		const kind = k.accept != null ? "accept" : "turnin";
 		const id = Number(k[kind]);
 		const q = data.quests[id];
-		if (!q) { report.count(`${kind}: quest unknown to the data (dropped)`); report.note(ctx.name, stepNo, `quest ${id} unknown to Polestar's data; ${kind} left out`); return; }
+		if (!q) { report.count(`${kind}: quest unknown to the data (dropped)`); gapNote(ctx, stepNo, `quest ${id} unknown to Polestar's data; ${kind} left out`); return; }
 		if (kind === "accept") ctx.seen.add(id);
 		else ctx.turned.add(id);
 		t.setTitle(q.title);
@@ -542,17 +601,17 @@ function addTask(task, t) {
 			const giver = ((ends && ends.npc) || []).map(npcPlace).find(Boolean) || ((ends && ends.object) || []).map(objectPlace).find(Boolean);
 			// Else the last point of the step's way in (a dungeon's or a tram's entrance).
 			const place = giver || t.wayIn;
-			if (!place) { report.count(`${kind}: giver without a spawn, no place (dropped)`); report.note(ctx.name, stepNo, `quest ${id}: the data has no spawn for its ${kind === "accept" ? "giver" : "ender"} and the step no place; ${kind} left out`); return; }
+			if (!place) { report.count(`${kind}: giver without a spawn, no place (dropped)`); gapNote(ctx, stepNo, `quest ${id}: the data has no spawn for its ${kind === "accept" ? "giver" : "ender"} and the step no place; ${kind} left out`); return; }
 			goal({ kind, quest: id, optional, at: atOf(place) });
 			report.count(giver ? `${kind}: giver without a spawn, placed at Journey's location` : `${kind}: giver without a spawn, placed at the step's way in`);
-			if (!giver) report.note(ctx.name, stepNo, `quest ${id}: ${kind} placed at the step's last waypoint (check)`);
+			if (!giver) gapNote(ctx, stepNo, `quest ${id}: ${kind} placed at the step's last waypoint (check)`);
 		}
 		return;
 	}
 	if (k.complete != null || k.startwork != null) {
 		const id = Number(k.complete != null ? k.complete : k.startwork);
 		const q = data.quests[id];
-		if (!q) { report.count("complete: quest unknown to the data (dropped)"); report.note(ctx.name, stepNo, `quest ${id} unknown to Polestar's data; work left out`); return; }
+		if (!q) { report.count("complete: quest unknown to the data (dropped)"); gapNote(ctx, stepNo, `quest ${id} unknown to Polestar's data; work left out`); return; }
 		const ns = k.objective != null ? [Number(k.objective)] : k.objectives ? arr(k.objectives).map(Number) : [null];
 		const goals = ns.flatMap((n) => objectiveGoals(id, n, data, refs, ctx, stepNo));
 		if (!goals.length) { report.count("complete on a quest without objectives (dropped)"); return; }
@@ -641,7 +700,7 @@ function addTask(task, t) {
 		const kind = k.learntaxi != null ? "getfp" : "fly";
 		const node = ctx.names.taxi(k.learntaxi != null ? k.learntaxi : k.taketaxi);
 		if (node) { goal({ kind, location: node.short, optional }); report.count(`${k.learntaxi != null ? "learntaxi" : "taketaxi"} -> ${kind}`); }
-		else { report.count(`${kind}: taxi node unknown to the data (dropped)`); report.note(ctx.name, stepNo, `taxi node ${k.learntaxi ?? k.taketaxi} unknown`); }
+		else { report.count(`${kind}: taxi node unknown to the data (dropped)`); gapNote(ctx, stepNo, `taxi node ${k.learntaxi ?? k.taketaxi} unknown`); }
 		return;
 	}
 	if (k.sethearthstone != null || k.hearth != null) {
@@ -649,7 +708,7 @@ function addTask(task, t) {
 		const inn = ctx.names.inn(area);
 		const kind = k.sethearthstone != null ? "sethome" : "hearth";
 		if (inn) { goal({ kind, location: inn, optional }); ctx.bind = inn; report.count(`${k.sethearthstone != null ? "sethearthstone" : "hearth"} -> ${kind}`); }
-		else if (kind === "sethome") { goal({ kind, optional }); report.count("sethearthstone: inn of that area unknown -> sethome nearest"); report.note(ctx.name, stepNo, `no inn with area ${area} in the data`); }
+		else if (kind === "sethome") { goal({ kind, optional }); report.count("sethearthstone: inn of that area unknown -> sethome nearest"); gapNote(ctx, stepNo, `no inn with area ${area} in the data`); }
 		else { report.count("hearth: inn unknown (dropped)"); }
 		return;
 	}
@@ -666,7 +725,15 @@ function addTask(task, t) {
 		report.count(`${k.deposit ? "deposit" : "withdraw"} -> task`);
 		return;
 	}
-	if (k.button != null) { report.count("jump button (ignored)"); return; }
+	if (k.button != null) {
+		if (k.goto === "next" && k.optional === true) { report.count("skip button (goals made optional)"); gap(ctx, "skip choice (goals optional)", k.button); return; }
+		if (k.guide == null && k.goto == null) { report.count("button without a jump (ignored)"); return; }
+		const skip = /^(skip|i already did|click when done|click for next)/i.test(String(k.button).trim());
+		c.goals.push({ kind: "note", text: skip ? `You may skip this step ("${bare(k.button).replace(/\?$/, "")}" in Journey).` : `Choice in Journey: "${bare(k.button)}".`, only });
+		report.count("jump button -> note");
+		gap(ctx, "jump the player chooses (note only)", `${k.button} -> ${k.guide ? k.guide + " " : ""}${k.goto || ""}`);
+		return;
+	}
 	if (k.npc != null || k.gameobject != null || k.fromnpc != null) return; // who to talk to: the goals beside it say it
 	if (k.text != null) {
 		const text = textOf({ arr: [String(k.text)], kv: {} }, ctx, t.pairs);
@@ -690,9 +757,10 @@ function assume(ctx, name, keys) {
 	let v;
 	if (root === "VAR") v = ctx.varsSet.has(name);
 	else v = normalCase(root);
-	if (v !== undefined) {
+	// Only while converting a step (not when reading the guide's hand-offs).
+	if (v !== undefined && ctx.stepId) {
 		if (!ctx.assumed.has(root)) ctx.assumed.set(root, new Set());
-		ctx.assumed.get(root).add(ctx.stepNo);
+		ctx.assumed.get(root).add(ctx.stepId);
 	}
 	return v;
 }
@@ -703,7 +771,7 @@ export function convertGuide(info, guide, data, opts) {
 	const universe = pairsOf(data, faction);
 	const ctx = {
 		data, names, report, universe, faction, fixed: opts.fixed || {}, name: info.description || info.guideID,
-		seen: new Set(opts.before || []), turned: new Set(), alongOpen: new Set(),
+		seen: new Set(opts.before || []), turned: new Set(), alongOpen: new Set(), gaps: [],
 		// Where the route stands, for texts: taken 1, handed in 3, else 0.
 		route: (q) => (ctx.turned.has(q) ? 3 : ctx.seen.has(q) ? 1 : 0),
 		// Conditions read with Forever's fixed names and its quests.
@@ -728,6 +796,7 @@ export function convertGuide(info, guide, data, opts) {
 	arr(guide).forEach((st, i) => {
 		if (!isTable(st)) return;
 		ctx.stepNo = i + 1;
+		ctx.stepId = kv(st).id || `#${i + 1}`;
 		for (const s of buildStep(st, i + 1, ctx)) steps.push(s);
 		// Markers this step sets when done (`oncomplete = "VAR.X = true"`) hold from here on.
 		for (const node of [st, ...arr(st)]) {
@@ -766,7 +835,7 @@ export function convertGuide(info, guide, data, opts) {
 			// A turn-in of a quest the route has handed in already (a slip in the source).
 			if (g.kind === "turnin" && turned.has(g.quest) && !s.whens.length && !g.only && !g.optional) {
 				report.count("turn-in of a quest already handed in (dropped)");
-				report.note(ctx.name, s.stepNo, `turnin ${g.quest} again after it was handed in; left out (check the source)`);
+				gapNote(ctx, s.stepNo, `turnin ${g.quest} again after it was handed in; left out (check the source)`);
 				continue;
 			}
 			// An accept whose prerequisite the route has taken but not handed in, at the
@@ -837,5 +906,6 @@ export function convertGuide(info, guide, data, opts) {
 	};
 	for (const [k, steps] of ctx.assumed) report.count(`steps with a condition on ${k} read as the route's normal case`, steps.size);
 	const r = render(ir, { report, slug, packId, next: opts.next || [] });
-	return { ...r, jumps: [...ctx.jumps].reverse(), accepted };
+	for (const [k, steps] of ctx.assumed) for (const id of steps) ctx.gaps.push({ step: id, kind: "read as the route's normal case", detail: k });
+	return { ...r, jumps: [...ctx.jumps].reverse(), accepted, gaps: ctx.gaps };
 }

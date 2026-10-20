@@ -49,7 +49,7 @@ const html = (text) => `<html><body><p>\n${Buffer.from(text).toString("base64").
 const DATA = {
 	quests: { 100: { id: 100, title: "Boar Trouble", races: null, start: { npc: [10] }, end: { npc: [10] }, objectives: [{ type: "kill", id: 20, count: 5, text: "Boar" }] }, 101: { id: 101, title: "Other", start: { npc: [10] }, end: { npc: [10] }, objectives: [] } },
 	npcs: { 10: { id: 10, name: "Bob", spawns: { 1: { f: "l", pts: [[45, 45]] } }, roles: [] }, 20: { id: 20, name: "Boar", rank: 0, spawns: {} } },
-	items: { 30: { id: 30, name: "Hearthstone" } },
+	items: { 30: { id: 30, name: "Hearthstone" }, 31: { id: 31, name: "Rune Stone" } },
 	objects: {},
 	zones: { 1: { name: "Invented Vale" } },
 	frames: { forever: { 1: { left: 1000, right: 0, top: 1000, bottom: 0 } }, era: {} },
@@ -122,4 +122,23 @@ test("converts an invented guide into Polestar's DSL", () => {
 	assert.deepEqual(r.jumps, ["H02X"]);
 	// The turn-in's own condition: only once the quest is done.
 	assert.match(r.text, /when complete 100\n(.*\n)*  turnin 100/);
+});
+
+test("open things become manual tasks and notes, and every gap is listed", () => {
+	const lua = `{
+		{ id = "02-01", { buttons = { { spell = 50 }, { item = 31 } }, { "Do the thing." }, { accept = 100 } } },
+		{ id = "02-02", { { button = "I Flew There", goto = "03-01" }, { turnin = 100 } } },
+		{ id = "02-03", condition = "SPELL[50]", { "Teleport instead.", { level = 4 } } },
+	}`;
+	const names = { ...NAMES, spell: (id) => (id === 50 ? "Teleport: Vale" : null) };
+	const r = convertGuide({ guideID: "H02X_FVR", description: "2-4 Invented Vale", faction: "Horde", levels: "2-4", zone: 1 }, parseLua(lua), DATA, { report: new Report(), slug: "h02x", packId: "mine", names });
+	// A spell to cast: a task the player ticks; an item to use: a note (its quest goal checks).
+	assert.match(r.text, /task "Cast Teleport: Vale"/);
+	assert.match(r.text, /note "Use Rune Stone"/);
+	assert.match(r.text, /note "Choice in Journey: \\"I Flew There\\"\."/);
+	// A step only for a state Polestar cannot check: optional, with a note.
+	assert.match(r.text, /step Teleport instead\.\n  note "Only if you know Teleport: Vale: otherwise skip this step\."\n  level 4 optional/);
+	const kinds = new Set(r.gaps.map((g) => g.kind));
+	for (const k of ["cast (no goal in Polestar)", "jump the player chooses (note only)", "alternative for a state Polestar cannot check (optional)"]) assert.ok(kinds.has(k), k);
+	assert.ok(r.gaps.every((g) => g.step));
 });

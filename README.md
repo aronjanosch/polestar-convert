@@ -29,6 +29,12 @@ node polestar-convert/bin/polestar-convert.mjs journey \
   [--only "1-6 Tirisfal Glades" | --only H01TG] [--native-verbs destroy]
 ```
 
+The Journey run also writes `reports/journey-gaps.json` into the pack: per
+guide and Journey step id, every condition, choice and goal Polestar cannot
+carry and what the converter did instead (a `task` the player ticks, a note,
+an optional alternative step, or the route's normal case). What Polestar
+would need for each is in JOURNEY-POLESTAR-GAPS.md.
+
 The run prints a report: what was dropped, what became a `task`/`note`, and
 what needs a human look.
 
