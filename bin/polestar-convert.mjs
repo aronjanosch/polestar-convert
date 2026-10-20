@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// polestar-convert rxp --file <RXP guide .lua> --polestar <clone> --pack <pack dir> [--only "<name>"]
+// polestar-convert rxp --file <RXP guide .lua> --polestar <clone> --pack <pack dir> [--only "<name>"] [--native-verbs abandon,destroy]
 //
 // Reads guides you own from your own install and writes `.guide` files into a
 // local Polestar pack. It carries no guide content of its own.
@@ -26,11 +26,13 @@ function slugOf(name) {
 const a = args(process.argv.slice(2));
 const [cmd] = a._;
 if (cmd !== "rxp" || !a.file || !a.polestar || !a.pack) {
-	console.error('usage: polestar-convert rxp --file <guide.lua> --polestar <clone> --pack <pack dir> [--only "<guide name>"]');
+	console.error('usage: polestar-convert rxp --file <guide.lua> --polestar <clone> --pack <pack dir> [--only "<guide name>"] [--native-verbs abandon,destroy]');
 	process.exit(2);
 }
 
 const data = loadData(a.polestar);
+// Verbs a newer Polestar has as goals; without them these RXP commands become tasks.
+const native = new Set(String(a["native-verbs"] || "").split(",").map((s) => s.trim()).filter(Boolean));
 const packJson = JSON.parse(readFileSync(join(a.pack, "pack.json"), "utf8"));
 const packId = packJson.id;
 const guidesDir = join(a.pack, "guides");
@@ -58,7 +60,7 @@ for (const g of chosen) {
 	const slug = slugOfGuide.get(g);
 	const nextName = (g.header.next || "").split(";")[0].trim();
 	const next = slugs.get(nextName) || null;
-	const r = convertGuide(g, data, { report, slug, packId, next, accepted, seen });
+	const r = convertGuide(g, data, { report, slug, packId, next, accepted, seen, native });
 	writeFileSync(join(guidesDir, `${slug}.guide`), r.text);
 	console.log(`${slug}: ${r.stepsIn} RXP steps -> ${r.stepsOut} steps, pack format ${r.format}`);
 }
