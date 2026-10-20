@@ -27,7 +27,7 @@ const WHEN_OF = {
 // Goals Polestar checks off in an `along` step (not tasks, gotos or visits). Not
 // accepts or hand-ins: the route passes an along step at once, and a quest not
 // taken then would hold its later goals.
-const ALONG_KINDS = new Set(["kill", "collect", "complete", "buy", "note", "destroy", "abandon"]);
+const ALONG_KINDS = new Set(["kill", "collect", "complete", "buy", "note"]);
 const PLACE_KINDS = new Set(["kill", "collect", "interact", "use", "complete"]);
 const GROUP_KINDS = new Set(["accept", "turnin", "complete", "kill", "collect", "interact", "use"]);
 const PROFESSIONS = new Set(["Mining", "Herbalism", "Skinning", "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Leatherworking", "Tailoring", "First Aid", "Cooking", "Fishing"]);
