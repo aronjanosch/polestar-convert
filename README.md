@@ -57,7 +57,7 @@ a step RXP shows holds in Polestar until it is done, ticked or skipped.
 Nothing passes unseen.
 
 - **Text alone** (`+…` or `>>…` with no goal, often `#completewith`) is a
-  step of its own: a `task` to tick, at RXP's first waypoint (`@x,y`). RXP
+  step of its own: a `task` to tick, at the middle of RXP's waypoints (`@x,y`). RXP
   closes such a step itself when its target step is done; here you tick it
   or skip it.
   - Polestar's *Along the way* never lists notes, and `along until X` ends
