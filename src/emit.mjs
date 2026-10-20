@@ -10,11 +10,12 @@ import { worldToZone, zoneName, findNpc } from "./data.mjs";
 const IGNORED = new Set([
 	"target", "mob", "unitscan", "itemcount", "isOnQuest", "isQuestTurnedIn", "isQuestComplete", "cooldown", "macro", "timer",
 	"skipgossip", "skipgossipid", "zoneskip", "subzone", "subzoneskip", "maxlevel", "disablecheckbox", "is", "item", "addquestitem",
-	"bindlocation", "trainer", "dungeon",
+	"bindlocation", "trainer", "dungeon", "itemStat", "zone", "isQuestAvailable",
 ]);
 const TASKS = new Set(["hs", "home", "fp", "deathskip", "abandon", "destroy", "cast", "equip"]);
 const DROP_TAGS = new Set(["hardcore", "ssf", "ah"]);
 
+function bare(text) { return String(text).replace(/"/g, "'"); }
 function q(text) { return `"${String(text).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`; }
 
 function copper(goldText) {
@@ -132,6 +133,7 @@ function buildStep(step, stepNo, data, ctx) {
 
 	// Pass 2: goals.
 	const goals = [];
+	const whens = [];
 	const tips = [];
 	const notes = [];
 	let title = null;
@@ -150,12 +152,12 @@ function buildStep(step, stepNo, data, ctx) {
 			const t = plain(l.text);
 			if (!t) continue;
 			if ((l.text || "").includes("chatbubble")) continue; // "Talk to X": accept/turnin say it
-			if (!l.cond) tips.push(t);
+			if (!l.cond) tips.push(bare(t));
 			continue;
 		}
 		if (l.kind === "note") {
 			const t = plain(l.text);
-			if (t && !l.cond) notes.push(t);
+			if (t && !l.cond) notes.push(bare(t));
 			continue;
 		}
 		const n = l.name;
@@ -219,9 +221,21 @@ function buildStep(step, stepNo, data, ctx) {
 			if (data.items[id]) add(`use ${id}`, l.cond, "use");
 			else { add(`task ${q(plain(l.text) || "Use item " + id)}`, l.cond, "task"); formatNeeds = 5; }
 		} else if (n === "xp") {
-			const m = l.args.match(/^(\d+)\+(\d+)$/);
-			if (m) { add(`level ${m[1]}+${m[2]}`, l.cond, "level"); report.count(".xp L+N -> level"); }
-			else report.count(".xp (ignored: only `L+N` maps to `level`)");
+			// RXP: ".xp <12,1" skips the step while below level 12 (second number = skip);
+			// ".xp 16,1" / ".xp >16,1" skips it from level 16 on; ".xp 3+895" is a grind goal.
+			const m = l.args.match(/^([<>]?)\s*(\d+)(?:\+(\d+))?(?:,\s*(-?\d+))?$/);
+			if (!m) report.count(".xp (unparsed)");
+			else if (m[4] && Number(m[4]) !== 0 && !l.cond) {
+				const lv = m[3] ? `${m[2]}+${m[3]}` : m[2];
+				whens.push(m[1] === "<" ? `level>=${lv}` : `level<${lv}`);
+				report.count(".xp skip form -> when level");
+			} else if (!m[4] && m[1] === "" && m[3]) { add(`level ${m[2]}+${m[3]}`, l.cond, "level"); report.count(".xp L+N -> level"); }
+			else report.count(".xp (ignored)");
+		} else if (n === "skill") {
+			const m = l.args.match(/^([a-z]+),\s*(\d+)$/i);
+			const NAMES = { firstaid: "First Aid", cooking: "Cooking", fishing: "Fishing", mining: "Mining", herbalism: "Herbalism", skinning: "Skinning" };
+			if (m && NAMES[m[1].toLowerCase()]) { add(`skill ${q(NAMES[m[1].toLowerCase()])} ${m[2]}`, l.cond, "skill"); report.count(".skill -> skill"); }
+			else report.count(".skill (ignored)");
 		} else if (n === "money") {
 			const m = l.args.match(/^>\s*([\d.]+)/);
 			const amt = m && copper(m[1]);
@@ -256,10 +270,24 @@ function buildStep(step, stepNo, data, ctx) {
 	}
 
 	const allAlong = goals.length > 0 && goals.every((g) => ["kill", "collect", "complete", "buy"].includes(g.kind) && /quest \d+\.\d+|xN|buy|complete/.test(g.text + " buy complete"));
-	return {
-		stepNo, title: title || tips[0] || notes[0] || null, cond, goals, tips, notes, gotos: isLoop ? placeable : [],
+	const orphanOf = (g) => {
+		const m = g.text.match(/^(?:turnin|complete) (\d+)/) || g.text.match(/ quest (\d+)\./);
+		return m && !ctx.accepted.has(Number(m[1])) ? Number(m[1]) : null;
+	};
+	const orphanGoals = goals.filter((g) => orphanOf(g));
+	const base = {
+		stepNo, title: title || tips[0] || notes[0] || null, cond, goals, tips, notes, whens, gotos: isLoop ? placeable : [],
 		isLoop, completewith: completewith ? completewith.args : null, labelDef, formatNeeds, hasPlaced, allAlong,
 	};
+	if (!orphanGoals.length) return [base];
+	// A quest taken up in an earlier file (or left out of this one): its goals go
+	// in their own step that only applies while the quest is in the log.
+	const ids = [...new Set(orphanGoals.map(orphanOf))];
+	report.count(`goals for quests accepted elsewhere -> when onquest (${orphanGoals.length})`);
+	const rest = goals.filter((g) => !orphanOf(g));
+	const orphanStep = { ...base, goals: orphanGoals, tips: [], notes: [], whens: [...whens, `onquest ${ids.join(",")}`], labelDef: null, completewith: null, isLoop: false, gotos: [] };
+	if (!rest.length) return [{ ...orphanStep, tips, notes }];
+	return [{ ...base, goals: rest }, orphanStep];
 }
 
 export function convertGuide(parsed, data, opts) {
@@ -272,11 +300,14 @@ export function convertGuide(parsed, data, opts) {
 			if (id && !titles.has(id)) titles.set(id, plain(l.text).replace(/^(accept|turn in)\s+/i, ""));
 		}
 	}
-	const ctx = { report, name: parsed.header.name || slug, titles };
+	const accepted = opts.accepted || new Set();
+	for (const s of parsed.steps) for (const l of s.lines) {
+		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^(\d+)/) || [])[1]));
+	}
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
-		const b = buildStep(s, i + 1, data, ctx);
-		if (b) steps.push(b);
+		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
 	});
 
 	// `along until <label>`: only when the label sits on a later step we keep.
@@ -293,8 +324,14 @@ export function convertGuide(parsed, data, opts) {
 	})();
 	out.push(`guide ${packId}/${slug}`);
 	out.push(`title ${info.zone || parsed.header.name}`);
-	if (parsed.header.faction) out.push(`faction ${parsed.header.faction}`);
-	if (parsed.header.defaultfor) out.push(`race ${parsed.header.defaultfor.split(/[,\s]+/)[0].replace("Scourge", "Undead")}`);
+	const hc = parseCondition(parsed.header.faction).only;
+	if (hc.faction) out.push(`faction ${hc.faction[0]}`);
+	if (hc.class) out.push(`class ${hc.class.join(", ")}`);
+	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
+	const classes = hc.class || df.class;
+	if (classes && !hc.class) out.push(`class ${classes.join(", ")}`);
+	const races = hc.race || df.race || [];
+	if (races.length) out.push(`race ${races.join(", ")}`);
 	if (info.levels) out.push(`levels ${info.levels}`);
 	if (zone) out.push(`zone ${zone}`);
 	out.push("coords live");
@@ -307,6 +344,7 @@ export function convertGuide(parsed, data, opts) {
 		out.push(`step${s.title ? " " + s.title.slice(0, 60) : ""}`);
 		const only = onlyText(s.cond.only);
 		if (only) out.push(`  only ${only}`);
+		for (const w of s.whens || []) out.push(`  when ${w}`);
 		let along = false;
 		if (s.completewith && s.allAlong) {
 			if (s.completewith === "next") { out.push("  along"); along = true; }

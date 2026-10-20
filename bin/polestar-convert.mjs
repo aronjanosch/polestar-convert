@@ -42,11 +42,12 @@ if (!chosen.length) { console.error("no guide matches"); process.exit(1); }
 
 const slugs = new Map(chosen.map((g) => [g.header.name, slugOf(g.header.name || "guide")]));
 const report = new Report();
+const accepted = new Set(); // quests accepted so far in this run, in guide order
 for (const g of chosen) {
 	const slug = slugs.get(g.header.name);
 	const nextName = (g.header.next || "").split(";")[0].trim();
 	const next = slugs.get(nextName) || null;
-	const r = convertGuide(g, data, { report, slug, packId, next });
+	const r = convertGuide(g, data, { report, slug, packId, next, accepted });
 	writeFileSync(join(guidesDir, `${slug}.guide`), r.text);
 	console.log(`${slug}: ${r.stepsIn} RXP steps -> ${r.stepsOut} steps, pack format ${r.format}`);
 }
