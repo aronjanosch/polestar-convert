@@ -2,7 +2,7 @@
 // DSL, not the format the guide came from.
 
 import { onlyText } from "./cond.mjs";
-import { goalText } from "./ir.mjs";
+import { goalText, questOf } from "./ir.mjs";
 
 // Polestar reads " -- " as the start of a comment, allowed on goal lines only.
 const free = (text) => String(text).replace(/\s--\s/g, " - ");
@@ -50,6 +50,7 @@ export function render(guide, { report, slug, packId, next }) {
 		const only = onlyText(s.only);
 		if (only) out.push(`  only ${only}`);
 		for (const w of s.whens || []) out.push(`  when ${w}`);
+		const whenAt = out.length;
 		const grind = s.loop.length > 0 && s.goals.some((g) => ["kill", "collect", "interact"].includes(g.kind));
 		const maps = [...(grind ? s.loop.map((g) => g.uiMap) : []), ...(s.maps || [])].filter(Boolean);
 		if (maps.length) {
@@ -74,11 +75,23 @@ export function render(guide, { report, slug, packId, next }) {
 		const loopable = s.goals.some((g) => ["kill", "collect", "interact"].includes(g.kind) && !g.at);
 		if (s.loop.length >= 2 && loopable) { out.push("  loop"); for (const g of s.loop) out.push(`  goto ${g.x},${g.y}${g.live ? "" : " era"}`); }
 		const optional = s.completesWith && !along && !s.goals.every((g) => ["money", "note"].includes(g.kind));
+		const isOptional = (g) => (optional || g.optional) && !["note", "task"].includes(g.kind);
+		// Polestar passes a step whose goals are all optional at once, unseen: such a
+		// step keeps its goals, and the player skips it by hand as in RXP.
+		const held = s.goals.filter((g) => g.kind !== "note");
+		const qs = new Set(held.map(questOf).filter((q) => q != null));
+		const keepAll = !along && held.length > 0 && held.every(isOptional) && qs.size <= 1 && !held.some((g) => g.kind === "turnin");
+		if (keepAll) {
+			report.count("step of optional goals only -> goals kept (skip by hand)");
+			// Kept for a quest the player may not have: shown only while on it.
+			const [q] = qs;
+			if (q != null && !(s.whens || []).some((w) => w.startsWith("onquest"))) out.splice(whenAt, 0, `  when onquest ${q}`);
+		}
 		for (const g of s.goals) {
 			let line = `  ${goalText(g)}`;
 			if (g.group) line += g.group === true ? " group" : ` group ${g.group}`;
 			if (g.only) line += ` only ${g.only}`;
-			if ((optional || g.optional) && !["note", "task"].includes(g.kind)) line += " optional";
+			if (isOptional(g) && !keepAll) line += " optional";
 			if (g.comment) line += ` -- ${g.comment}`;
 			out.push(line);
 		}
