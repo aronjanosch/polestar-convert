@@ -9,7 +9,9 @@ const free = (text) => String(text).replace(/\s--\s/g, " - ");
 
 export function render(guide, { report, slug, packId, next }) {
 	const steps = guide.steps;
-	// `along until <label>` waits for the next step so labelled. A source may
+	// `along until <label>` ends when the route reaches the step so labelled; a
+	// source's along step runs up to and through its target, so it waits for the
+	// step after that (`<target>-end` when that one has no label). A source may
 	// label several steps alike; Polestar wants each label once, so the second
 	// becomes `<label>-2`, and only labels some along step waits for are written.
 	const seenLabel = new Map();
@@ -19,9 +21,14 @@ export function render(guide, { report, slug, packId, next }) {
 		seenLabel.set(s.label, n);
 		return n > 1 ? `${s.label}-${n}` : s.label;
 	});
+	// -1: no `until`; -2: the target is the last step, so the list ends when done.
 	const waitsFor = steps.map((s, i) => {
 		if (!s.completesWith || s.completesWith === "next" || !s.allAlong) return -1;
-		return steps.findIndex((o, j) => j > i && o.label === s.completesWith);
+		const target = steps.findIndex((o, j) => j > i && o.label === s.completesWith);
+		if (target < 0) return -1;
+		if (target + 1 >= steps.length) return -2;
+		if (!labelName[target + 1]) labelName[target + 1] = `${labelName[target]}-end`;
+		return target + 1;
 	});
 	const waited = new Set(waitsFor.filter((j) => j >= 0));
 	let format = 4;
@@ -68,6 +75,7 @@ export function render(guide, { report, slug, packId, next }) {
 		if (s.sticky && !s.completesWith && s.allAlong) { out.push("  along"); along = true; }
 		else if (s.completesWith && s.allAlong) {
 			if (s.completesWith === "next") { out.push("  along"); along = true; }
+			else if (waitsFor[i] === -2) { out.push("  along"); along = true; }
 			else if (waitsFor[i] >= 0) { out.push(`  along until ${labelName[waitsFor[i]]}`); along = true; format = Math.max(format, 4); }
 		}
 		if (waited.has(i)) out.push(`  label ${labelName[i]}`);
