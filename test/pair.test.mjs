@@ -58,3 +58,18 @@ test("a quote in the tail after -- pairs the whole tail", () => {
 	const p = pairRendered('step\n  train 5 -- Learn "Battle Shout"', 'step\n  train 5 -- 学习"战斗怒吼"', new Report());
 	assert.deepEqual([...p], [['Learn "Battle Shout"', '学习"战斗怒吼"']]);
 });
+
+test("a step's tips pair joined", () => {
+	const p = pairRendered("step Go\n  tip A\n  tip B", "step 去\n  tip 甲\n  tip 乙", new Report());
+	assert.equal(p.get("A\nB"), "甲\n乙");
+	assert.equal(p.get("A"), "甲");
+	assert.equal(p.get("B"), "乙");
+});
+
+test("joined tips need every tip paired", () => {
+	const r = new Report();
+	const p = pairRendered('step Go\n  tip A\n  tip B', 'step 去\n  tip 甲\n  task "乙"', r);
+	assert.equal(p.has("A\nB"), false);
+	assert.equal(p.get("A"), "甲");
+	assert.equal(r.counts.get("locale: line shape differs"), 1);
+});
