@@ -397,15 +397,24 @@ function buildStep(step, stepNo, data, ctx) {
 			else { add({ kind: "task", text: plain(l.text) || "Use item " + id }, l.cond); formatNeeds = 5; }
 		} else if (n === "xp") {
 			// RXP: ".xp <12,1" skips the step while below level 12 (second number = skip);
-			// ".xp 16,1" / ".xp >16,1" skips it from level 16 on; ".xp 3+895" is a grind goal.
-			const m = l.args.match(/^([<>]?)\s*(\d+)(?:\+(\d+))?(?:,\s*(-?\d+))?$/);
+			// ".xp 16,1" / ".xp >16,1" skips it from level 16 on; ".xp 3+895" and ".xp 48.5"
+			// (a share of the level) are grind goals, and so is a bare ".xp 8".
+			const m = l.args.match(/^([<>]?)\s*(\d+)(?:\.(\d+)|\+(\d+))?(?:,\s*(-?\d+))?$/);
 			if (!m) report.count(".xp (unparsed)");
-			else if (m[4] && Number(m[4]) !== 0 && !l.cond) {
-				const lv = m[3] ? `${m[2]}+${m[3]}` : m[2];
+			else if (m[5] && Number(m[5]) !== 0 && !l.cond) {
+				const lv = m[3] ? `${m[2]}.${m[3]}` : m[4] ? `${m[2]}+${m[4]}` : m[2];
 				whens.push(m[1] === "<" ? `level>=${lv}` : `level<${lv}`);
 				report.count(".xp skip form -> when level");
-			} else if (!m[4] && m[1] === "" && m[3]) { add({ kind: "level", level: Number(m[2]), xp: Number(m[3]) }, l.cond); report.count(".xp L+N -> level"); }
-			else report.count(".xp (ignored)");
+			} else if (!m[5] && m[1] === "" && (!completewith || m[4])) {
+				// "level 48.5": whole percent only; one that rounds to 0 or 100 is a plain level.
+				const share = m[3] ? Math.round(Number(`0.${m[3]}`) * 100) : 0;
+				const level = m[3] && share >= 1 && share <= 99 ? Number(`${m[2]}.${m[3]}`) : Number(m[2]) + (share >= 100 ? 1 : 0);
+				add({ kind: "level", level, xp: m[4] ? Number(m[4]) : undefined }, l.cond);
+				// What the line says besides the level it names is the grind's text.
+				const said = plain(l.text);
+				if (said && !l.cond && !/^grind (to|until) (level )?[\d\s+\/.,]*(xp)?\.?$/i.test(said)) tips.push(bare(said));
+				report.count(m[3] ? ".xp N.F -> level" : m[4] ? ".xp L+N -> level" : ".xp N -> level");
+			} else report.count(completewith && !m[5] ? ".xp target in a step beside the route (farm signal only)" : ".xp (ignored)");
 		} else if (n === "skill") {
 			const m = l.args.match(/^([a-z]+),\s*(\d+)$/i);
 			const w = skillWhen(l.args);
@@ -582,10 +591,12 @@ function buildStep(step, stepNo, data, ctx) {
 		if (gotos.length || tips.length || notes.length) report.count("step: waypoints only (kept as the way into the next step)");
 		return null;
 	}
-	if (!goals.length && !notes.length && gotos.length) {
+	// A grind step (`level` goals only) keeps RXP's last point as the place to go to.
+	const grindOnly = goals.length > 0 && goals.every((g) => g.kind === "level") && !completewith;
+	if ((!goals.length && !notes.length || grindOnly) && gotos.length) {
 		const g = gotos[gotos.length - 1];
 		if (g.uiMap) usedMaps.push(g.uiMap);
-		goals.push({ kind: "goto", x: g.x, y: g.y, live: g.live, text: tips[0] ? tips[0].slice(0, 40) : undefined, only: "" });
+		goals.unshift({ kind: "goto", x: g.x, y: g.y, live: g.live, text: tips[0] && !grindOnly ? tips[0].slice(0, 40) : undefined, only: "" });
 	}
 
 	// Group work about one quest: the player says whether they do it with a group
