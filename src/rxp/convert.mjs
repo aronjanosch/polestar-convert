@@ -662,7 +662,7 @@ function buildStep(step, stepNo, data, ctx) {
 	const ids = [...new Set(orphanGoals.map(orphanOf))];
 	report.count(`goals for quests accepted elsewhere or abandoned -> when onquest (${orphanGoals.length})`);
 	const rest = goals.filter((g) => !orphanOf(g));
-	const orphanSteps = ids.map((id) => ({ ...base, maps: [], goals: orphanGoals.filter((g) => orphanOf(g) === id), tips: [], notes: [], whens: [...whens, `onquest ${id}`], label: null, completesWith: null, loop: [] }));
+	const orphanSteps = ids.map((id) => ({ ...base, maps: [], goals: orphanGoals.filter((g) => orphanOf(g) === id), tips: [], notes: [], whens: [...new Set([...whens, `onquest ${id}`])], label: null, completesWith: null, loop: [] }));
 	if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: base.tips, notes }; return orphanSteps; }
 	// In the source's order: a hand-in written before an accept comes first.
 	return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, { ...base, goals: rest }] : [{ ...base, goals: rest }, ...orphanSteps];

@@ -66,7 +66,7 @@ export function render(guide, { report, slug, packId, next }) {
 		out.push(`step${s.title ? " " + free(shorten(s.title, 120)) : ""}`);
 		const only = onlyText(s.only);
 		if (only) out.push(`  only ${only}`);
-		for (const w of s.whens || []) out.push(`  when ${w}`);
+		for (const w of new Set(s.whens || [])) out.push(`  when ${w}`);
 		const whenAt = out.length;
 		const grind = s.loop.length > 0 && s.goals.some((g) => ["kill", "collect", "interact"].includes(g.kind));
 		const maps = [...(grind ? s.loop.map((g) => g.uiMap) : []), ...(s.maps || [])].filter(Boolean);
