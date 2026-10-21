@@ -252,6 +252,7 @@ function buildStep(step, stepNo, data, ctx) {
 	let closed = 0;
 	let group = null;
 	let groupForSome = false;
+	let enterZone = null;
 	let info = false;
 	const add = (goal, lineCond) => {
 		const lc = parseCondition(lineCond);
@@ -509,6 +510,13 @@ function buildStep(step, stepNo, data, ctx) {
 			add({ kind: "task", text: t }, l.cond);
 			formatNeeds = 5;
 			report.count(`.${n} -> task`);
+		} else if (n === "zone" && !completewith && !l.cond) {
+			// RXP's step is done once the player is in the zone: Polestar's `enter`, the
+			// arrow at RXP's last point. A step beside the route stays a way (below).
+			const arg = String(l.args || "").trim();
+			const name = /^\d+$/.test(arg) ? zoneName(data, Number(arg)) : arg;
+			if (name) { enterZone = name; report.count(".zone -> enter"); }
+			else report.count(".zone unknown map (ignored)");
 		} else if (n === "goto" || n === "waypoint") {
 			// handled below
 		} else if (IGNORED.has(n)) {
@@ -519,6 +527,11 @@ function buildStep(step, stepNo, data, ctx) {
 		}
 	}
 
+	if (enterZone) {
+		const last = [...gotos].reverse().find((g) => g.uiMap);
+		goals.push({ kind: "enter", place: enterZone, at: at(last), only: "" });
+		formatNeeds = Math.max(formatNeeds, 5);
+	}
 	if (!completewith && goals.length && goals.every((g) => g.kind === "note")) {
 		for (const g of goals) g.kind = "task";
 		formatNeeds = 5;
