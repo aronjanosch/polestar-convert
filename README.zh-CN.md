@@ -11,7 +11,10 @@
 2. 需要已安装 Git。克隆 Polestar 并生成参考数据:
 
 ```sh
-git clone -b next https://github.com/fitzforge/polestar && cd polestar && node tools/polestar.js data build && cd ..
+git clone -b next https://github.com/fitzforge/polestar
+cd polestar
+node tools/polestar.js data build
+cd ..
 ```
 
 把本仓库也克隆到同一目录。两个文件夹必须分别叫 `polestar` 和 `polestar-convert`,下面的命令按这两个名字写。在中国大陆访问 GitHub 或 nodejs.org 可能较慢,可以使用镜像或代理。找不到 QuestieDB 时,加上 `--questie <WoW>/Interface/AddOns`。
