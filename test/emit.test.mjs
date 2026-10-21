@@ -49,3 +49,36 @@ test("goal text and quest dependency", () => {
 	assert.equal(questOf({ kind: "accept", quest: 7 }), null);
 	assert.throws(() => goalText({ kind: "dance" }));
 });
+
+test("goal text of the Zygor forms: talk, kill/interact without a quest, learn, rep, money", () => {
+	assert.equal(goalText({ kind: "talk", npc: 1568 }), "talk 1568");
+	assert.equal(goalText({ kind: "kill", npc: 1512 }), "kill 1512");
+	assert.equal(goalText({ kind: "interact", object: 176793 }), "interact 176793");
+	assert.equal(goalText({ kind: "learn", spell: 3275, name: "First Aid" }), 'learn 3275 "First Aid"');
+	assert.equal(goalText({ kind: "learn", spell: 3275 }), "learn 3275");
+	assert.equal(goalText({ kind: "rep", faction: "Timbermaw Hold", standing: "Friendly" }), 'rep "Timbermaw Hold" Friendly');
+	assert.equal(goalText({ kind: "money", copper: 10000 }), "money 10000");
+	assert.equal(goalText({ kind: "kill", npc: 3, quest: 9, oi: 1 }), "kill 3 quest 9.1");
+	assert.equal(goalText({ kind: "interact", object: 4, quest: 9, oi: 2 }), "interact 4 quest 9.2");
+});
+
+test("alongUntil waits for the label as it is, not for the step after it", () => {
+	const r = run([
+		step({ title: "Kill", alongUntil: "b", allAlong: true, goals: [{ kind: "kill", npc: 3, only: "" }] }),
+		step({ goals: [{ kind: "accept", quest: 10, only: "" }] }),
+		step({ label: "b", goals: [{ kind: "turnin", quest: 10, only: "" }] }),
+	]);
+	assert.match(r.text, /^  along until b$/m);
+	assert.match(r.text, /^  label b$/m);
+	assert.doesNotMatch(r.text, /-end/);
+});
+
+test("skipto is written before the goals and its label is written", () => {
+	const r = run([
+		step({ goals: [{ kind: "accept", quest: 100, only: "" }], skipto: [{ label: "c", when: "turnedin 100" }] }),
+		step({ goals: [{ kind: "accept", quest: 11, only: "" }] }),
+		step({ label: "c", goals: [{ kind: "accept", quest: 12, only: "" }] }),
+	]);
+	assert.match(r.text, /^  skipto c when turnedin 100\n  accept 100$/m);
+	assert.match(r.text, /^  label c$/m);
+});

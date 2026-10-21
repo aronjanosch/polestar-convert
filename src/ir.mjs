@@ -1,4 +1,4 @@
-// The intermediate form every adapter (RXP today, Journey and Zygor later)
+// The intermediate form every adapter (RXP, Journey, Zygor)
 // produces and `emit.mjs` turns into Polestar `.guide` text. An adapter reads
 // its source format and the Polestar data; the renderer knows only Polestar's
 // DSL. Nothing here knows about RXP.
@@ -17,13 +17,15 @@
 //   loop: [{x, y, live}],   // spawn area points of a grind step; [] when none
 //   label?,                 // name other steps can wait for
 //   completesWith?,         // "next" or a label: the step is optional until then
+//   alongUntil?,            // label: the step is `along until` exactly it (not the step after)
+//   skipto?: [{label, when}], // `skipto <label> when <when>` lines, before the goals
 //   allAlong,               // its goals are all work done along the way
 //   format,                 // lowest pack format its goals need
 // }
 // Goal = { kind, only: "Warrior,Priest" | "", optional?, ...fields } with `kind` one of
 //   accept/turnin {quest, title?, at?, item? (accept: started from it)}   complete {quest, title?, at?}
-//   kill {npc, quest, oi}  collect {item, itemName?, quest?, oi?, count?}
-//   interact {object, quest, oi}  buy {item, itemName?, count, npc?}  (no npc: nearest)
+//   kill {npc, quest?, oi?} (no quest: `kill <npc>`)  talk {npc}  collect {item, itemName?, quest?, oi?, count?}
+//   interact {object, quest?, oi?}  learn {spell, name?}  rep {faction, standing}  money {copper}  buy {item, itemName?, count, npc?}  (no npc: nearest)
 //   vendor {npc?}  train {npc?|class|profession, comment?}  use {item}
 //   level {level, xp?}  skill {skill, n}  task {text}  note {text}
 //   abandon {quest}  destroy {item}  cast {spell, name}  enter {place, at?}  goto {x, y, live, map?, r?, text?}
@@ -43,8 +45,12 @@ export function goalText(g) {
 	switch (g.kind) {
 		case "accept": case "turnin": case "complete":
 			return `${g.kind} ${g.quest}${g.title ? " " + q(g.title) : ""}${atText(g.at)}${g.item ? " item " + g.item : ""}`;
-		case "kill": return `kill ${g.npc} quest ${g.quest}.${g.oi}${atText(g.at)}`;
-		case "interact": return `interact ${g.object} quest ${g.quest}.${g.oi}${atText(g.at)}`;
+		case "talk": return `talk ${g.npc}${atText(g.at)}`;
+		case "kill": return `kill ${g.npc}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${atText(g.at)}`;
+		case "interact": return `interact ${g.object}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${atText(g.at)}`;
+		case "learn": return `learn ${g.spell}${g.name ? " " + q(g.name) : ""}`;
+		case "rep": return `rep ${q(g.faction)} ${g.standing}`;
+		case "money": return `money ${g.copper}`;
 		case "collect":
 			if (g.quest != null && g.oi != null) return `collect ${g.item}${nameText(g)} quest ${g.quest}.${g.oi}${atText(g.at)}`;
 			return `collect ${g.item}${nameText(g)} x${g.count || 1}${atText(g.at)}`;
