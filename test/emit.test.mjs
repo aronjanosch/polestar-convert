@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { render } from "../src/emit.mjs";
-import { Report, goalText, questOf } from "../src/ir.mjs";
+import { Report, cut, goalText, questOf } from "../src/ir.mjs";
 
 const step = (o) => ({ stepNo: 1, only: {}, whens: [], goals: [], tips: [], notes: [], maps: [], loop: [], allAlong: false, format: 4, ...o });
 const guide = (steps) => ({ name: "Invented", title: "Invented Vale", faction: "Horde", classes: null, races: ["Undead"], levels: "1-4", zone: "Invented Vale", defaultMap: 1, sourceSteps: steps.length, steps });
@@ -82,3 +82,8 @@ test("skipto is written before the goals and its label is written", () => {
 	assert.match(r.text, /^  skipto c when turnedin 100\n  accept 100$/m);
 	assert.match(r.text, /^  label c$/m);
 });
+
+test("cut keeps a short text", () => assert.equal(cut("Kill the boar", 40), "Kill the boar"));
+test("cut ends at the last space within n, with an ellipsis", () =>
+	assert.equal(cut("Kill the messenger. Loot him for his Mysterious Message", 40), "Kill the messenger. Loot him for his…"));
+test("cut without a space cuts at n", () => assert.equal(cut("击杀迪菲亚信使并拾取他身上的神秘信件然后交给哨兵岭的守卫", 10), "击杀迪菲亚信使并拾取…"));
