@@ -5,7 +5,7 @@
 
 import { parseCondition, onlyText, condsMeet, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
-import { goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
+import { baseItemSoldBy, goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
 import { render } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 import { resolveObjective } from "../objective.mjs";
@@ -371,7 +371,9 @@ function buildStep(step, stepNo, data, ctx) {
 				report.count("buy without a vendor (auction house) -> collect");
 			} else if (buyText) {
 				const npc = npcFor("vendor", l.cond);
-				add({ kind: "buy", item: itemId, itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
+				const base = npc && baseItemSoldBy(data, itemId, npc.id);
+				if (base) report.count("buy of a made item -> buy of the item it is made from");
+				add({ kind: "buy", item: base || itemId, itemName: base ? undefined : itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
 				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", l.comment || "");
 			} else if (qid && data.quests[Number(qid)]) {
 				const hit = resolveObjective(data.quests[Number(qid)], "", itemId, { strictItem: true });
