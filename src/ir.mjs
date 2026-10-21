@@ -86,3 +86,12 @@ export class Report {
 	count(key, n = 1) { this.counts.set(key, (this.counts.get(key) || 0) + n); }
 	note(guide, stepNo, what, line) { this.items.push({ guide, stepNo, what, line }); }
 }
+
+// Cut a text at the last space within n, so a translated and an English text
+// can be paired and nothing ends mid-word. Without a space it cuts at n.
+// The ellipsis may make the result n + 1 characters long; Polestar does not limit it.
+export function cut(text, n) {
+	if (text.length <= n) return text;
+	const space = text.lastIndexOf(" ", n);
+	return text.slice(0, space > 0 ? space : n) + "…";
+}

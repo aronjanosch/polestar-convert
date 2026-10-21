@@ -2,7 +2,7 @@
 // DSL, not the format the guide came from.
 
 import { onlyText } from "./cond.mjs";
-import { goalText, questOf } from "./ir.mjs";
+import { cut, goalText, questOf } from "./ir.mjs";
 
 // Polestar reads " -- " as the start of a comment, allowed on goal lines only.
 const free = (text) => String(text).replace(/\s--\s/g, " - ");
@@ -55,7 +55,7 @@ export function render(guide, { report, slug, packId, next }) {
 
 	steps.forEach((s, i) => {
 		format = Math.max(format, s.format);
-		out.push(`step${s.title ? " " + free(s.title.slice(0, 60)) : ""}`);
+		out.push(`step${s.title ? " " + free(cut(s.title, 60)) : ""}`);
 		const only = onlyText(s.only);
 		if (only) out.push(`  only ${only}`);
 		for (const w of s.whens || []) out.push(`  when ${w}`);
