@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseGuide } from "../src/rxp/parse.mjs";
-import { skillWhen, spellNames, moneyWhen, cooldownWhen, convertGuide } from "../src/rxp/convert.mjs";
+import { skillWhen, spellNames, moneyWhen, cooldownWhen, convertGuide, friendlyKillText } from "../src/rxp/convert.mjs";
 import { goalText, Report } from "../src/ir.mjs";
 
 test("RXP's skill skip form becomes a when skill", () => {
@@ -91,4 +91,37 @@ test("a buy takes the vendor the text names by first name, and .vendor <id> with
 test("a profession spell is a profession train; a text-less check is a when skill; a pet spell is no trainer visit", () => {
 	const out = guideText(["step", "    .train 2575,3 --Mining Trained", "    .train 2981 >>|cRXP_WARN_Attack mobs with it to learn|r [Claw (Rank 2)]"].join("\n"));
 	assert.deepEqual(goalsOf(out), ["when skill Mining 1", 'task "Attack mobs with it to learn [Claw (Rank 2)]"']);
+});
+
+test("a kill objective on a friendly NPC reads as talking, not killing", () => {
+	const data = { npcs: { 1: { name: "Sentinel Shaya", faction: "A" }, 2: { name: "Dashel", faction: "A" }, 3: { name: "Grell", faction: "H" } } };
+	const line = (text, comment) => ({ text, comment });
+	const q = (objectiveText) => ({ objectiveText });
+	assert.equal(friendlyKillText({ id: 1, count: 1 }, q("Listen to Shaya."), "Alliance", line(null, null), data), "Talk to Sentinel Shaya");
+	assert.equal(friendlyKillText({ id: 1, count: 1 }, q("Heal her."), "Alliance", line(null, "Heal and fortify Sentinel Shaya"), data), "Heal and fortify Sentinel Shaya");
+	assert.equal(friendlyKillText({ id: 1, count: 1 }, q("Find Shaya."), "Alliance", line(null, "Shaya (1)"), data), "Find Sentinel Shaya");
+	assert.equal(friendlyKillText({ id: 2, count: null }, q("Defeat Dashel in Stormwind."), "Alliance", line(null, null), data), undefined);
+	assert.equal(friendlyKillText({ id: 3, count: 1 }, q("Speak."), "Alliance", line(null, null), data), undefined);
+});
+
+test("a negative quest id on an optional hand-in is read as the quest", () => {
+	assert.equal(goalText({ kind: "turnin", quest: 214 }), "turnin 214");
+});
+
+test("RXP's objective number is the fallback when no name fits, and is checked against the data", async () => {
+	const { resolveObjective } = await import("../src/objective.mjs");
+	const three = { objectives: [{ type: "kill", id: 1, text: "Firegut Ogre Mage" }, { type: "kill", id: 2, text: "Firegut Ogre" }, { type: "kill", id: 3, text: "Firegut Brute" }] };
+	assert.equal(resolveObjective(three, "", null, { index: 2 }).index, 2);
+	assert.equal(resolveObjective(three, "", null, { index: 4 }), null);
+	assert.equal(resolveObjective(three, "", null), null);
+	// the name wins over the number when it fits
+	assert.equal(resolveObjective(three, "Firegut Brute slain (7)", null, { index: 1 }).index, 3);
+	// a loose name hit that the number contradicts is no match
+	const two = { objectives: [{ type: "kill", id: 1, text: "Fillion Flamebreeze" }, { type: "object", id: 2, text: "Dusty Bedroll" }] };
+	assert.equal(resolveObjective(two, "Carry Fillion Flamebreeze to safety while avoiding enemies", null, { index: 2 }), null);
+	// two names that fit: the longer one
+	const murlocs = { objectives: [{ type: "kill", id: 1, text: "Murloc Streamrunner" }, { type: "kill", id: 2, text: "Murloc" }] };
+	assert.equal(resolveObjective(murlocs, "Murloc Streamrunners slain (4)", null, { index: 1 }).index, 1);
+	// an item that is not the quest's objective is no hit
+	assert.equal(resolveObjective({ objectives: [{ type: "item", id: 5, text: "Ore" }] }, "", 9, { strictItem: true }), null);
 });
