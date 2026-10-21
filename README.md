@@ -42,6 +42,10 @@ would need for each is in JOURNEY-POLESTAR-GAPS.md.
 The run prints a report: what was dropped, what became a `task`/`note`, and
 what needs a human look.
 
+A whole pack plays much faster one guide per process:
+`tools/playtest-parallel.sh <pack> [--polestar <clone>] [--jobs N]` (the same
+plays as `polestar playtest`; exit 1 when any is stuck or failed).
+
 ## Layout
 
 ```
@@ -141,10 +145,6 @@ petllama writes RXP's text beside the route as `along` notes, which Polestar
 never lists, and splits class variants into one step per class, so the same
 text appears several times. Here the text is a task in one step, with `only`
 per line.
-
-A whole pack plays much faster one guide per process:
-`tools/playtest-parallel.sh <pack> [--polestar <clone>] [--jobs N]` (the same
-plays as `polestar playtest`; exit 1 when any is stuck or failed).
 
 ## Tests
 
