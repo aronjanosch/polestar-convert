@@ -129,6 +129,8 @@ async function translate() {
 	const locales = want === "all" ? found : want.split(",").map((l) => l.trim()).filter((l) => found.includes(l) || (console.error(`no translated guides for ${l}`), false));
 	if (!locales.length) return;
 
+	// One absolute path for every reader (loadNames requires from it, polestar runs inside it).
+	const clone = resolve(a.polestar);
 	const pairsByLocale = {}, namesByLocale = {}, runs = {}, failed = {};
 	// One language that throws is left out; the others and the English go on.
 	for (const locale of locales) try {
@@ -144,7 +146,7 @@ async function translate() {
 		const run = pairLanguage(rawByFile, trByFile, written, (guide, it) => convert(guide, new Report(), it.next, it.g).text);
 		runs[locale] = run;
 		pairsByLocale[locale] = run.pairs;
-		namesByLocale[locale] = withPaired(await loadNames(a.polestar, locale, { log: console.error }), run.names);
+		namesByLocale[locale] = withPaired(await loadNames(clone, locale, { log: console.error }), run.names);
 	} catch (e) {
 		failed[locale] = e.message;
 		delete runs[locale]; delete pairsByLocale[locale];

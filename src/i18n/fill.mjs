@@ -141,8 +141,11 @@ function luaFiles(dir) {
 	});
 }
 
-function polestar(polestarDir, args) {
-	return execFileSync("node", [join(polestarDir, "tools/polestar.js"), "i18n", "guides", ...args], { cwd: polestarDir, encoding: "utf8", stdio: "pipe" });
+// The script path is absolute: the child starts in the clone, so a relative one would not be found.
+// process.execPath: the Node that runs us, not whatever `node` the PATH has.
+function polestar(clone, args) {
+	const dir = resolve(clone);
+	return execFileSync(process.execPath, [join(dir, "tools/polestar.js"), "i18n", "guides", ...args], { cwd: dir, encoding: "utf8", stdio: "pipe" });
 }
 
 export async function fillPack({ polestar: clone, pack: packArg, locales, pairsByLocale, namesByLocale }) {
