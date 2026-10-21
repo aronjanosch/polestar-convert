@@ -79,6 +79,14 @@ A new source (Journey, Zygor) is an adapter that fills the intermediate form.
   never holds the step: an optional `cast`, or left out without a name.
 - `.skill cooking,50,1` (RXP skips the step from rank 50 on) is
   `when !skill Cooking 50`; `<50` is `when skill Cooking 50`.
+- `.money <0.1` (RXP skips the step while the character has less) is
+  `when money>=1000`; `>N` is `when money<N`, in copper.
+- `.cooldown item,6948,>0` (skipped while the Hearthstone cools down) is
+  `when !cooldown item 6948`, `<0` is `when cooldown`. RXP counts at least
+  2 seconds; longer thresholds (`<600`) have no Polestar form and stay out.
+- `.zone Ironforge` in a travel step is `enter "Ironforge"` at RXP's last point:
+  done on entering the zone, as in RXP. Beside the route (`#completewith`) it
+  stays a way into the next step.
 - `.group` on a step about one quest is `when group <quest>`: Polestar asks
   once per quest, or takes the player's "Group quests" option. RXP marks every
   step of a group quest so, the accept included, and a quest not taken takes its
@@ -138,6 +146,12 @@ comes from a catalog of all 847 text-only steps and 45 read by hand:
 - `.cast` of a spell no RXP line names stays a task (`.cast 6477`, clicking an
   object): 11 lines.
 - Riding (`.skill riding`) is no profession in Polestar: ignored.
+- `#requires X` (555) is not carried over: RXP holds the step while X is
+  still shown beside the route; Polestar's `when done X` would pass it by
+  instead, and drop it whenever X was skipped.
+- `.bankdeposit`/`.bankwithdraw` stay tasks: RXP checks the bank, which
+  Polestar cannot see. `.isQuestAvailable a,b` (any of them) is left out:
+  Polestar's `when available` takes one quest.
 
 ### Against petllama/rxp-free-guides
 
