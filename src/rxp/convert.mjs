@@ -240,6 +240,12 @@ function buildStep(step, stepNo, data, ctx) {
 	const whens = [];
 	const tips = [];
 	const eliteTips = [];
+	// RXP's text lines belong to the command lines after them: the tips each goal brings.
+	const ownTips = new Map();
+	const ownElite = new Map();
+	const goalTitle = new Map();
+	let pendingTips = [];
+	let titleGoal = null;
 	const notes = [];
 	let title = null;
 	let formatNeeds = 4;
@@ -280,6 +286,9 @@ function buildStep(step, stepNo, data, ctx) {
 			report.count(`${goal.kind} of elite work -> optional`);
 		}
 		goals.push({ ...goal, only: onlyText(mine), optional: elite || optionalStep || goal.optional ? true : undefined });
+		ownTips.set(goals[goals.length - 1], pendingTips);
+		if (elite) ownElite.set(goals[goals.length - 1], `${elite} is elite: grouping up is advised.`);
+		pendingTips = [];
 		// After the guide drops a quest, its later goals wait for it to be taken again.
 		if (goal.kind === "abandon") { ctx.maybeTaken.add(goal.quest); ctx.surelyTaken.delete(goal.quest); }
 	};
@@ -290,7 +299,7 @@ function buildStep(step, stepNo, data, ctx) {
 			const t = plain(l.text);
 			if (!t) continue;
 			if ((l.text || "").includes("chatbubble")) continue; // "Talk to X": accept/turnin say it
-			if (!l.cond) tips.push(bare(t));
+			if (!l.cond) { tips.push(bare(t)); pendingTips.push(bare(t)); }
 			else {
 				const o = onlyText(parseCondition(l.cond).only);
 				if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
@@ -312,6 +321,7 @@ function buildStep(step, stepNo, data, ctx) {
 		const lineQuestId = Number((l.args.match(/^(\d+)/) || [])[1]);
 		if ((n === "accept" || n === "turnin") && !lineQuestId) { report.count(`.${n} (no quest id, ignored)`); continue; }
 		if (n === "accept" || n === "turnin") {
+			const goalsBefore = goals.length;
 			const known = data.quests[lineQuestId];
 			if (n === "accept") { ctx.seen.add(lineQuestId); ctx.ownSeen.add(lineQuestId); }
 			if (known && questEndPlaced(data, n === "accept" ? known.start : known.end)) add({ kind: n, quest: lineQuestId }, l.cond);
@@ -331,7 +341,9 @@ function buildStep(step, stepNo, data, ctx) {
 				add({ kind: n, quest: lineQuestId, title, at: at(placeFor(li)) }, l.cond);
 				report.note(ctx.name, stepNo, `quest ${lineQuestId} unknown to the data; quoted by name`, l.text);
 			}
-			if (!title) title = plain(l.text).replace(/^(accept|turn in)\s+/i, "");
+			const said = plain(l.text).replace(/^(accept|turn in)\s+/i, "");
+			if (goals.length > goalsBefore) goalTitle.set(goals[goals.length - 1], said);
+			if (!title) { title = said; titleGoal = goals[goals.length - 1]; }
 		} else if (n === "complete") {
 			const m = l.args.match(/^(\d+)(?:,(\d+))?/);
 			if (!m) { report.count(".complete (unparsed, ignored)"); report.note(ctx.name, stepNo, "unparsed .complete", l.args); continue; }
@@ -664,10 +676,23 @@ function buildStep(step, stepNo, data, ctx) {
 	const ids = [...new Set(orphanGoals.map(orphanOf))];
 	report.count(`goals for quests accepted elsewhere or abandoned -> when onquest (${orphanGoals.length})`);
 	const rest = goals.filter((g) => !orphanOf(g));
-	const orphanSteps = ids.map((id) => ({ ...base, maps: [], goals: orphanGoals.filter((g) => orphanOf(g) === id), tips: [], notes: [], whens: [...new Set([...whens, `onquest ${id}`])], label: null, completesWith: null, loop: [] }));
-	if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: base.tips, notes }; return orphanSteps; }
+	// Each goal brings the text lines before its command: a split step shows its own goals'
+	// tips and a title of their own (an accept's or turn-in's, else its first tip), not the
+	// heading of the neighbouring quest.
+	const tipsOf = (gs) => [...new Set(gs.flatMap((g) => ownTips.get(g) || []))];
+	const eliteTipsOf = (gs) => [...new Set(gs.map((g) => ownElite.get(g)).filter(Boolean))];
+	const titleOf = (gs) => gs.map((g) => goalTitle.get(g)).find(Boolean) || tipsOf(gs)[0] || null;
+	const orphanTips = new Set(tipsOf(orphanGoals));
+	const orphanElite = new Set(eliteTipsOf(orphanGoals));
+	const loose = base.tips.filter((t) => !orphanTips.has(t) && !orphanElite.has(t));
+	const orphanSteps = ids.map((id) => {
+		const own = orphanGoals.filter((g) => orphanOf(g) === id);
+		return { ...base, title: own.includes(titleGoal) ? base.title : titleOf(own), maps: [], goals: own, tips: [...eliteTipsOf(own), ...tipsOf(own)], notes: [], whens: [...new Set([...whens, `onquest ${id}`])], label: null, completesWith: null, loop: [] };
+	});
+	if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: [...orphanSteps[0].tips, ...loose], notes }; return orphanSteps; }
 	// In the source's order: a hand-in written before an accept comes first.
-	return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, { ...base, goals: rest }] : [{ ...base, goals: rest }, ...orphanSteps];
+	const restStep = { ...base, goals: rest, tips: loose, title: orphanGoals.includes(titleGoal) ? rest.map((g) => goalTitle.get(g)).find(Boolean) || loose[0] || null : base.title };
+	return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, restStep] : [restStep, ...orphanSteps];
 }
 
 // A guide whose name gives no levels (dungeon quest guides): from the level at
