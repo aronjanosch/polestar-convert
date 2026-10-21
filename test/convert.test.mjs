@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseGuide } from "../src/rxp/parse.mjs";
-import { skillWhen, spellNames, moneyWhen, cooldownWhen } from "../src/rxp/convert.mjs";
+import { skillWhen, spellNames, moneyWhen, cooldownWhen, friendlyKillText } from "../src/rxp/convert.mjs";
 import { goalText } from "../src/ir.mjs";
 
 test("RXP's skill skip form becomes a when skill", () => {
@@ -45,4 +45,19 @@ test("RXP's cooldown skip form becomes a when cooldown up to RXP's 2 seconds", (
 	assert.equal(cooldownWhen("item,6948,>2,1"), "!cooldown item 6948");
 	assert.equal(cooldownWhen("spell,1259416,>0,1"), "!cooldown spell 1259416");
 	assert.equal(cooldownWhen("item,6948,<600"), null);
+});
+
+test("a kill objective on a friendly NPC reads as talking, not killing", () => {
+	const data = { npcs: { 1: { name: "Sentinel Shaya", faction: "A" }, 2: { name: "Dashel", faction: "A" }, 3: { name: "Grell", faction: "H" } } };
+	const line = (text, comment) => ({ text, comment });
+	const q = (objectiveText) => ({ objectiveText });
+	assert.equal(friendlyKillText({ id: 1, count: 1 }, q("Listen to Shaya."), "Alliance", line(null, null), data), "Talk to Sentinel Shaya");
+	assert.equal(friendlyKillText({ id: 1, count: 1 }, q("Heal her."), "Alliance", line(null, "Heal and fortify Sentinel Shaya"), data), "Heal and fortify Sentinel Shaya");
+	assert.equal(friendlyKillText({ id: 1, count: 1 }, q("Find Shaya."), "Alliance", line(null, "Shaya (1)"), data), "Find Sentinel Shaya");
+	assert.equal(friendlyKillText({ id: 2, count: null }, q("Defeat Dashel in Stormwind."), "Alliance", line(null, null), data), undefined);
+	assert.equal(friendlyKillText({ id: 3, count: 1 }, q("Speak."), "Alliance", line(null, null), data), undefined);
+});
+
+test("a negative quest id on an optional hand-in is read as the quest", () => {
+	assert.equal(goalText({ kind: "turnin", quest: 214 }), "turnin 214");
 });

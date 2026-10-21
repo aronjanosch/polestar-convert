@@ -137,6 +137,24 @@ export function moneyWhen(args) {
 	return m[1] === "<" ? `money>=${copper}` : `money<${copper}`;
 }
 
+// Questie encodes "listen to X", "heal X", "escort X" as a kill objective on a friendly
+// NPC. The quest log counts it, so the goal stays a `kill ... quest Q.O`, but the player
+// must not read "Kill <friendly>": its text is what RXP writes, else "Talk to <name>".
+// A fight with a friendly (the quest says defeat, beat, subdue) stays a kill. Polestar's
+// own test of friendly: the NPC's side, or both.
+const TALK_WORDS = /^(talk|speak|listen|heal|escort|find|show|lead|keep|defend|view|check|observe|perform|wait|follow|watch|help|protect|free|use|wake|resurrect|give|ask|take|rescue)\b/i;
+const FIGHT_WORDS = /\b(kill|slay|defeat|beat|subdue|face)\b/i;
+export function friendlyKillText(obj, quest, faction, l, data) {
+	const npc = data.npcs && data.npcs[obj.id];
+	if (!npc || !(npc.faction === "AH" || (faction && npc.faction === faction[0]))) return undefined;
+	if (FIGHT_WORDS.test(quest.objectiveText || "")) return undefined;
+	const said = plain(l.text || l.comment || "").replace(/^\|?\d+\/\d+\s*/, "").replace(/\s*\(\d+\)$/, "").trim();
+	if (TALK_WORDS.test(said)) return said;
+	if ((obj.count || 1) > 1) return said || undefined;
+	if (!npc.name) return undefined;
+	return `${/^find\b/i.test(quest.objectiveText || "") ? "Find" : "Talk to"} ${npc.name}`;
+}
+
 function buildStep(step, stepNo, data, ctx) {
 	const { report } = ctx;
 	const cond = parseCondition(step.cond);
@@ -241,6 +259,7 @@ function buildStep(step, stepNo, data, ctx) {
 	let groupForSome = false;
 	let enterZone = null;
 	let info = false;
+	let negLine = false;
 	const add = (goal, lineCond) => {
 		const lc = parseCondition(lineCond);
 		const mine = {};
@@ -272,7 +291,7 @@ function buildStep(step, stepNo, data, ctx) {
 			if (!eliteTips.includes(tip)) eliteTips.push(tip);
 			report.count(`${goal.kind} of elite work -> optional`);
 		}
-		goals.push({ ...goal, only: onlyText(mine), optional: elite || optionalStep || goal.optional ? true : undefined });
+		goals.push({ ...goal, only: onlyText(mine), optional: elite || optionalStep || goal.optional || negLine ? true : undefined });
 		// After the guide drops a quest, its later goals wait for it to be taken again.
 		if (goal.kind === "abandon") { ctx.maybeTaken.add(goal.quest); ctx.surelyTaken.delete(goal.quest); }
 	};
@@ -300,7 +319,10 @@ function buildStep(step, stepNo, data, ctx) {
 			continue;
 		}
 		const n = l.name;
-		const lineQuestId = Number((l.args.match(/^(\d+)/) || [])[1]);
+		// RXP's `.turnin -214`: the line is skipped while the quest is not in the log
+		// (`skipIfMissing`), so it never holds the step: its goals are optional.
+		negLine = /^-\d/.test(l.args);
+		const lineQuestId = Number((l.args.match(/^-?(\d+)/) || [])[1]);
 		if ((n === "accept" || n === "turnin") && !lineQuestId) { report.count(`.${n} (no quest id, ignored)`); continue; }
 		if (n === "accept" || n === "turnin") {
 			const known = data.quests[lineQuestId];
@@ -324,7 +346,7 @@ function buildStep(step, stepNo, data, ctx) {
 			}
 			if (!title) title = plain(l.text).replace(/^(accept|turn in)\s+/i, "");
 		} else if (n === "complete") {
-			const m = l.args.match(/^(\d+)(?:,(\d+))?/);
+			const m = l.args.match(/^-?(\d+)(?:,(\d+))?/);
 			if (!m) { report.count(".complete (unparsed, ignored)"); report.note(ctx.name, stepNo, "unparsed .complete", l.args); continue; }
 			const quest = data.quests[Number(m[1])];
 			if (!quest) { add({ kind: "complete", quest: Number(m[1]), title: ctx.titles.get(Number(m[1])) || plain(l.text) || "quest " + m[1], at: at(placeFor(li)) }, l.cond); report.note(ctx.name, stepNo, `quest ${m[1]} unknown to the data`, l.args); continue; }
@@ -334,7 +356,7 @@ function buildStep(step, stepNo, data, ctx) {
 				add({ kind: "complete", quest: Number(m[1]) }, l.cond); continue;
 			}
 			const hit = resolveObjective(quest, l.comment || l.text || "", null);
-			if (hit && hit.obj.type === "kill") add({ kind: "kill", npc: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
+			if (hit && hit.obj.type === "kill") add({ kind: "kill", npc: hit.obj.id, quest: Number(m[1]), oi: hit.index, text: friendlyKillText(hit.obj, quest, ctx.faction, l, data) }, l.cond);
 			else if (hit && hit.obj.type === "item") add({ kind: "collect", item: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
 			else if (hit && hit.obj.type === "object") add({ kind: "interact", object: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
 			else { add({ kind: "complete", quest: Number(m[1]) }, l.cond); report.note(ctx.name, stepNo, "objective not matched by name; whole quest used", `${l.args} ${l.comment || ""}`); }
@@ -683,7 +705,7 @@ export function convertGuide(parsed, data, opts) {
 	const titles = new Map();
 	for (const s of parsed.steps) for (const l of s.lines) {
 		if (l.kind === "cmd" && (l.name === "accept" || l.name === "turnin") && l.text) {
-			const id = Number((l.args.match(/^(\d+)/) || [])[1]);
+			const id = Number((l.args.match(/^-?(\d+)/) || [])[1]);
 			if (id && !titles.has(id)) titles.set(id, plain(l.text).replace(/^(accept|turn in)\s+/i, ""));
 		}
 	}
@@ -693,7 +715,7 @@ export function convertGuide(parsed, data, opts) {
 	const before = opts.before || new Set();
 	const accepted = new Set(before);
 	for (const s of parsed.steps) for (const l of s.lines) {
-		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^(\d+)/) || [])[1]));
+		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^-?(\d+)/) || [])[1]));
 	}
 	const hc = parseCondition(parsed.header.faction).only;
 	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
