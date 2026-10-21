@@ -299,6 +299,8 @@ function buildStep(step, stepNo, data, ctx) {
 		}
 		if (l.kind === "note") {
 			const t = plain(l.text);
+			// "+1" only keeps a hidden step from being empty in RXP; it says nothing.
+			if (/^\d*$/.test(t)) { report.count("+N placeholder line (dropped)"); continue; }
 			if (t && !l.cond) notes.push(bare(t));
 			else if (t) {
 				const o = onlyText(parseCondition(l.cond).only);
