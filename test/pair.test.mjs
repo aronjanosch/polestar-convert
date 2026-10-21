@@ -53,3 +53,8 @@ test("first translation wins", () => {
 	assert.equal(p.get("Watch out"), "小心");
 	assert.equal(r.counts.get("locale: text with two translations"), 1);
 });
+
+test("a quote in the tail after -- pairs the whole tail", () => {
+	const p = pairRendered('step\n  train 5 -- Learn "Battle Shout"', 'step\n  train 5 -- 学习"战斗怒吼"', new Report());
+	assert.deepEqual([...p], [['Learn "Battle Shout"', '学习"战斗怒吼"']]);
+});

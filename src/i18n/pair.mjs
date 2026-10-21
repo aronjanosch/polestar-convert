@@ -9,10 +9,15 @@ const unescape = (s) => s.replace(/\\(.)/g, "$1");
 function parseLine(line) {
 	const m = FREE.exec(line);
 	if (m) return { shape: `${m[1]}${m[2]}`, texts: m[3] === undefined ? [] : [m[3]] };
+	// The comment tail is raw text that may hold quotes: cut it at the first
+	// ` -- ` outside a quoted string, and read quotes from the head only.
+	let head = line, tail;
+	for (const m of line.matchAll(/"(?:[^"\\]|\\.)*"| -- /g)) {
+		if (m[0] === " -- ") { head = line.slice(0, m.index + 4); tail = line.slice(m.index + 4); break; }
+	}
 	const texts = [];
-	let shape = line.replace(QUOTED, (_, t) => { texts.push(unescape(t)); return '""'; });
-	const cut = shape.indexOf(" -- ");
-	if (cut >= 0) { texts.push(shape.slice(cut + 4)); shape = shape.slice(0, cut + 4); }
+	const shape = head.replace(QUOTED, (_, t) => { texts.push(unescape(t)); return '""'; });
+	if (tail !== undefined) texts.push(tail);
 	return { shape, texts };
 }
 
