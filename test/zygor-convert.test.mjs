@@ -287,3 +287,12 @@ test("a collect for a quest not taken yet (|future) is a bag count at its goto, 
 	assert.match(r.text, /^  collect 401 x3 @39\.6,41\.9$/m);
 	assert.doesNotMatch(r.text, /when onquest/);
 });
+
+test("a buy of an item no vendor sells (the auction house) is a bag count at its point", () => {
+	const r = conv([
+		"step",
+		"  buy Old Rag##402 |goto Invented Vale/0 53.6,59.7 |q 101 |future",
+	].join("\n"));
+	assert.match(r.text, /^  collect 402 x1 @53\.6,59\.7$/m);
+	assert.doesNotMatch(r.text, /buy 402/);
+});
