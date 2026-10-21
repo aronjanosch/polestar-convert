@@ -272,6 +272,10 @@ test("in an |or step a kill on the way does not hold it; the way does", () => {
 		"  Enter the Den |complete subzone(\"The Den\") |or",
 	].join("\n"));
 	assert.match(r.text, /^  kill 301 quest 101\.1 optional$/m);
+	// Zygor also writes the way as a `'|complete` line after a tip.
+	const r2 = conv(["step", "  accept Invented Errand##101", "step",
+		"  kill 8 Young Wolf##301 |q 101/1 |goto Invented Vale/0 40,40 |or", "  |tip On the way.", "  '|complete subzone(\"The Den\") |or"].join("\n"));
+	assert.match(r2.text, /^  kill 301 quest 101\.1 optional$/m);
 	assert.match(r.text, /^  enter "The Den"$/m);
 });
 
