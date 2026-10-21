@@ -61,3 +61,21 @@ test("a kill objective on a friendly NPC reads as talking, not killing", () => {
 test("a negative quest id on an optional hand-in is read as the quest", () => {
 	assert.equal(goalText({ kind: "turnin", quest: 214 }), "turnin 214");
 });
+
+test("RXP's objective number is the fallback when no name fits, and is checked against the data", async () => {
+	const { resolveObjective } = await import("../src/objective.mjs");
+	const three = { objectives: [{ type: "kill", id: 1, text: "Firegut Ogre Mage" }, { type: "kill", id: 2, text: "Firegut Ogre" }, { type: "kill", id: 3, text: "Firegut Brute" }] };
+	assert.equal(resolveObjective(three, "", null, { index: 2 }).index, 2);
+	assert.equal(resolveObjective(three, "", null, { index: 4 }), null);
+	assert.equal(resolveObjective(three, "", null), null);
+	// the name wins over the number when it fits
+	assert.equal(resolveObjective(three, "Firegut Brute slain (7)", null, { index: 1 }).index, 3);
+	// a loose name hit that the number contradicts is no match
+	const two = { objectives: [{ type: "kill", id: 1, text: "Fillion Flamebreeze" }, { type: "object", id: 2, text: "Dusty Bedroll" }] };
+	assert.equal(resolveObjective(two, "Carry Fillion Flamebreeze to safety while avoiding enemies", null, { index: 2 }), null);
+	// two names that fit: the longer one
+	const murlocs = { objectives: [{ type: "kill", id: 1, text: "Murloc Streamrunner" }, { type: "kill", id: 2, text: "Murloc" }] };
+	assert.equal(resolveObjective(murlocs, "Murloc Streamrunners slain (4)", null, { index: 1 }).index, 1);
+	// an item that is not the quest's objective is no hit
+	assert.equal(resolveObjective({ objectives: [{ type: "item", id: 5, text: "Ore" }] }, "", 9, { strictItem: true }), null);
+});

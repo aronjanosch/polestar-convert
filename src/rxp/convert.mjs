@@ -355,11 +355,11 @@ function buildStep(step, stepNo, data, ctx) {
 				if ((quest.objectives || []).length === 0) { report.count("complete on a quest without objectives (dropped)"); continue; }
 				add({ kind: "complete", quest: Number(m[1]) }, l.cond); continue;
 			}
-			const hit = resolveObjective(quest, l.comment || l.text || "", null);
+			const hit = resolveObjective(quest, l.comment || l.text || "", null, { index: Number(m[2]) });
 			if (hit && hit.obj.type === "kill") add({ kind: "kill", npc: hit.obj.id, quest: Number(m[1]), oi: hit.index, text: friendlyKillText(hit.obj, quest, ctx.faction, l, data) }, l.cond);
 			else if (hit && hit.obj.type === "item") add({ kind: "collect", item: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
 			else if (hit && hit.obj.type === "object") add({ kind: "interact", object: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
-			else { add({ kind: "complete", quest: Number(m[1]) }, l.cond); report.note(ctx.name, stepNo, "objective not matched by name; whole quest used", `${l.args} ${l.comment || ""}`); }
+			else { add({ kind: "complete", quest: Number(m[1]) }, l.cond); report.count("objective not matched by name; whole quest used"); report.note(ctx.name, stepNo, "objective not matched by name; whole quest used", `${l.args} ${l.comment || ""}`); }
 		} else if (n === "collect") {
 			const [item, count, qid] = l.args.split(",").map((s) => s.trim());
 			const itemId = Number(item);
@@ -374,7 +374,7 @@ function buildStep(step, stepNo, data, ctx) {
 				add({ kind: "buy", item: itemId, itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
 				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", l.comment || "");
 			} else if (qid && data.quests[Number(qid)]) {
-				const hit = resolveObjective(data.quests[Number(qid)], "", itemId);
+				const hit = resolveObjective(data.quests[Number(qid)], "", itemId, { strictItem: true });
 				// RXP often collects ahead of the accept; Polestar wants the accept first,
 				// so an early pick-up counts the bag instead of the quest objective.
 				const early = !ctx.seen.has(Number(qid)) && ctx.accepted.has(Number(qid));
