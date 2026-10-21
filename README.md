@@ -213,24 +213,34 @@ every class.
   the line's point, not the objective.
 - **Givers the data places nowhere** (a giver the data places nowhere) take the
   route's last point for the arrow.
-- **Text** a line only shows is a tip; text for some classes or races is a
-  `note` beside the step's goals, or a task alone (Polestar tips take no
-  condition).
-- **Conditions** on a step (`|only` lines standing alone) are its `only` and
-  `when`; `|only if` on a goal line goes to the step's `when` when all its goals
+- **Text** a line only shows is a tip, named as Zygor shows it (`Use Crystal
+  Phial`, `Click Example Mushroom`: the verb kept, the `+` and map links
+  `[Zone/0 x,y]` written out); text for some classes or races is a `note`
+  beside the step's goals, or a task alone (Polestar tips take no condition).
+- **Professions**: `Train Apprentice Mining |skillmax Mining,75` is `train
+  Mining npc <the trainer the step talks to>`.
+- **`turninany Name##a,b,c`** turns in each quest; one the guide does not take
+  waits for it in the log.
+- **Conditions** on a step (a line that opens with `|only`, as in Zygor's
+  Parser.lua) are its `only` and `when`; an `|only` later on a line is that
+  line's (`|tip … |only if hardcore` drops the tip, not the step); `|only if` on a goal line goes to the step's `when` when all its goals
   share it. The race of a step the guide
   is not for drops it; `hardcore()` and `selfmade()` drop the steps they
-  make impossible.
-- **Quests**: a goal for a quest no earlier step accepts goes in a step `when
-  onquest <quest>`.
-- **Jumps** (`|next "label"`): a forward jump is a `skipto`, and a jump to
+  make impossible. `readyq(Q)` is `complete Q`, and
+  `haveq(a) or haveq(b)` is `onquest a,b`.
+- **Quests**: a goal for a quest no earlier step accepts, or accepts only under
+  a `when` (a dungeon, an item), goes in a step `when onquest <quest>` (N
+  steps; along copies keep such a quest's goals).
+- **Jumps** (`|next "label"`): a forward jump is a `skipto` (on a goal
+  line it jumps once the goal's quest is complete), and a jump to
   the next step is no jump. A backward one is dropped and gapped.
 - **Labels** are unique per guide (Zygor repeats a few: `-2`); a label Polestar
   does not name is not written.
 - **Waypoints**: the `|goto` points of a fighting or farming line are dropped:
   Polestar finds the spots. A goal the data places nowhere takes its line's
   `goto` as its `@`; a line without a goal leaves its point as the way into the
-  next step (kept only when no step goal places itself).
+  next step (kept only when no step goal places itself). A point on another
+  map than the step's zone names its map.
 - **Conditions Polestar has no form for** are kept without the condition and
   gapped (`walking` N lines, `indoors`, `or` across kinds, `discountgold`, buffs, `equipped`, `skillmax`, `region`, `rep`). Each is in
   reports/zygor-gaps.json.
