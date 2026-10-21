@@ -139,12 +139,17 @@ function verbGoals(l, ctx, place) {
 		case "collect": case "buy": case "expcollect": {
 			if (!first || !data.items[first.id]) return none;
 			const count = l.verb === "expcollect" ? Number((l.text.match(/##\d+,(\d+)/) || [])[1]) || 1 : lead;
-			if (quest && (quest.objectives || []).length) {
+			// `|q Q |future`: the quest is not taken yet (a bank pickup before the accept), a bag count.
+			const future = l.mods.some((m) => m.name === "future");
+			if (quest && !future && (quest.objectives || []).length) {
 				const hit = resolveObjective(quest, "", first.id);
 				if (hit && hit.obj.type === "item" && hit.obj.id === first.id) return got({ kind: "collect", item: first.id, quest: questId, oi: hit.index });
 			}
 			if (l.verb === "buy") return got({ kind: "buy", item: first.id, count });
-			return got({ kind: "collect", item: first.id, count });
+			// A bag count at a place of its own (the bank, a chest) is there, not where the item drops.
+			// Farming points are rounds Polestar finds itself; a pickup ahead of the quest (the bank) is at its point.
+			const pickup = place && (future || l.mods.some((m) => m.name === "usebank"));
+			return got({ kind: "collect", item: first.id, count, ...(pickup ? { at: pt(place), _map: place.uiMap } : {}) });
 		}
 		case "trash": {
 			if (!first || !data.items[first.id]) return none;
