@@ -83,14 +83,28 @@ export function innNamed(data, name, pt, faction = null, prefer = null) {
 // for `faction`: by its short name, full name or zone; nearest to `pt` when
 // several fit. -> its short name (what `getfp` takes) or null.
 export function flightNamed(data, name, faction, pt) {
-	const want = String(name || "").trim().toLowerCase();
+	const bare = (t) => String(t || "").trim().toLowerCase().replace(/^the\s+/, "");
+	const want = bare(name);
+	if (!want) return null;
 	const side = faction === "Alliance" ? 1 : faction === "Horde" ? 2 : null;
 	const mine = data.flights.filter((n) => !side || n.faction === side || n.faction === 3);
-	const zoneOf = (n) => String((data.zones[n.map] || {}).name || "").toLowerCase();
-	const hits = mine.filter((n) => n.short.toLowerCase() === want || n.name.toLowerCase() === want || n.name.toLowerCase().startsWith(want + ","))
-		.concat(mine.filter((n) => zoneOf(n) === want));
-	const hit = hits.length ? (hits[0].short.toLowerCase() === want ? hits[0] : closest(hits, pt)) : null;
-	return hit ? hit.short : null;
+	const zoneOf = (n) => bare((data.zones[n.map] || {}).name);
+	// The first rule that finds a point decides: its names as written, the zone it is in,
+	// then a zone or point named by its start ("Redridge" for Redridge Mountains,
+	// "Sun Rock" for Sun Rock Retreat).
+	const rules = [
+		(n) => n.short.toLowerCase() === want || n.name.toLowerCase() === want || n.name.toLowerCase().startsWith(want + ","),
+		(n) => zoneOf(n) === want,
+		(n) => zoneOf(n).startsWith(want + " ") || bare(n.name.split(",").slice(1).join(",")).startsWith(want),
+		(n) => bare(n.short).startsWith(want + " ") || bare(n.short).split(/\s+/).includes(want),
+	];
+	for (const rule of rules) {
+		const hits = mine.filter(rule);
+		if (!hits.length) continue;
+		const exact = hits.find((n) => n.short.toLowerCase() === want);
+		return (exact || closest(hits, pt)).short;
+	}
+	return null;
 }
 
 // Whether Polestar's data gives a goal a place of its own (spawns of the npc,

@@ -225,6 +225,13 @@ function buildStep(step, stepNo, data, ctx) {
 		}
 		return null;
 	};
+	// The flight point a `.fp` or `.fly` line names: its argument, else what its text says
+	// ("Get the Crossroads flight path", "Fly to Redridge Mountains").
+	const flightOf = (l) => {
+		const named = (t) => flightNamed(data, t, ctx.faction, firstPt);
+		const text = plain(l.text);
+		return named(String(l.args || "").trim()) || named((text.match(/Get the (.+?) flight path/i) || [])[1]) || named((text.match(/^Fly to (.+?)\.?$/i) || [])[1]);
+	};
 	const usedMaps = [];
 	const at = (g) => { if (g && g.uiMap) usedMaps.push(g.uiMap); return g ? { x: g.x, y: g.y, live: g.live } : undefined; };
 
@@ -431,8 +438,8 @@ function buildStep(step, stepNo, data, ctx) {
 			const w = moneyWhen(l.args);
 			if (w && !l.cond) { whens.push(w); formatNeeds = Math.max(formatNeeds, 5); report.count(".money -> when money"); }
 			else report.count(".money not expressible (ignored)");
-		} else if (n === "fp" && flightNamed(data, String(l.args || "").trim() || (plain(l.text).match(/Get the (.+?) flight path/i) || [])[1], ctx.faction, firstPt)) {
-			add({ kind: "getfp", location: flightNamed(data, String(l.args || "").trim() || (plain(l.text).match(/Get the (.+?) flight path/i) || [])[1], ctx.faction, firstPt) }, l.cond);
+		} else if (n === "fp" && flightOf(l)) {
+			add({ kind: "getfp", location: flightOf(l) }, l.cond);
 			report.count(".fp -> getfp");
 		} else if (n === "dungeon") {
 			const arg = String(l.args || "").trim();
@@ -477,8 +484,8 @@ function buildStep(step, stepNo, data, ctx) {
 			if (l.cond || !ids.length) report.count(`.${n} on a class line or without ids (ignored)`);
 			else if (kind === "onquest" || ids.length === 1) { whens.push(`${neg ? "!" : ""}${kind} ${ids.join(",")}`); report.count(`.${n} -> when ${neg ? "!" : ""}${kind}`); }
 			else report.count(`.${n} with several quests (Polestar takes one; ignored)`);
-		} else if (n === "fly" && flightNamed(data, String(l.args || "").trim(), ctx.faction, firstPt)) {
-			add({ kind: "fly", location: flightNamed(data, String(l.args || "").trim(), ctx.faction, firstPt) }, l.cond);
+		} else if (n === "fly" && flightOf(l)) {
+			add({ kind: "fly", location: flightOf(l) }, l.cond);
 			report.count(".fly -> fly");
 		} else if (n === "group") {
 			// The step needs a group (of N): shown on its quest work.
