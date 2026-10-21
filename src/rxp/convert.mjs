@@ -375,6 +375,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	// The `only` of each disjoint product a line's condition is, those the step reaches.
 	const groupsOf = (lineCond) => parseCondition(lineCond, ctx.scope).groups.filter((g) => onlyMeet(g, cond.only));
 	let negLine = false;
+	const negGoals = new Set();
 	const add = (goal, lineCond) => {
 		for (const mine of groupsOf(lineCond)) addFor(goal, mine);
 	};
@@ -408,6 +409,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		}
 		goals.push({ ...goal, only: onlyText(mine), optional: elite || optionalStep || goal.optional || negLine ? true : undefined });
 		ownTips.set(goals[goals.length - 1], pendingTips);
+		if (negLine) negGoals.add(goals[goals.length - 1]);
 		if (elite) ownElite.set(goals[goals.length - 1], `${elite} is elite: grouping up is advised.`);
 		pendingTips = [];
 		// After the guide drops a quest, its later goals wait for it to be taken again.
@@ -842,6 +844,8 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		if (g.kind === "abandon") return g.quest;
 		const id = questOf(g);
 		if (id == null) return null;
+		// RXP shows a `.turnin -Q` only while Q is in the log: unless this guide takes Q, so does Polestar.
+		if (negGoals.has(g) && !ctx.ownSeen.has(id)) return id;
 		const unsure = ctx.maybeTaken.has(id) && !ctx.surelyTaken.has(id) && !goals.some((a) => a.kind === "accept" && a.quest === id);
 		return !ctx.seen.has(id) || unsure ? id : null;
 	};
