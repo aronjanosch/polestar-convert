@@ -26,8 +26,11 @@ Journey (all guides of the install's catalog, chained by Journey's own
 ```sh
 node polestar-convert/bin/polestar-convert.mjs journey \
   --dir "<WoW>/Interface/AddOns/Journey" --polestar polestar --pack my-pack \
-  [--only "<guide name>" | --only <guide id>] [--native-verbs destroy]
+  [--only "<guide name>" | --only <guide id>] [--ah no] [--groups yes|no]
 ```
+
+Journey's grouping setting becomes Polestar's `when group <quest>`: the player
+answers per group quest in game. `--groups yes|no` fixes it instead.
 
 The Journey run also writes `reports/journey-gaps.json` into the pack: per
 guide and Journey step id, every condition, choice and goal Polestar cannot

@@ -95,6 +95,14 @@ test("runtime state becomes when, where Polestar can check it", () => {
 	// What Polestar cannot check is left out and listed.
 	assert.deepEqual(alts("SPELL[99] and LEVEL >= 2"), { alts: [["level>=2"]], unknown: ["SPELL[99]"] });
 	assert.deepEqual(alts("not (QUEST[5] >= TURNEDIN or ITEM[7] == 0)").alts, [["!turnedin 5", "has 7"]]);
+	// Professions: a tier learnt is rank 1, points are the rank.
+	assert.deepEqual(w("FIRSTAID >= APPRENTICE"), { whens: ['skill "First Aid" 1'] });
+	assert.deepEqual(w("COOKING_POINTS < 10"), { whens: ["!skill Cooking 10"] });
+	assert.deepEqual(alts("FIRSTAID >= JOURNEYMAN").unknown, ["FIRSTAID >= 2"]);
+	// The grouping setting, asked per quest; the quest is filled in later.
+	const g = (text) => whenAlts(evaluate(text, UNIVERSE, { askGroups: true })[0].residual, NAMES).alts;
+	assert.deepEqual(g("GROUPS or LEVEL >= 12"), [["group <quest>"], ["level>=12", "!group <quest>"]]);
+	assert.equal(evaluate("GROUPS", UNIVERSE)[0].residual, null);
 	// Location state reads as "not yet" for texts and waypoints.
 	assert.equal(evaluate("WITHIN[1]", UNIVERSE, { local: true }).length, 0);
 });
@@ -102,7 +110,7 @@ test("runtime state becomes when, where Polestar can check it", () => {
 test("converts an invented guide into Polestar's DSL", () => {
 	const guide = parseLua(LUA);
 	const report = new Report();
-	const r = convertGuide({ guideID: "H01X_FVR", description: "1-6 Invented Vale", faction: "Horde", levels: "1-6", zone: 1, group: "Forever (1-12)" }, guide, DATA, { report, slug: "h01x", packId: "mine", names: NAMES, native: new Set(["destroy"]) });
+	const r = convertGuide({ guideID: "H01X_FVR", description: "1-6 Invented Vale", faction: "Horde", levels: "1-6", zone: 1, group: "Forever (1-12)" }, guide, DATA, { report, slug: "h01x", packId: "mine", names: NAMES });
 	const lines = r.text.split("\n");
 	assert.deepEqual(lines.slice(0, 3), ["guide mine/h01x", "title Invented Vale", "faction Horde"]);
 	assert.ok(lines.includes("folder Journey Forever (1-12)"));
@@ -118,7 +126,7 @@ test("converts an invented guide into Polestar's DSL", () => {
 	assert.ok(lines.includes("  vendor nearest -- resupply: food and drink"));
 	assert.doesNotMatch(r.text, /when turnedin 100/);
 	assert.ok(lines.includes("  level 3+400"));
-	assert.equal(r.format, 6);
+	assert.equal(r.format, 5);
 	assert.deepEqual(r.jumps, ["H02X"]);
 	// The turn-in's own condition: only once the quest is done.
 	assert.match(r.text, /when complete 100\n(.*\n)*  turnin 100/);
