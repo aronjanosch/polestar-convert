@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { parseGuide } from "../src/rxp/parse.mjs";
 import { skillWhen, spellNames, moneyWhen, cooldownWhen, headerRaces } from "../src/rxp/convert.mjs";
 import { goalText } from "../src/ir.mjs";
+import { innNamed } from "../src/data.mjs";
 
 test("RXP's skill skip form becomes a when skill", () => {
 	assert.equal(skillWhen("cooking,50,1"), "!skill Cooking 50");
@@ -53,4 +54,20 @@ test("a header's race limit keeps the guide's own side only", () => {
 	assert.deepEqual(headerRaces(["Human", "Dwarf", "Gnome", "NightElf", "Skyborne"], "Alliance"), []);
 	assert.deepEqual(headerRaces(["Orc", "Troll"], "Horde"), ["Orc", "Troll"]);
 	assert.deepEqual(headerRaces(undefined, "Horde"), []);
+});
+
+test("an inn named by zone is one of the guide's own side, the bound one first", () => {
+	const data = {
+		zones: { 1444: { name: "Feralas" } },
+		inns: [
+			{ location: "Camp Mojache", names: [], map: 1444, c: 1, x: 75, y: 45 },
+			{ location: "Feathermoon Stronghold", names: [], map: 1444, c: 0, x: 31, y: 43 },
+			{ location: "Theramore", names: [], map: 1, c: 0, x: 1, y: 1 },
+			{ location: "Booty Bay", names: [], map: 2, c: 0, x: 1, y: 1 },
+		],
+	};
+	assert.equal(innNamed(data, "Feralas", null, "Alliance").location, "Feathermoon Stronghold");
+	assert.equal(innNamed(data, "Feralas", null, "Horde").location, "Camp Mojache");
+	assert.equal(innNamed(data, "Feralas", null, "Horde", "Camp Mojache").location, "Camp Mojache");
+	assert.equal(innNamed(data, "Booty Bay", null, "Horde").location, "Booty Bay");
 });
