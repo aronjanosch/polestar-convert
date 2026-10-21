@@ -13,7 +13,7 @@ import { resolveObjective } from "../objective.mjs";
 const IGNORED = new Set([
 	"target", "mob", "unitscan", "itemcount", "macro", "timer",
 	"skipgossip", "skipgossipid", "subzone", "disablecheckbox", "is", "item", "addquestitem",
-	"trainer", "itemStat", "zone", "link", "line", "solo", "enabledungeon",
+	"itemStat", "zone", "link", "line", "solo", "enabledungeon",
 ]);
 const TASKS = new Set(["hs", "home", "fp", "fly", "deathskip", "abandon", "destroy", "cast", "equip", "bankdeposit", "bankwithdraw"]);
 // A label as Polestar takes it: letters, digits, `-` and `_`.
@@ -31,6 +31,16 @@ const WHEN_OF = {
 const ALONG_KINDS = new Set(["kill", "collect", "complete", "buy", "note"]);
 const PLACE_KINDS = new Set(["kill", "collect", "interact", "use", "complete"]);
 const GROUP_KINDS = new Set(["accept", "turnin", "complete", "kill", "collect", "interact", "use"]);
+// Every rank's spell of each profession, by id; Anti-Venom is a First Aid recipe.
+const PROFESSION_SPELLS = {};
+for (const [prof, ids] of Object.entries({
+	"Alchemy": [2259, 3101, 3464, 11611], "Blacksmithing": [2018, 3100, 3538, 9785], "Enchanting": [7411, 7412, 7413, 13920],
+	"Engineering": [4036, 4037, 4038, 12656], "Herbalism": [2366, 2368, 3570, 11993], "Leatherworking": [2108, 3104, 3811, 10662],
+	"Mining": [2575, 2576, 3564, 10248], "Skinning": [8613, 8617, 8618, 10768], "Tailoring": [3908, 3909, 3910, 12180],
+	"First Aid": [3273, 3274, 7924, 10846, 7934, 7928, 7929, 10840, 10841, 18629, 18630, 3275, 3276, 3277, 3278],
+	"Cooking": [2550, 3102, 3413, 18260], "Fishing": [7620, 7731, 7732, 18248],
+})) for (const id of ids) PROFESSION_SPELLS[id] = prof;
+const PROFESSION_BASE = new Set([2259, 2018, 7411, 4036, 2366, 2108, 2575, 8613, 3908, 3273, 2550, 7620]);
 const PROFESSIONS = new Set(["Mining", "Herbalism", "Skinning", "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Leatherworking", "Tailoring", "First Aid", "Cooking", "Fishing"]);
 // RXP's variant tags: `#hardcore` steps only in hardcore mode; `#ssf` (buy at a
 // vendor) or `#ah` (look at the auction house) by RXP's self-found setting, off
@@ -137,6 +147,21 @@ export function moneyWhen(args) {
 	return m[1] === "<" ? `money>=${copper}` : `money<${copper}`;
 }
 
+// The one item a ".vendor <id> >> Buy ..." line buys, or null: the step's `.collect`,
+// else the one bracketed name the data knows as sold by that NPC.
+function boughtItem(step, line, npc, data) {
+	const sold = (id) => data.items[id] && (data.items[id].vendors || []).includes(npc.id);
+	for (const c of step.lines) {
+		if (c.kind !== "cmd" || c.name !== "collect" || !condsMeet(c.cond, line.cond)) continue;
+		const [id, count] = c.args.split(",").map(Number);
+		if (sold(id)) return { id, count: count || 1, line: step.lines.indexOf(c) };
+	}
+	const names = [...(line.text || "").matchAll(/\[(?:\|c[0-9A-Fa-f]{8})?([^\]|]+?)(?:\|r)?\]/g)].map((m) => m[1].toLowerCase());
+	if (names.length !== 1) return null;
+	const hits = Object.values(data.items).filter((it) => it.name && it.name.toLowerCase() === names[0] && sold(it.id));
+	return hits.length === 1 ? { id: hits[0].id, count: 1 } : null;
+}
+
 // A condition RXP never meets (`skip`, `sod`): the step is switched off. One that is no
 // product of class x race x faction splits into one step per disjoint product, unless
 // the step is a label's target (the copies would share it).
@@ -198,13 +223,17 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	const gotos = [];
 	const targets = [];
 	let buyText = false;
-	for (const l of step.lines) {
+	const friendly = [];
+	for (const [li, l] of step.lines.entries()) {
 		if (l.kind === "cmd" && (l.name === "goto" || l.name === "waypoint")) {
 			const g = parseGoto(l.args, data, ctx);
 			if (g) { g.cond = l.cond; gotos.push(g); }
 		} else if (l.kind === "cmd" && l.name === "target") {
-			targets.push({ name: l.args.replace(/^\+/, "").trim(), cond: l.cond });
+			// "Name::id" names the NPC by id; the id may be one the data lacks (Skyborne), then the name decides.
+			const [, name, id] = l.args.replace(/^\+/, "").trim().match(/^(.*?)(?:::(\d+))?$/);
+			targets.push({ name: name.trim(), id: id ? Number(id) : null, cond: l.cond, idx: li });
 		}
+		for (const m of (l.text || "").matchAll(/\|cRXP_FRIENDLY_([^|]+)\|r/g)) friendly.push({ name: m[1].replace(/::\d+$/, "").trim(), cond: l.cond, idx: li });
 		if ((l.text || "").includes("RXP_BUY")) buyText = true;
 	}
 	const mapId = (gotos.find((g) => g.uiMap) || {}).uiMap || null;
@@ -224,14 +253,49 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	const firstPt = gotos.length ? gotos[gotos.length - 1] : null;
 	// Only the targets the line's own condition can meet: "Talk to Frang << Warrior",
 	// "Talk to Shikrik << Shaman" in one step are two trainers, one per class.
-	const npcFor = (role, lineCond = null) => {
+	// opt.idx: the line's place in the step, to pair it with the target beside it when several fit.
+	// opt.item: a buy; a named NPC the item's vendor list holds counts as a vendor, role or not.
+	// opt.names: also the NPCs the step's text names ("Talk to |cRXP_FRIENDLY_Joshua|r").
+	const npcFor = (role, lineCond = null, opt = {}) => {
+		const sells = (n) => opt.item != null && (((data.items[opt.item] || {}).vendors) || []).includes(n.id);
 		const cands = [];
-		for (const { name, cond: tcond } of targets) {
+		const push = (npc, idx, named) => { if (npc && !cands.some((c) => c.npc === npc)) cands.push({ npc, idx, named }); };
+		for (const { name, id, cond: tcond, idx } of targets) {
 			if (!condsMeet(tcond, lineCond)) continue;
-			const r = findNpc(data, name, mapId, firstPt);
-			if (r.npc) cands.push(r.npc);
+			push((id && data.npcs[id]) || findNpc(data, name, mapId, firstPt).npc, idx);
 		}
-		return cands.find((n) => (n.roles || []).includes(role)) || (cands.length === 1 ? cands[0] : null);
+		if (opt.names) for (const { name, cond: tcond, idx } of friendly) {
+			if (!condsMeet(tcond, lineCond)) continue;
+			let npc = findNpc(data, name, mapId, firstPt).npc;
+			// RXP names a vendor by first name ("Oliver" for Oliver Dwor): the one here who sells the item.
+			if (opt.item != null && !(npc && sells(npc))) {
+				const first = name.toLowerCase() + " ";
+				const hits = [];
+				for (const [key, list] of data.npcByName) if (key.startsWith(first)) hits.push(...list);
+				const here = hits.filter((n) => ((data.items[opt.item] || {}).vendors || []).includes(n.id) && (!mapId || (n.spawns || {})[mapId]));
+				if (here.length === 1) npc = here[0];
+			}
+			push(npc, idx, true);
+		}
+		let pool = cands.filter((c) => (c.npc.roles || []).includes(role) || sells(c.npc));
+		if (opt.item != null && pool.some((c) => sells(c.npc))) pool = pool.filter((c) => sells(c.npc));
+		// Only a vendor may be taken without its role (the data lists few of them); a trainer never.
+		if (!pool.length && role === "vendor" && cands.length === 1 && !cands[0].named) pool = cands;
+		if (pool.length < 2) return pool.length ? pool[0].npc : null;
+		// Several fit: the one the line's own text names, else the target RXP wrote beside it
+		// (after the line, before the next of its kind; else before it), else the line's turn.
+		const text = (opt.text || "").toLowerCase();
+		const said = pool.filter((c) => text.includes(c.npc.name.toLowerCase())).sort((a, b) => text.indexOf(a.npc.name.toLowerCase()) - text.indexOf(b.npc.name.toLowerCase()));
+		if (said.length) return said[0].npc;
+		if (opt.idx == null) return pool[0].npc;
+		const same = step.lines.map((x, i) => (x.kind === "cmd" && (opt.kinds || []).includes(x.name) ? i : -1)).filter((i) => i >= 0);
+		const prev = Math.max(-1, ...same.filter((i) => i < opt.idx));
+		const next = Math.min(Infinity, ...same.filter((i) => i > opt.idx));
+		const after = pool.filter((c) => c.idx > opt.idx && c.idx < next).sort((a, b) => a.idx - b.idx);
+		if (after.length) return after[0].npc;
+		const before = pool.filter((c) => c.idx < opt.idx && c.idx > prev).sort((a, b) => b.idx - a.idx);
+		if (before.length) return before[0].npc;
+		return pool[Math.min(Math.max(same.indexOf(opt.idx), 0), pool.length - 1)].npc;
 	};
 
 	// RXP lists a .goto after the giver's lines or before them; for a quest the
@@ -315,7 +379,9 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		if (goal.kind === "abandon") { ctx.maybeTaken.add(goal.quest); ctx.surelyTaken.delete(goal.quest); }
 	};
 
+	const consumed = new Set();
 	for (let li = 0; li < step.lines.length; li++) {
+		if (consumed.has(li)) continue;
 		const l = step.lines[li];
 		if (l.kind === "text") {
 			const t = plain(l.text);
@@ -390,7 +456,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 				report.count("buy without a vendor (auction house) -> collect");
 			} else if (buyText) {
-				const npc = npcFor("vendor", l.cond);
+				const npc = npcFor("vendor", l.cond, { item: itemId, names: true, idx: li, kinds: ["collect"], text: l.comment || l.text });
 				add({ kind: "buy", item: itemId, itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
 				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", l.comment || "");
 			} else if (qid && data.quests[Number(qid)]) {
@@ -403,23 +469,62 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				else add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 			} else add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 		} else if (n === "vendor") {
-			const npc = npcFor("vendor", l.cond);
-			add({ kind: "vendor", npc: npc ? npc.id : undefined }, l.cond);
-			if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", plain(l.text));
-		} else if (n === "train") {
+			// ".vendor <id>" names the NPC itself.
+			const said = /^\d+$/.test(l.args.trim()) ? data.npcs[Number(l.args)] : null;
+			const npc = said || npcFor("vendor", l.cond);
+			const text = plain(l.text);
+			// "Buy [Dirk]" under .vendor: one item the data knows is a buy, not a junk sale.
+			const buyItem = npc && /\bbuy\b/i.test(text) ? boughtItem(step, l, npc, data) : null;
+			if (buyItem && buyItem.line != null && (buyItem.line < li || (step.lines[buyItem.line].cond || "") !== (l.cond || ""))) {
+				// The step's own .collect, written before or for other classes, already is the buy (or the bag count).
+				report.count(".vendor <id> with a buy text, the .collect before it covers it (dropped)");
+			} else if (buyItem) {
+				// A .collect of the item after it would only repeat the buy.
+				if (buyItem.line != null) consumed.add(buyItem.line);
+				add({ kind: "buy", item: buyItem.id, count: buyItem.count, npc: npc.id }, l.cond);
+				report.count(".vendor <id> with a buy text -> buy");
+			} else {
+				add({ kind: "vendor", npc: npc ? npc.id : undefined, comment: npc ? undefined : text || undefined }, l.cond);
+				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", text);
+			}
+		} else if (n === "train" || n === "trainer") {
 			const note = plain(l.text);
-			// "Train [Mining]": a profession has its own trainers, not the class trainer.
-			const prof = (note.match(/\[([^\]]+)\]/) || [])[1];
-			if (prof && PROFESSIONS.has(prof)) {
+			const opt = { idx: li, kinds: ["train", "trainer"], text: note };
+			// Spells the pet learns by fighting, not at a trainer.
+			if (n === "train" && /\b(attack mobs with it to learn|tame beast)\b/i.test(note)) {
+				add({ kind: "note", text: note }, l.cond);
+				report.count(".train pet spell learned by fighting -> note");
+				continue;
+			}
+			// A profession by spell id (".train 2018,3") or in the text; Anti-Venom is First Aid.
+			const [spell, flags] = n === "train" ? l.args.split(",").map((x) => Number(x.trim())) : [];
+			const prof = PROFESSION_SPELLS[spell] || (note.match(/\[([^\]]+)\]/) || [])[1] || (note.match(/\btrain\s+(Mining|Herbalism|Skinning|Alchemy|Blacksmithing|Enchanting|Engineering|Leatherworking|Tailoring|First Aid|Cooking|Fishing)\b/i) || [])[1];
+			const profName = prof && [...PROFESSIONS].find((p) => p.toLowerCase() === prof.toLowerCase());
+			if (profName) {
+				// ".train <id>,1|3" without text is RXP's skip check ("Mining Trained"): the step
+				// shows only while the skill is known (3) or not yet known (1), no trainer visit.
+				if (!note && flags) {
+					// Only the first rank's spell says "has the profession"; a recipe or later rank cannot be told by skill.
+					if (PROFESSION_SPELLS[spell] && PROFESSION_BASE.has(spell)) whens.push(`${flags & 2 ? "" : "!"}skill ${profName.includes(" ") ? JSON.stringify(profName) : profName} 1`);
+					if (PROFESSION_BASE.has(spell)) { formatNeeds = Math.max(formatNeeds, 5); report.count(".train profession check -> when skill"); }
+					else report.count(".train recipe check without text (dropped)");
+					continue;
+				}
 				// Polestar finds a profession's trainer by its own data; without that, the one RXP targets.
-				const pnpc = npcFor("trainer", l.cond);
-				if (pnpc || data.hasProfessions) add({ kind: "train", profession: prof, npc: pnpc ? pnpc.id : undefined }, l.cond);
-				else { add({ kind: "task", text: note }, l.cond); formatNeeds = 5; }
+				const pnpc = (npcFor("trainer", l.cond, opt) || npcFor("trainer", l.cond, { ...opt, names: true }));
+				if (pnpc || data.hasProfessions) add({ kind: "train", profession: profName, npc: pnpc ? pnpc.id : undefined }, l.cond);
+				else { add({ kind: "task", text: note || `Train ${profName}` }, l.cond); formatNeeds = 5; }
 				report.count(pnpc || data.hasProfessions ? ".train profession -> train <Profession>" : ".train profession, trainer unknown -> task");
 				continue;
 			}
-			const npc = npcFor("trainer", l.cond);
-			const lineClasses = parseCondition(l.cond, ctx.scope).only.class || cond.only.class || CLASSES;
+			// Pets, mounts: not the class trainer's lesson.
+			if (n === "trainer" && /\bmount\b/i.test(note)) { report.count(".trainer for a mount (ignored)"); continue; }
+			// RXP writes ".train <spell>" and ".trainer" together at one trainer: one goal is enough.
+			if (n === "trainer" && step.lines.some((x) => x.kind === "cmd" && x.name === "train" && condsMeet(x.cond, l.cond))) { report.count(".trainer beside .train (covered)"); continue; }
+			const npc = (npcFor("trainer", l.cond, opt) || npcFor("trainer", l.cond, { ...opt, names: true }));
+			// A class guide's own class counts too: "train class" for a Mage guide is the Mage's.
+			const ownClasses = parseCondition(l.cond, ctx.scope).only.class || cond.only.class || null;
+			const lineClasses = ownClasses || (ctx.classes.length ? ctx.classes : CLASSES);
 			if (npc) add({ kind: "train", npc: npc.id, comment: note || undefined }, l.cond);
 			else {
 				// Data gap: Polestar has no Horde Paladin class trainer (lint/playtest say so).
@@ -429,7 +534,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 					report.count("train (Paladin, no trainer in data) -> task");
 				}
 				if (rest.length) {
-					add({ kind: "train", class: true, comment: note || undefined }, rest.length < CLASSES.length ? rest.join("/") : null);
+					add({ kind: "train", class: true, comment: note || undefined }, ownClasses && rest.length < CLASSES.length ? rest.join("/") : null);
 					report.note(ctx.name, stepNo, "trainer not resolved; `train class` used", note);
 				}
 			}
@@ -743,7 +848,7 @@ export function convertGuide(parsed, data, opts) {
 	const scope = { class: hc.class || df.class || null, race: hc.race || df.race || null, faction: hc.faction || null };
 	const faction = hc.faction ? hc.faction[0] : null;
 	const races = hc.race || df.race || [];
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, scope, loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, scope, classes: hc.class || df.class || [], loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
