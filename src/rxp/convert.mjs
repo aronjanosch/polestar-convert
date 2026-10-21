@@ -3,7 +3,7 @@
 // data does not know is quoted by name or the line becomes a `task`/`note`, and
 // the report says so.
 
-import { parseCondition, onlyText, condsMeet, CLASSES } from "../cond.mjs";
+import { parseCondition, onlyText, condsMeet, onlyMeet, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
 import { goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
 import { render } from "../emit.mjs";
@@ -137,13 +137,49 @@ export function moneyWhen(args) {
 	return m[1] === "<" ? `money>=${copper}` : `money<${copper}`;
 }
 
+// A condition RXP never meets (`skip`, `sod`): the step is switched off. One that is no
+// product of class x race x faction splits into one step per disjoint product, unless
+// the step is a label's target (the copies would share it).
 function buildStep(step, stepNo, data, ctx) {
 	const { report } = ctx;
-	const cond = parseCondition(step.cond);
+	const cond = parseCondition(step.cond, ctx.scope);
 	cond.unknown.forEach((u) => report.note(ctx.name, stepNo, `unknown condition word "${u}"`, step.cond));
-	if (cond.never) { report.count("step: impossible condition (dropped)"); return null; }
-	// The header's races limit the whole guide: a step for other races never shows.
+	if (cond.never) {
+		report.count(cond.anywhere ? "step: for characters the guide is not for (dropped)" : "step: condition true for nobody (dropped)");
+		if (!cond.anywhere) report.note(ctx.name, stepNo, "step dropped: its condition is true for nobody", step.cond);
+		return null;
+	}
+	const labelled = step.tags.some((t) => t.name === "label");
+	if (cond.inexact && cond.groups.length > 1 && !labelled) {
+		report.count(`step: condition split into ${cond.groups.length} steps`);
+		return cond.groups.flatMap((only) => buildOne(step, stepNo, data, ctx, { ...cond, only }) || []);
+	}
+	if (cond.inexact) {
+		report.count("inexact condition");
+		report.note(ctx.name, stepNo, "inexact condition (step shown to a few more characters)", step.cond);
+	}
+	return buildOne(step, stepNo, data, ctx, cond);
+}
+
+function buildOne(step, stepNo, data, ctx, cond) {
+	const { report } = ctx;
+	// A race the guide is not for never shows the step.
 	if (ctx.races.length && cond.only.race && !cond.only.race.some((r) => ctx.races.includes(r))) { report.count("step: for races the guide is not for (dropped)"); return null; }
+	// Lines whose condition nobody meets, or no one who gets this step: gone, as in RXP.
+	const lines = [];
+	for (const l of step.lines) {
+		if (l.cond) {
+			const lc = parseCondition(l.cond, ctx.scope);
+			lc.unknown.forEach((u) => report.note(ctx.name, stepNo, `unknown condition word "${u}"`, l.cond));
+			if (lc.never) {
+				report.count(lc.anywhere ? "line: for characters the guide is not for (dropped)" : "line: condition true for nobody (dropped)");
+				continue;
+			}
+			if (!lc.groups.some((g) => onlyMeet(g, cond.only))) { report.count("line: condition excludes the step's characters (dropped)"); continue; }
+		}
+		lines.push(l);
+	}
+	step = { ...step, lines };
 
 	for (const t of step.tags) {
 		if (ctx.drop.has(t.name) || !variantShown(t)) { report.count(`step: #${t.name} variant (dropped)`); return null; }
@@ -241,10 +277,12 @@ function buildStep(step, stepNo, data, ctx) {
 	let groupForSome = false;
 	let enterZone = null;
 	let info = false;
+	// The `only` of each disjoint product a line's condition is, those the step reaches.
+	const groupsOf = (lineCond) => parseCondition(lineCond, ctx.scope).groups.filter((g) => onlyMeet(g, cond.only));
 	const add = (goal, lineCond) => {
-		const lc = parseCondition(lineCond);
-		const mine = {};
-		for (const k of Object.keys(lc.only)) mine[k] = lc.only[k];
+		for (const mine of groupsOf(lineCond)) addFor(goal, mine);
+	};
+	const addFor = (goal, mine) => {
 		const quest = goal.quest != null ? data.quests[goal.quest] : null;
 		const races = mine.race || cond.only.race || (ctx.races.length ? ctx.races : null);
 		if (goal.kind !== "accept" && ctx.races.length && mine.race && !mine.race.some((r) => ctx.races.includes(r))) { report.count("goal for races the guide is not for (dropped)"); return; }
@@ -285,8 +323,10 @@ function buildStep(step, stepNo, data, ctx) {
 			if ((l.text || "").includes("chatbubble")) continue; // "Talk to X": accept/turnin say it
 			if (!l.cond) tips.push(bare(t));
 			else {
-				const o = onlyText(parseCondition(l.cond).only);
-				if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
+				for (const g of groupsOf(l.cond)) {
+					const o = onlyText(g);
+					if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
+				}
 			}
 			continue;
 		}
@@ -294,8 +334,10 @@ function buildStep(step, stepNo, data, ctx) {
 			const t = plain(l.text);
 			if (t && !l.cond) notes.push(bare(t));
 			else if (t) {
-				const o = onlyText(parseCondition(l.cond).only);
-				if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
+				for (const g of groupsOf(l.cond)) {
+					const o = onlyText(g);
+					if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
+				}
 			}
 			continue;
 		}
@@ -377,7 +419,7 @@ function buildStep(step, stepNo, data, ctx) {
 				continue;
 			}
 			const npc = npcFor("trainer", l.cond);
-			const lineClasses = parseCondition(l.cond).only.class || cond.only.class || CLASSES;
+			const lineClasses = parseCondition(l.cond, ctx.scope).only.class || cond.only.class || CLASSES;
 			if (npc) add({ kind: "train", npc: npc.id, comment: note || undefined }, l.cond);
 			else {
 				// Data gap: Polestar has no Horde Paladin class trainer (lint/playtest say so).
@@ -697,9 +739,11 @@ export function convertGuide(parsed, data, opts) {
 	}
 	const hc = parseCondition(parsed.header.faction).only;
 	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
+	// What the guide is for: inside it a condition counts as exact when it is a product there.
+	const scope = { class: hc.class || df.class || null, race: hc.race || df.race || null, faction: hc.faction || null };
 	const faction = hc.faction ? hc.faction[0] : null;
 	const races = hc.race || df.race || [];
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, scope, loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
