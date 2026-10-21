@@ -119,3 +119,11 @@ test("a token at the start matches as a wildcard too", () => {
 	const { text } = fillText(src, p, names({ "npc:1": ["凯尔德里克"] }));
 	assert.match(text, /= "\{npc:1\}在等",/);
 });
+
+test("a wildcard stays within its line and its name's length", () => {
+	const src = file(`\t-- {npc:1} Keldric Boucher\n\t["Talk to {npc:1}\\nGo home"] = "",\n`);
+	const across = new Map([["Talk to Keldric\nRun\nGo home", "与凯尔德里克对话\n跑\n回家"]]);
+	assert.equal(fillText(src, across, names({ "npc:1": ["凯尔德里克"] })).counts["no pair"], 1);
+	const long = new Map([["Talk to Keldric. Then wait for the boat\nGo home", "与凯尔德里克对话。然后等船\n回家"]]);
+	assert.equal(fillText(src, long, names({ "npc:1": ["凯尔德里克"] })).counts["no pair"], 1);
+});
