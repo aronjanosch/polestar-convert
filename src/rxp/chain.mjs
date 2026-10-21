@@ -3,7 +3,7 @@
 // way into it. RXP names a guide by group and name; one file can hold two
 // guides of one name (a leveling route and its dungeon variant).
 
-import { parseCondition } from "../cond.mjs";
+import { parseCondition, CLASSES, RACES } from "../cond.mjs";
 
 export function slugOf(name) {
 	return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -81,9 +81,13 @@ export function planChain(guides, report) {
 
 	// `next`: "Name", "Group\Name", "Name << Warlock", several split by ";".
 	// Same group first, then the same faction.
+	// An option for only some of the guide's characters (a Hunter route) stays when
+	// the options together cover all of them: Polestar offers each character the
+	// options whose guide is for them. Alone it would send everyone there.
 	const next = new Map();
 	for (const g of guides) {
 		const out = [];
+		const partial = [];
 		for (const raw of String(g.header.next || "").split(";")) {
 			const opt = raw.replace(/<<.*$/, "").trim();
 			if (!opt) continue;
@@ -93,9 +97,15 @@ export function planChain(guides, report) {
 			let hit = byKey.get(`${group}\\${name}`);
 			if (!hit) hit = (byName.get(name) || []).find((o) => sideOf(o) === sideOf(g)) || null;
 			if (hit && twinOf.has(hit)) hit = twinOf.get(hit);
-			if (hit && !covers(hit, g)) { report.note(g.header.name, 0, `next guide "${opt}" is not for every character of this one (left out)`, g.header.next); continue; }
+			if (hit && !covers(hit, g)) { partial.push(opt); if (!out.includes(hit)) out.push(hit); continue; }
 			if (hit && !out.includes(hit)) out.push(hit);
 			else if (!hit) report.note(g.header.name, 0, `next guide "${opt}" is not in this run (left out)`, g.header.next);
+		}
+		if (partial.length && coversAll(out, g)) report.count("next options for some characters, together for all (kept)", partial.length);
+		else if (partial.length) {
+			for (const opt of partial) report.note(g.header.name, 0, `next guide "${opt}" is not for every character of this one (left out)`, g.header.next);
+			next.set(g, out.filter((o) => covers(o, g)));
+			continue;
 		}
 		next.set(g, out);
 	}
@@ -123,14 +133,23 @@ export function planChain(guides, report) {
 
 // Whether every character guide `g` is for may follow `to`: what `to` names of
 // class and race (header and RXP's defaultfor) holds for all of `g`'s.
+const who = (x) => {
+	const h = parseCondition(x.header.faction).only;
+	const d = parseCondition(String(x.header.defaultfor || "").replace(/,/g, " ")).only;
+	return { class: h.class || d.class || null, race: h.race || d.race || null };
+};
 function covers(to, g) {
-	const who = (x) => {
-		const h = parseCondition(x.header.faction).only;
-		const d = parseCondition(String(x.header.defaultfor || "").replace(/,/g, " ")).only;
-		return { class: h.class || d.class || null, race: h.race || d.race || null };
-	};
 	const t = who(to), m = who(g);
 	return ["class", "race"].every((k) => !t[k] || (m[k] && m[k].every((n) => t[k].includes(n))));
+}
+
+// Whether every character of `g` (each class and race it is for) is one some guide
+// of `list` is for.
+function coversAll(list, g) {
+	const m = who(g);
+	const ts = list.map(who);
+	return (m.class || CLASSES).every((c) => (m.race || RACES).every((r) =>
+		ts.some((t) => (!t.class || t.class.includes(c)) && (!t.race || t.race.includes(r)))));
 }
 
 function acceptsOf(g) {
