@@ -127,7 +127,7 @@ async function translate() {
 	const found = readdirSync(langDir).map((n) => /^Guides-(\w+)$/.exec(n)?.[1]).filter(Boolean)
 		.filter((l) => !a.list || existsSync(join(langDir, `Guides-${l}`, listName)));
 	const locales = want === "all" ? found : want.split(",").map((l) => l.trim()).filter((l) => found.includes(l) || (console.error(`no translated guides for ${l}`), false));
-	if (!locales.length) return;
+	if (!locales.length) { if (want !== "all") process.exitCode = 1; return; } // asked for, found nothing
 
 	// One absolute path for every reader (loadNames requires from it, polestar runs inside it).
 	const clone = resolve(a.polestar);
@@ -161,9 +161,20 @@ async function translate() {
 		writeFileSync(join(reportsDir, "rxp-locales.json"), JSON.stringify(out, null, 1) + "\n");
 	};
 	if (!done.length) { writeReport(); process.exitCode = 1; return; }
-	const { files: filled, check } = await fillPack({ polestar: a.polestar, pack: a.pack, locales: done, pairsByLocale, namesByLocale });
+	let filled, check;
+	try {
+		({ files: filled, check } = await fillPack({ polestar: clone, pack: a.pack, locales: done, pairsByLocale, namesByLocale }));
+	} catch (e) {
+		// the sync failed: no files to report on, but the report still says so
+		console.error(`i18n guides sync failed: ${e.message}`);
+		out.sync = { failed: e.message };
+		writeReport();
+		process.exitCode = 1;
+		return;
+	}
 
 	console.log("\n== translations");
+	const noTables = [];
 	for (const locale of done) {
 		const total = { texts: 0, translated: 0, kept: 0, "no pair": 0, "name not found": 0 };
 		const pairing = {};
@@ -175,10 +186,12 @@ async function translate() {
 			guides[slug] = { counts: { ...Object.fromEntries(rep.counts), ...f.counts }, examples: f.examples };
 		}
 		out.locales[locale] = { ...total, pairing, guides };
+		if (namesByLocale[locale].clientTables) { out.locales[locale].clientTables = namesByLocale[locale].clientTables; noTables.push(locale); }
 		console.log(`${locale}: ${total.translated} of ${total.texts} texts translated`);
 	}
 	out.check = check;
 	writeReport();
 	console.log(check.code ? `i18n guides check failed:\n${check.output}` : "i18n guides check: ok");
+	if (noTables.length) console.log(`names of areas, zones and spells are missing for ${noTables.join(", ")} (client tables could not be loaded, see the report): run again with network access to wago.tools to fill them`);
 	if (check.code || done.length < locales.length) process.exitCode = 1;
 }
