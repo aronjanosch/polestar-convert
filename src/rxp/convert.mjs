@@ -10,7 +10,7 @@ import { render } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 
 const IGNORED = new Set([
-	"target", "mob", "unitscan", "itemcount", "cooldown", "macro", "timer",
+	"target", "mob", "unitscan", "itemcount", "macro", "timer",
 	"skipgossip", "skipgossipid", "subzone", "disablecheckbox", "is", "item", "addquestitem",
 	"trainer", "itemStat", "zone", "link", "line", "solo", "enabledungeon",
 ]);
@@ -143,6 +143,15 @@ export function skillWhen(args) {
 	const name = m && SKILLS[m[1].toLowerCase()];
 	if (!name || Number(m[4]) === 0 || Number(m[3]) < 1) return null;
 	return `${m[2] ? "" : "!"}skill ${name.includes(" ") ? JSON.stringify(name) : name} ${m[3]}`;
+}
+
+// RXP's `.cooldown item|spell,<id>,>N` skips the step while more than N seconds of
+// cooldown are left (at least 2), `<N` while fewer: with N up to 2, Polestar's
+// `when !cooldown` / `when cooldown`. A longer threshold has no Polestar form: null.
+export function cooldownWhen(args) {
+	const m = String(args).replace(/\s/g, "").match(/^(item|spell),(\d+),([<>]?)(\d+(?:\.\d+)?)(m?)/);
+	if (!m || Number(m[4]) * (m[5] ? 60 : 1) > 2) return null;
+	return `${m[3] === "<" ? "" : "!"}cooldown ${m[1]} ${m[2]}`;
 }
 
 // RXP's `.money <N` / `>N` (gold) -> the `when money` that shows the step, or null.
@@ -425,6 +434,10 @@ function buildStep(step, stepNo, data, ctx) {
 			if (m && SKILLS[m[1].toLowerCase()]) { add({ kind: "skill", skill: SKILLS[m[1].toLowerCase()], n: Number(m[2]) }, l.cond); report.count(".skill -> skill"); }
 			else if (w && !l.cond) { whens.push(w); formatNeeds = Math.max(formatNeeds, 5); report.count(".skill skip form -> when skill"); }
 			else report.count(".skill (ignored)");
+		} else if (n === "cooldown") {
+			const w = cooldownWhen(l.args);
+			if (w && !l.cond) { whens.push(w); formatNeeds = Math.max(formatNeeds, 5); report.count(".cooldown -> when cooldown"); }
+			else report.count(".cooldown not expressible (ignored)");
 		} else if (n === "money") {
 			// RXP's `.money <N` (N in gold) skips the step while the character has less, `>N`
 			// while they have that much or more: Polestar's `when money`, in copper.

@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseGuide } from "../src/rxp/parse.mjs";
-import { skillWhen, spellNames, moneyWhen } from "../src/rxp/convert.mjs";
+import { skillWhen, spellNames, moneyWhen, cooldownWhen } from "../src/rxp/convert.mjs";
 import { goalText } from "../src/ir.mjs";
 
 test("RXP's skill skip form becomes a when skill", () => {
@@ -37,4 +37,12 @@ test("RXP's money skip form becomes a when money, in copper", () => {
 	assert.equal(moneyWhen(">1.5"), "money<15000");
 	assert.equal(moneyWhen(" <2 "), "money>=20000");
 	assert.equal(moneyWhen("5"), null);
+});
+
+test("RXP's cooldown skip form becomes a when cooldown up to RXP's 2 seconds", () => {
+	assert.equal(cooldownWhen("item,6948,>0,1"), "!cooldown item 6948");
+	assert.equal(cooldownWhen("item,6948,<0"), "cooldown item 6948");
+	assert.equal(cooldownWhen("item,6948,>2,1"), "!cooldown item 6948");
+	assert.equal(cooldownWhen("spell,1259416,>0,1"), "!cooldown spell 1259416");
+	assert.equal(cooldownWhen("item,6948,<600"), null);
 });
