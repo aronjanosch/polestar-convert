@@ -5,6 +5,8 @@ guide pack (WoW: Forever). It ships no guide content: you point it at your own
 install, it writes `.guide` files into your own pack, and Polestar's `lint` and
 `playtest` check the result. Keep the output to yourself.
 
+[中文说明](README.zh-CN.md) (README in Chinese)
+
 Status: early. Source adapters: RestedXP (`rxp`), Journey (`journey`), Zygor (`zygor`).
 
 ## Use
@@ -20,6 +22,29 @@ node polestar-convert/bin/polestar-convert.mjs rxp \
   --polestar polestar --pack my-pack --only "1-6 Tirisfal Glades"
 cd my-pack && node ../polestar/tools/polestar.js lint && node ../polestar/tools/polestar.js playtest
 ```
+
+RXP also fills the pack's translations. `--locales <all|none|zhCN,deDE,...>`
+(default `all`): for each language RXP ships translated guides for (deDE, esES,
+frFR, ptBR, zhCN; found as `RXPGuides/lang/Guides-<locale>/GuideList-forever.xml`)
+the run fills the pack's `locales/<locale>/` files through Polestar's
+`i18n guides sync`, then runs `i18n guides check`. `none` turns it off (no sync,
+no download).
+
+- The first run per language downloads the client's area, zone and spell names
+  in that language from wago.tools (public game data) into the clone's
+  git-ignored `data/sources/wago/`. Nothing of the guides is sent.
+- Lines that already hold a translation are never changed, so your own
+  corrections survive a rerun.
+- Shown translated: game names (NPCs, quests, items, places, spells) for every
+  source, since Polestar shows the client's own names; for RXP also the guide
+  words where RXP's translated guide has them. Left English: Journey's and
+  Zygor's words, RXP texts that did not pair, the guides of
+  `a guide file` (levels 30-60 and the dungeon guides; RXP ships no
+  translated copy), and texts RXP marks "NOT TRANSLATED".
+- `reports/rxp-locales.json` in the pack: per language, the texts, how many are
+  translated, and the causes for texts left English, with examples per guide.
+- Compile and install with Polestar as above; the compiler builds the
+  language's texts addon from `locales/`.
 
 Journey (all guides of the install's catalog, chained by Journey's own
 "go to the next guide" buttons):
