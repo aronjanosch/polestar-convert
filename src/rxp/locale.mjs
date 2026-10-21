@@ -8,19 +8,30 @@ import { pairRendered } from "../i18n/pair.mjs";
 
 const NAMED = new Set(["target", "mob", "unitscan"]);
 
-// The lines of a step pair when counts match and each pair is the same command.
-function paired(en, tr) {
-	if (en.lines.length !== tr.lines.length) return false;
-	return en.lines.every((a, i) => {
-		const b = tr.lines[i];
-		if (a.kind !== b.kind) return false;
-		if (a.kind !== "cmd") return true;
-		if (a.name !== b.name) return false;
-		return NAMED.has(a.name) || a.args === b.args;
-	});
+// A step's signature: its line kinds and commands. Two steps whose lines pair
+// (same count, same commands; name commands by position) have equal ones.
+const signature = (step) => step.lines.map((l) => l.kind !== "cmd" ? l.kind : NAMED.has(l.name) ? `${l.name}` : `${l.name} ${l.args}`).join("\n");
+
+// For each English step the index of its translated step, or -1: the longest
+// common subsequence of signatures, so a step added or dropped on one side
+// shifts nothing else.
+function matchSteps(en, tr) {
+	const a = en.steps.map(signature), b = tr.steps.map(signature);
+	const w = b.length + 1;
+	const dp = new Uint16Array((a.length + 1) * w);
+	for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) {
+		dp[i * w + j] = a[i] === b[j] ? dp[(i + 1) * w + j + 1] + 1 : Math.max(dp[(i + 1) * w + j], dp[i * w + j + 1]);
+	}
+	const match = a.map(() => -1);
+	for (let i = 0, j = 0; i < a.length && j < b.length;) {
+		if (a[i] === b[j]) match[i++] = j++;
+		else if (dp[(i + 1) * w + j] >= dp[i * w + j + 1]) i++;
+		else j++;
+	}
+	return match;
 }
 
-export function alignGuide(en, tr, report) {
+export function alignGuide(en, tr, report, match = matchSteps(en, tr)) {
 	const guide = structuredClone(en);
 	const names = new Map();
 	if (tr.header.name) guide.header.name = tr.header.name;
@@ -28,8 +39,8 @@ export function alignGuide(en, tr, report) {
 	const di = display(guide.header), ti = display(tr.header);
 	if (di >= 0 && ti >= 0) guide.header.flags[di] = tr.header.flags[ti];
 	guide.steps.forEach((step, i) => {
-		const other = tr.steps[i];
-		if (!paired(step, other)) { report.count("locale: step not paired"); return; }
+		if (match[i] < 0) { report.count("locale: step not paired"); return; }
+		const other = tr.steps[match[i]];
 		step.lines.forEach((line, j) => {
 			const b = other.lines[j];
 			if (line.kind === "cmd" && NAMED.has(line.name) && line.args && b.args) names.set(line.args, b.args);
@@ -39,12 +50,14 @@ export function alignGuide(en, tr, report) {
 	return { guide, names };
 }
 
-// The guides of one file by index; null where nothing pairs.
+// The guides of one file by index; null where nothing pairs or where fewer
+// than half of the English steps find their translated step.
 export function alignFile(enGuides, trGuides, report) {
 	return enGuides.map((en, i) => {
 		const tr = trGuides[i];
-		if (!tr || tr.steps.length !== en.steps.length) { report.count("locale: guide not paired"); return null; }
-		return alignGuide(en, tr, report);
+		const match = tr ? matchSteps(en, tr) : [];
+		if (!tr || match.filter((j) => j >= 0).length * 2 < en.steps.length) { report.count("locale: guide not paired"); return null; }
+		return alignGuide(en, tr, report, match);
 	});
 }
 
