@@ -3,7 +3,7 @@
 // text is never changed, and a line that does not pair stays "".
 
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, relative, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 
 // As the clone's tools/lib/i18n/files.js writes a Lua string.
@@ -75,8 +75,12 @@ function putTokens(translated, key, tokens, namesOf) {
 
 export function fillText(fileText, pairs, namesOf) {
 	const counts = { translated: 0, kept: 0, "no pair": 0, "name not found": 0 };
+	const examples = [];
 	let tokens = new Map();
+	let step = null;
 	const out = fileText.split("\n").map((line) => {
+		const at = /^\t-- (?:Step (\d+)|Guide)\b/.exec(line);
+		if (at) step = at[1] ? Number(at[1]) : null;
 		if (/^\t-- \{/.test(line)) { tokens = readTokens(line); return line; }
 		const m = LINE.exec(line);
 		if (!m) return line;
@@ -87,13 +91,13 @@ export function fillText(fileText, pairs, namesOf) {
 		const key = decode(rawKey);
 		const english = key.replace(TOKEN, (all, tok) => mine.get(tok) ?? all);
 		const tr = pairs.get(english);
-		if (tr === undefined || tr === "") { counts["no pair"]++; return line; }
+		if (tr === undefined || tr === "") { counts["no pair"]++; examples.push({ step, what: "no pair", line: english }); return line; }
 		const done = putTokens(tr, key, mine, namesOf);
-		if (done.missing) { counts["name not found"]++; return line; }
+		if (done.missing) { counts["name not found"]++; examples.push({ step, what: "name not found", line: english }); return line; }
 		counts.translated++;
 		return `${pre}"${rawKey}"${mid}${luaString(done.text)}${post}`;
 	});
-	return { text: out.join("\n"), counts };
+	return { text: out.join("\n"), counts, examples };
 }
 
 function luaFiles(dir) {
@@ -117,12 +121,15 @@ export async function fillPack({ polestar: clone, pack: packArg, locales, pairsB
 		throw new Error(`i18n guides sync failed:\n${e.stdout ?? ""}${e.stderr ?? ""}`);
 	}
 	const counts = { translated: 0, kept: 0, "no pair": 0, "name not found": 0 };
+	// per file, by its path under locales/ ("zhCN/guides/x.lua"), for the report
+	const files = {};
 	for (const locale of locales) {
 		const dir = join(pack, "locales", locale);
 		for (const file of luaFiles(dir)) {
 			const before = readFileSync(file, "utf8");
-			const { text, counts: c } = fillText(before, pairsByLocale[locale] ?? new Map(), namesByLocale[locale]);
+			const { text, counts: c, examples } = fillText(before, pairsByLocale[locale] ?? new Map(), namesByLocale[locale]);
 			for (const k in c) counts[k] += c[k];
+			files[relative(join(pack, "locales"), file).split(sep).join("/")] = { counts: c, examples };
 			if (text !== before) writeFileSync(file, text);
 		}
 	}
@@ -132,5 +139,5 @@ export async function fillPack({ polestar: clone, pack: packArg, locales, pairsB
 	} catch (e) {
 		check = { code: e.status ?? 1, output: `${e.stdout ?? ""}${e.stderr ?? ""}` };
 	}
-	return { counts, check };
+	return { counts, files, check };
 }
