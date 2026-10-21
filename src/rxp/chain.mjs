@@ -132,11 +132,10 @@ export function planChain(guides, report) {
 }
 
 // Whether every character guide `g` is for may follow `to`: what `to` names of
-// class and race (header and RXP's defaultfor) holds for all of `g`'s.
+// class and race (the header's `<<` line) holds for all of `g`'s.
 const who = (x) => {
 	const h = parseCondition(x.header.faction).only;
-	const d = parseCondition(String(x.header.defaultfor || "").replace(/,/g, " ")).only;
-	return { class: h.class || d.class || null, race: h.race || d.race || null };
+	return { class: h.class || null, race: h.race || null };
 };
 function covers(to, g) {
 	const t = who(to), m = who(g);

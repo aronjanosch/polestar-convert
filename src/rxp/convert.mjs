@@ -674,6 +674,17 @@ function menuPlace(group, subgroup) {
 	return { category: "Leveling", folder: `RXP ${name}${sub ? " · " + sub : ""}` };
 }
 
+// The races a header's `<<` line limits a guide to. "<< Alliance !NightElf" names every
+// race but one: those of the other side go, and all of the side's races limit nothing.
+const SIDE_RACES = { Alliance: ["Human", "Dwarf", "Gnome", "NightElf", "Skyborne"], Horde: ["Orc", "Troll", "Tauren", "Undead", "Skyborne"] };
+export function headerRaces(races, faction) {
+	const side = SIDE_RACES[faction];
+	if (!races) return [];
+	if (!side) return races;
+	const own = races.filter((r) => side.includes(r));
+	return own.length === side.length ? [] : own;
+}
+
 export function convertGuide(parsed, data, opts) {
 	const { report, slug, packId } = opts;
 	// RXP's `#displayname` is the name it shows (the name itself can be an internal key).
@@ -696,9 +707,10 @@ export function convertGuide(parsed, data, opts) {
 		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^(\d+)/) || [])[1]));
 	}
 	const hc = parseCondition(parsed.header.faction).only;
-	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
 	const faction = hc.faction ? hc.faction[0] : null;
-	const races = hc.race || df.race || [];
+	// Only a `<<` line of the header limits the guide; `#defaultfor` just picks which guide
+	// RXP offers first, every character may still run the others.
+	const races = headerRaces(hc.race, faction);
 	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
@@ -726,7 +738,7 @@ export function convertGuide(parsed, data, opts) {
 		name: parsed.header.name || slug,
 		title: info.zone || parsed.header.name,
 		faction,
-		classes: hc.class || df.class || null,
+		classes: hc.class || null,
 		races,
 		levels: info.levels || levelsOf([...accepted].filter((id) => !before.has(id)), data) || (String(parsed.header.subgroup || "").match(/\b(\d+-\d+)\b/) || [])[1] || null,
 		zone,
