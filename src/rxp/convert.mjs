@@ -145,6 +145,14 @@ export function skillWhen(args) {
 	return `${m[2] ? "" : "!"}skill ${name.includes(" ") ? JSON.stringify(name) : name} ${m[3]}`;
 }
 
+// RXP's `.money <N` / `>N` (gold) -> the `when money` that shows the step, or null.
+export function moneyWhen(args) {
+	const m = String(args).replace(/\s/g, "").match(/^([<>])(\d+(?:\.\d+)?)/);
+	if (!m) return null;
+	const copper = Math.round(Number(m[2]) * 1e4);
+	return m[1] === "<" ? `money>=${copper}` : `money<${copper}`;
+}
+
 function buildStep(step, stepNo, data, ctx) {
 	const { report } = ctx;
 	const cond = parseCondition(step.cond);
@@ -417,9 +425,11 @@ function buildStep(step, stepNo, data, ctx) {
 			else if (w && !l.cond) { whens.push(w); formatNeeds = Math.max(formatNeeds, 5); report.count(".skill skip form -> when skill"); }
 			else report.count(".skill (ignored)");
 		} else if (n === "money") {
-			// Counting the character's money does not hold up in play (selling junk, repairs):
-			// RXP's step is ticked by the player, so the goal is dropped and the text stays.
-			report.count(".money (dropped: not a reliable goal)");
+			// RXP's `.money <N` (N in gold) skips the step while the character has less, `>N`
+			// while they have that much or more: Polestar's `when money`, in copper.
+			const w = moneyWhen(l.args);
+			if (w && !l.cond) { whens.push(w); formatNeeds = Math.max(formatNeeds, 5); report.count(".money -> when money"); }
+			else report.count(".money not expressible (ignored)");
 		} else if (n === "fp" && flightNamed(data, String(l.args || "").trim() || (plain(l.text).match(/Get the (.+?) flight path/i) || [])[1], ctx.faction, firstPt)) {
 			add({ kind: "getfp", location: flightNamed(data, String(l.args || "").trim() || (plain(l.text).match(/Get the (.+?) flight path/i) || [])[1], ctx.faction, firstPt) }, l.cond);
 			report.count(".fp -> getfp");

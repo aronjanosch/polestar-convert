@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseGuide } from "../src/rxp/parse.mjs";
-import { skillWhen, spellNames } from "../src/rxp/convert.mjs";
+import { skillWhen, spellNames, moneyWhen } from "../src/rxp/convert.mjs";
 import { goalText } from "../src/ir.mjs";
 
 test("RXP's skill skip form becomes a when skill", () => {
@@ -30,4 +30,11 @@ test("spell names come from the lines that cast them", () => {
 	assert.equal(names.has(2550), false);
 	assert.equal(names.has(1), false);
 	assert.equal(goalText({ kind: "cast", spell: 818, name: "Basic Campfire" }), 'cast 818 "Basic Campfire"');
+});
+
+test("RXP's money skip form becomes a when money, in copper", () => {
+	assert.equal(moneyWhen("<0.1"), "money>=1000");
+	assert.equal(moneyWhen(">1.5"), "money<15000");
+	assert.equal(moneyWhen(" <2 "), "money>=20000");
+	assert.equal(moneyWhen("5"), null);
 });
