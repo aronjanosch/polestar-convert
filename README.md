@@ -189,7 +189,8 @@ Zygor's guide text is the source; the player sees what Zygor shows. A step
 Zygor shows holds until it is done, ticked or skipped, and Polestar keeps
 that. The run of the Classic Leveling guides (both factions, N guides: N
 Horde, N Alliance) took N Zygor steps to N Polestar steps, N of
-them along copies (below).
+them along copies (below). Lint passes and every guide plays through for
+every class.
 
 - **Sticky** (`stickystart "X"`): the labelled step's countable goals (kill,
   collect, quest objectives) are copied into an `along until <label>` step
@@ -200,8 +201,18 @@ them along copies (below).
 - **Talk** to a giver or vendor the same step names is dropped: the accept,
   turn-in or vendor goal places the NPC.
 - **`|confirm`** ("Click Here to Continue") is a `task` at its `|goto`: Zygor
-  holds the player there. A dungeon choice (`|confirm <Name>flag`) is dropped:
-  Polestar asks in Options.
+  holds the player there, named by the step's own text (a `_NOTE:_` heading's
+  line, the "Kill X" line) rather than "Click Here to Continue". A dungeon
+  choice (`|confirm <Name>flag`) is dropped: Polestar asks in Options.
+- **Text with a quest objective** (`Capture #5# Rats |q 6661/1`, tames,
+  escorts) is that objective's goal, matched by name or Zygor's number.
+- **`|or`**: kills on the way beside a way (`|complete subzone(...)`) are
+  optional; the way holds the step.
+- **Bags**: a `collect` or `buy` for a quest not taken yet (`|future`, bank
+  pickups) or of an item no vendor sells (the auction house) is a bag count at
+  the line's point, not the objective.
+- **Givers the data places nowhere** (a giver the data places nowhere) take the
+  route's last point for the arrow.
 - **Text** a line only shows is a tip; text for some classes or races is a
   `note` beside the step's goals, or a task alone (Polestar tips take no
   condition).
@@ -224,10 +235,10 @@ them along copies (below).
   gapped (`walking` N lines, `indoors`, `or` across kinds, `discountgold`, buffs, `equipped`, `skillmax`, `region`, `rep`). Each is in
   reports/zygor-gaps.json.
 
-Lint on the pack: 0 errors, N warnings, (Zygor gives no point for them either), spell names of a clone without
-`professions.json`, coordinates on another map than the step's zone with
-no `zone map` (a goal Zygor sends to a spot its own guide does not
-name), and Class guides without `why` and `reward`.
+Lint on the pack: 0 errors, N warnings: mostly `collect`/`kill` of targets
+with no spawn in the data (Zygor gives no point for them either), spell
+names of a clone without `professions.json`, and Class guides without `why`
+and `reward`.
 
 ## Tests
 
