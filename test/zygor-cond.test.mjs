@@ -49,7 +49,9 @@ test("quest predicates", () => {
 	assert.deepEqual(t("not haveq(5)").whens, ["!onquest 5"]);
 	assert.deepEqual(t("completedq(7)").whens, ["turnedin 7"]);
 	assert.deepEqual(t("completedq(7,8)").whens, ["turnedin 7", "turnedin 8"]);
-	assert.deepEqual(t("readyq(9)").whens, ["available 9"]);
+	assert.deepEqual(t("readyq(9)").whens, ["complete 9"]); // in the log, ready to turn in
+	assert.deepEqual(t("not readyq(9)").whens, ["!complete 9"]);
+	assert.deepEqual(t("haveq(1) or haveq(2) or haveq(3)").whens, ["onquest 1,2,3"]);
 });
 
 test("guide flags are dungeons", () => {

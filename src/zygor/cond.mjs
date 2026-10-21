@@ -211,8 +211,9 @@ function evalCall(e) {
 			return items.length === 1 ? items[0] : { t: "and", items };
 		}
 		case "readyq": {
+			// In the log and ready to turn in (Parser.lua: q.complete and q.inlog).
 			if (ids.length !== 1 || ids[0] === null) return drop(name);
-			return when(`available ${ids[0]}`, `!available ${ids[0]}`);
+			return when(`complete ${ids[0]}`, `!complete ${ids[0]}`);
 		}
 		case "zone": case "subzone": {
 			const z = strArg(e.args[0]);
@@ -305,6 +306,10 @@ function flatten(f, st) {
 					}
 					return;
 				}
+			}
+			// "haveq(1) or haveq(2)": any of them in the log, one `onquest` list.
+			if (items.every((i) => i.t === "when" && /^onquest [\d,]+$/.test(i.pos))) {
+				return flatten({ t: "when", pos: `onquest ${items.map((i) => i.pos.slice(8)).join(",")}` }, st);
 			}
 			st.dropped.push("or");
 		}
