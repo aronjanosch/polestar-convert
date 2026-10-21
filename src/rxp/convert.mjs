@@ -378,7 +378,13 @@ function buildStep(step, stepNo, data, ctx) {
 				// RXP often collects ahead of the accept; Polestar wants the accept first,
 				// so an early pick-up counts the bag instead of the quest objective.
 				const early = !ctx.seen.has(Number(qid)) && ctx.accepted.has(Number(qid));
-				if (early) { add({ kind: "collect", item: itemId, itemName, count: count || (hit && hit.obj.count) || 1 }, l.cond); report.count("collect before accept -> bag count"); }
+				// The quest taken later in this step, or by no guide here (an item bought ahead
+				// at the auction house, cooking material): the bags count, there is no quest to wait for.
+				const takenLater = step.lines.slice(li + 1).some((c) => c.kind === "cmd" && c.name === "accept" && Number((c.args.match(/^-?(\d+)/) || [])[1]) === Number(qid));
+				if (takenLater || !ctx.accepted.has(Number(qid))) {
+					add({ kind: "collect", item: itemId, itemName, count: count || (hit && hit.obj.count) || 1 }, l.cond);
+					report.count(takenLater ? "collect before accept in the step -> bag count" : "collect for a quest no guide takes -> bag count");
+				} else if (early) { add({ kind: "collect", item: itemId, itemName, count: count || (hit && hit.obj.count) || 1 }, l.cond); report.count("collect before accept -> bag count"); }
 				else if (hit) add({ kind: "collect", item: itemId, itemName, quest: Number(qid), oi: hit.index }, l.cond);
 				else add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 			} else add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
