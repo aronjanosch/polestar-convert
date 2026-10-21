@@ -27,7 +27,7 @@ trap 'rm -rf "$out"' EXIT
 
 cd "$polestar"
 ls "$pack/guides" | grep '\.guide$' | sed 's/\.guide$//' \
-	| xargs -P "$jobs" -I{} sh -c 'node tools/polestar.js playtest "$0" --filter "$2" > "$1/$2.txt" 2>&1 || true' "$pack" "$out" {}
+	| xargs -P "$jobs" -I{} sh -c 'node tools/polestar.js playtest "$0" --filter "/$2.guide" > "$1/$2.txt" 2>&1 || true' "$pack" "$out" {}
 
 cat "$out"/*.txt | grep -vE '^(ok |playtest ok)' || true
 plays=$(cat "$out"/*.txt | grep -c '^ok ' || true)
