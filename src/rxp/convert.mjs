@@ -3,17 +3,17 @@
 // data does not know is quoted by name or the line becomes a `task`/`note`, and
 // the report says so.
 
-import { parseCondition, onlyText, condsMeet, CLASSES } from "../cond.mjs";
+import { parseCondition, onlyText, condsMeet, onlyMeet, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
-import { goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
-import { render } from "../emit.mjs";
+import { baseItemSoldBy, goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
+import { render, shorten } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 import { resolveObjective } from "../objective.mjs";
 
 const IGNORED = new Set([
 	"target", "mob", "unitscan", "itemcount", "macro", "timer",
 	"skipgossip", "skipgossipid", "subzone", "disablecheckbox", "is", "item", "addquestitem",
-	"trainer", "itemStat", "zone", "link", "line", "solo", "enabledungeon",
+	"itemStat", "zone", "link", "line", "solo", "enabledungeon",
 ]);
 const TASKS = new Set(["hs", "home", "fp", "fly", "deathskip", "abandon", "destroy", "cast", "equip", "bankdeposit", "bankwithdraw"]);
 // A label as Polestar takes it: letters, digits, `-` and `_`.
@@ -31,6 +31,16 @@ const WHEN_OF = {
 const ALONG_KINDS = new Set(["kill", "collect", "complete", "buy", "note"]);
 const PLACE_KINDS = new Set(["kill", "collect", "interact", "use", "complete"]);
 const GROUP_KINDS = new Set(["accept", "turnin", "complete", "kill", "collect", "interact", "use"]);
+// Every rank's spell of each profession, by id; Anti-Venom is a First Aid recipe.
+const PROFESSION_SPELLS = {};
+for (const [prof, ids] of Object.entries({
+	"Alchemy": [2259, 3101, 3464, 11611], "Blacksmithing": [2018, 3100, 3538, 9785], "Enchanting": [7411, 7412, 7413, 13920],
+	"Engineering": [4036, 4037, 4038, 12656], "Herbalism": [2366, 2368, 3570, 11993], "Leatherworking": [2108, 3104, 3811, 10662],
+	"Mining": [2575, 2576, 3564, 10248], "Skinning": [8613, 8617, 8618, 10768], "Tailoring": [3908, 3909, 3910, 12180],
+	"First Aid": [3273, 3274, 7924, 10846, 7934, 7928, 7929, 10840, 10841, 18629, 18630, 3275, 3276, 3277, 3278],
+	"Cooking": [2550, 3102, 3413, 18260], "Fishing": [7620, 7731, 7732, 18248],
+})) for (const id of ids) PROFESSION_SPELLS[id] = prof;
+const PROFESSION_BASE = new Set([2259, 2018, 7411, 4036, 2366, 2108, 2575, 8613, 3908, 3273, 2550, 7620]);
 const PROFESSIONS = new Set(["Mining", "Herbalism", "Skinning", "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Leatherworking", "Tailoring", "First Aid", "Cooking", "Fishing"]);
 // RXP's variant tags: `#hardcore` steps only in hardcore mode; `#ssf` (buy at a
 // vendor) or `#ah` (look at the auction house) by RXP's self-found setting, off
@@ -137,13 +147,82 @@ export function moneyWhen(args) {
 	return m[1] === "<" ? `money>=${copper}` : `money<${copper}`;
 }
 
+// The one item a ".vendor <id> >> Buy ..." line buys, or null: the step's `.collect`,
+// else the one bracketed name the data knows as sold by that NPC.
+function boughtItem(step, line, npc, data) {
+	const sold = (id) => data.items[id] && (data.items[id].vendors || []).includes(npc.id);
+	for (const c of step.lines) {
+		if (c.kind !== "cmd" || c.name !== "collect" || !condsMeet(c.cond, line.cond)) continue;
+		const [id, count] = c.args.split(",").map(Number);
+		if (sold(id)) return { id, count: count || 1, line: step.lines.indexOf(c) };
+	}
+	const names = [...(line.text || "").matchAll(/\[(?:\|c[0-9A-Fa-f]{8})?([^\]|]+?)(?:\|r)?\]/g)].map((m) => m[1].toLowerCase());
+	if (names.length !== 1) return null;
+	const hits = Object.values(data.items).filter((it) => it.name && it.name.toLowerCase() === names[0] && sold(it.id));
+	return hits.length === 1 ? { id: hits[0].id, count: 1 } : null;
+}
+
+// A condition RXP never meets (`skip`, `sod`): the step is switched off. One that is no
+// product of class x race x faction splits into one step per disjoint product, unless
+// the step is a label's target (the copies would share it).
+// Questie encodes "listen to X", "heal X", "escort X" as a kill objective on a friendly
+// NPC. The quest log counts it, so the goal stays a `kill ... quest Q.O`, but the player
+// must not read "Kill <friendly>": its text is what RXP writes, else "Talk to <name>".
+// A fight with a friendly (the quest says defeat, beat, subdue) stays a kill. Polestar's
+// own test of friendly: the NPC's side, or both.
+const TALK_WORDS = /^(talk|speak|listen|heal|escort|find|show|lead|keep|defend|view|check|observe|perform|wait|follow|watch|help|protect|free|use|wake|resurrect|give|ask|take|rescue)\b/i;
+const FIGHT_WORDS = /\b(kill|slay|defeat|beat|subdue|face)\b/i;
+export function friendlyKillText(obj, quest, faction, l, data) {
+	const npc = data.npcs && data.npcs[obj.id];
+	if (!npc || !(npc.faction === "AH" || (faction && npc.faction === faction[0]))) return undefined;
+	if (FIGHT_WORDS.test(quest.objectiveText || "")) return undefined;
+	const said = plain(l.text || l.comment || "").replace(/^\|?\d+\/\d+\s*/, "").replace(/\s*\(\d+\)$/, "").trim();
+	if (TALK_WORDS.test(said)) return said;
+	if ((obj.count || 1) > 1) return said || undefined;
+	if (!npc.name) return undefined;
+	return `${/^find\b/i.test(quest.objectiveText || "") ? "Find" : "Talk to"} ${npc.name}`;
+}
+
 function buildStep(step, stepNo, data, ctx) {
 	const { report } = ctx;
-	const cond = parseCondition(step.cond);
+	const cond = parseCondition(step.cond, ctx.scope);
 	cond.unknown.forEach((u) => report.note(ctx.name, stepNo, `unknown condition word "${u}"`, step.cond));
-	if (cond.never) { report.count("step: impossible condition (dropped)"); return null; }
-	// The header's races limit the whole guide: a step for other races never shows.
+	if (cond.never) {
+		report.count(cond.anywhere ? "step: for characters the guide is not for (dropped)" : "step: condition true for nobody (dropped)");
+		if (!cond.anywhere) report.note(ctx.name, stepNo, "step dropped: its condition is true for nobody", step.cond);
+		return null;
+	}
+	const labelled = step.tags.some((t) => t.name === "label");
+	if (cond.inexact && cond.groups.length > 1 && !labelled) {
+		report.count(`step: condition split into ${cond.groups.length} steps`);
+		return cond.groups.flatMap((only) => buildOne(step, stepNo, data, ctx, { ...cond, only }) || []);
+	}
+	if (cond.inexact) {
+		report.count("inexact condition");
+		report.note(ctx.name, stepNo, "inexact condition (step shown to a few more characters)", step.cond);
+	}
+	return buildOne(step, stepNo, data, ctx, cond);
+}
+
+function buildOne(step, stepNo, data, ctx, cond) {
+	const { report } = ctx;
+	// A race the guide is not for never shows the step.
 	if (ctx.races.length && cond.only.race && !cond.only.race.some((r) => ctx.races.includes(r))) { report.count("step: for races the guide is not for (dropped)"); return null; }
+	// Lines whose condition nobody meets, or no one who gets this step: gone, as in RXP.
+	const lines = [];
+	for (const l of step.lines) {
+		if (l.cond) {
+			const lc = parseCondition(l.cond, ctx.scope);
+			lc.unknown.forEach((u) => report.note(ctx.name, stepNo, `unknown condition word "${u}"`, l.cond));
+			if (lc.never) {
+				report.count(lc.anywhere ? "line: for characters the guide is not for (dropped)" : "line: condition true for nobody (dropped)");
+				continue;
+			}
+			if (!lc.groups.some((g) => onlyMeet(g, cond.only))) { report.count("line: condition excludes the step's characters (dropped)"); continue; }
+		}
+		lines.push(l);
+	}
+	step = { ...step, lines };
 
 	for (const t of step.tags) {
 		if (ctx.drop.has(t.name) || !variantShown(t)) { report.count(`step: #${t.name} variant (dropped)`); return null; }
@@ -162,13 +241,17 @@ function buildStep(step, stepNo, data, ctx) {
 	const gotos = [];
 	const targets = [];
 	let buyText = false;
-	for (const l of step.lines) {
+	const friendly = [];
+	for (const [li, l] of step.lines.entries()) {
 		if (l.kind === "cmd" && (l.name === "goto" || l.name === "waypoint")) {
 			const g = parseGoto(l.args, data, ctx);
 			if (g) { g.cond = l.cond; gotos.push(g); }
 		} else if (l.kind === "cmd" && l.name === "target") {
-			targets.push({ name: l.args.replace(/^\+/, "").trim(), cond: l.cond });
+			// "Name::id" names the NPC by id; the id may be one the data lacks (Skyborne), then the name decides.
+			const [, name, id] = l.args.replace(/^\+/, "").trim().match(/^(.*?)(?:::(\d+))?$/);
+			targets.push({ name: name.trim(), id: id ? Number(id) : null, cond: l.cond, idx: li });
 		}
+		for (const m of (l.text || "").matchAll(/\|cRXP_FRIENDLY_([^|]+)\|r/g)) friendly.push({ name: m[1].replace(/::\d+$/, "").trim(), cond: l.cond, idx: li });
 		if ((l.text || "").includes("RXP_BUY")) buyText = true;
 	}
 	const mapId = (gotos.find((g) => g.uiMap) || {}).uiMap || null;
@@ -188,14 +271,49 @@ function buildStep(step, stepNo, data, ctx) {
 	const firstPt = gotos.length ? gotos[gotos.length - 1] : null;
 	// Only the targets the line's own condition can meet: "Talk to Frang << Warrior",
 	// "Talk to Shikrik << Shaman" in one step are two trainers, one per class.
-	const npcFor = (role, lineCond = null) => {
+	// opt.idx: the line's place in the step, to pair it with the target beside it when several fit.
+	// opt.item: a buy; a named NPC the item's vendor list holds counts as a vendor, role or not.
+	// opt.names: also the NPCs the step's text names ("Talk to |cRXP_FRIENDLY_Joshua|r").
+	const npcFor = (role, lineCond = null, opt = {}) => {
+		const sells = (n) => opt.item != null && (((data.items[opt.item] || {}).vendors) || []).includes(n.id);
 		const cands = [];
-		for (const { name, cond: tcond } of targets) {
+		const push = (npc, idx, named) => { if (npc && !cands.some((c) => c.npc === npc)) cands.push({ npc, idx, named }); };
+		for (const { name, id, cond: tcond, idx } of targets) {
 			if (!condsMeet(tcond, lineCond)) continue;
-			const r = findNpc(data, name, mapId, firstPt);
-			if (r.npc) cands.push(r.npc);
+			push((id && data.npcs[id]) || findNpc(data, name, mapId, firstPt).npc, idx);
 		}
-		return cands.find((n) => (n.roles || []).includes(role)) || (cands.length === 1 ? cands[0] : null);
+		if (opt.names) for (const { name, cond: tcond, idx } of friendly) {
+			if (!condsMeet(tcond, lineCond)) continue;
+			let npc = findNpc(data, name, mapId, firstPt).npc;
+			// RXP names a vendor by first name ("Oliver" for Oliver Dwor): the one here who sells the item.
+			if (opt.item != null && !(npc && sells(npc))) {
+				const first = name.toLowerCase() + " ";
+				const hits = [];
+				for (const [key, list] of data.npcByName) if (key.startsWith(first)) hits.push(...list);
+				const here = hits.filter((n) => ((data.items[opt.item] || {}).vendors || []).includes(n.id) && (!mapId || (n.spawns || {})[mapId]));
+				if (here.length === 1) npc = here[0];
+			}
+			push(npc, idx, true);
+		}
+		let pool = cands.filter((c) => (c.npc.roles || []).includes(role) || sells(c.npc));
+		if (opt.item != null && pool.some((c) => sells(c.npc))) pool = pool.filter((c) => sells(c.npc));
+		// Only a vendor may be taken without its role (the data lists few of them); a trainer never.
+		if (!pool.length && role === "vendor" && cands.length === 1 && !cands[0].named) pool = cands;
+		if (pool.length < 2) return pool.length ? pool[0].npc : null;
+		// Several fit: the one the line's own text names, else the target RXP wrote beside it
+		// (after the line, before the next of its kind; else before it), else the line's turn.
+		const text = (opt.text || "").toLowerCase();
+		const said = pool.filter((c) => text.includes(c.npc.name.toLowerCase())).sort((a, b) => text.indexOf(a.npc.name.toLowerCase()) - text.indexOf(b.npc.name.toLowerCase()));
+		if (said.length) return said[0].npc;
+		if (opt.idx == null) return pool[0].npc;
+		const same = step.lines.map((x, i) => (x.kind === "cmd" && (opt.kinds || []).includes(x.name) ? i : -1)).filter((i) => i >= 0);
+		const prev = Math.max(-1, ...same.filter((i) => i < opt.idx));
+		const next = Math.min(Infinity, ...same.filter((i) => i > opt.idx));
+		const after = pool.filter((c) => c.idx > opt.idx && c.idx < next).sort((a, b) => a.idx - b.idx);
+		if (after.length) return after[0].npc;
+		const before = pool.filter((c) => c.idx < opt.idx && c.idx > prev).sort((a, b) => b.idx - a.idx);
+		if (before.length) return before[0].npc;
+		return pool[Math.min(Math.max(same.indexOf(opt.idx), 0), pool.length - 1)].npc;
 	};
 
 	// RXP lists a .goto after the giver's lines or before them; for a quest the
@@ -225,6 +343,13 @@ function buildStep(step, stepNo, data, ctx) {
 		}
 		return null;
 	};
+	// The flight point a `.fp` or `.fly` line names: its argument, else what its text says
+	// ("Get the Crossroads flight path", "Fly to Redridge Mountains").
+	const flightOf = (l) => {
+		const named = (t) => flightNamed(data, t, ctx.faction, firstPt);
+		const text = plain(l.text);
+		return named(String(l.args || "").trim()) || named((text.match(/Get the (.+?) flight path/i) || [])[1]) || named((text.match(/^Fly to (.+?)\.?$/i) || [])[1]);
+	};
 	const usedMaps = [];
 	const at = (g) => { if (g && g.uiMap) usedMaps.push(g.uiMap); return g ? { x: g.x, y: g.y, live: g.live } : undefined; };
 
@@ -233,6 +358,12 @@ function buildStep(step, stepNo, data, ctx) {
 	const whens = [];
 	const tips = [];
 	const eliteTips = [];
+	// RXP's text lines belong to the command lines after them: the tips each goal brings.
+	const ownTips = new Map();
+	const ownElite = new Map();
+	const goalTitle = new Map();
+	let pendingTips = [];
+	let titleGoal = null;
 	const notes = [];
 	let title = null;
 	let formatNeeds = 4;
@@ -241,10 +372,14 @@ function buildStep(step, stepNo, data, ctx) {
 	let groupForSome = false;
 	let enterZone = null;
 	let info = false;
+	// The `only` of each disjoint product a line's condition is, those the step reaches.
+	const groupsOf = (lineCond) => parseCondition(lineCond, ctx.scope).groups.filter((g) => onlyMeet(g, cond.only));
+	let negLine = false;
+	const negGoals = new Set();
 	const add = (goal, lineCond) => {
-		const lc = parseCondition(lineCond);
-		const mine = {};
-		for (const k of Object.keys(lc.only)) mine[k] = lc.only[k];
+		for (const mine of groupsOf(lineCond)) addFor(goal, mine);
+	};
+	const addFor = (goal, mine) => {
 		const quest = goal.quest != null ? data.quests[goal.quest] : null;
 		const races = mine.race || cond.only.race || (ctx.races.length ? ctx.races : null);
 		if (goal.kind !== "accept" && ctx.races.length && mine.race && !mine.race.some((r) => ctx.races.includes(r))) { report.count("goal for races the guide is not for (dropped)"); return; }
@@ -272,37 +407,53 @@ function buildStep(step, stepNo, data, ctx) {
 			if (!eliteTips.includes(tip)) eliteTips.push(tip);
 			report.count(`${goal.kind} of elite work -> optional`);
 		}
-		goals.push({ ...goal, only: onlyText(mine), optional: elite || optionalStep || goal.optional ? true : undefined });
+		goals.push({ ...goal, only: onlyText(mine), optional: elite || optionalStep || goal.optional || negLine ? true : undefined });
+		ownTips.set(goals[goals.length - 1], pendingTips);
+		if (negLine) negGoals.add(goals[goals.length - 1]);
+		if (elite) ownElite.set(goals[goals.length - 1], `${elite} is elite: grouping up is advised.`);
+		pendingTips = [];
 		// After the guide drops a quest, its later goals wait for it to be taken again.
 		if (goal.kind === "abandon") { ctx.maybeTaken.add(goal.quest); ctx.surelyTaken.delete(goal.quest); }
 	};
 
+	const consumed = new Set();
 	for (let li = 0; li < step.lines.length; li++) {
+		if (consumed.has(li)) continue;
 		const l = step.lines[li];
 		if (l.kind === "text") {
 			const t = plain(l.text);
 			if (!t) continue;
 			if ((l.text || "").includes("chatbubble")) continue; // "Talk to X": accept/turnin say it
-			if (!l.cond) tips.push(bare(t));
+			if (!l.cond) { tips.push(bare(t)); pendingTips.push(bare(t)); }
 			else {
-				const o = onlyText(parseCondition(l.cond).only);
-				if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
+				for (const g of groupsOf(l.cond)) {
+					const o = onlyText(g);
+					if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
+				}
 			}
 			continue;
 		}
 		if (l.kind === "note") {
 			const t = plain(l.text);
+			// "+1" only keeps a hidden step from being empty in RXP; it says nothing.
+			if (/^\d*$/.test(t)) { report.count("+N placeholder line (dropped)"); continue; }
 			if (t && !l.cond) notes.push(bare(t));
 			else if (t) {
-				const o = onlyText(parseCondition(l.cond).only);
-				if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
+				for (const g of groupsOf(l.cond)) {
+					const o = onlyText(g);
+					if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
+				}
 			}
 			continue;
 		}
 		const n = l.name;
-		const lineQuestId = Number((l.args.match(/^(\d+)/) || [])[1]);
+		// RXP's `.turnin -214`: the line is skipped while the quest is not in the log
+		// (`skipIfMissing`), so it never holds the step: its goals are optional.
+		negLine = /^-\d/.test(l.args);
+		const lineQuestId = Number((l.args.match(/^-?(\d+)/) || [])[1]);
 		if ((n === "accept" || n === "turnin") && !lineQuestId) { report.count(`.${n} (no quest id, ignored)`); continue; }
 		if (n === "accept" || n === "turnin") {
+			const goalsBefore = goals.length;
 			const known = data.quests[lineQuestId];
 			if (n === "accept") { ctx.seen.add(lineQuestId); ctx.ownSeen.add(lineQuestId); }
 			if (known && questEndPlaced(data, n === "accept" ? known.start : known.end)) add({ kind: n, quest: lineQuestId }, l.cond);
@@ -322,9 +473,11 @@ function buildStep(step, stepNo, data, ctx) {
 				add({ kind: n, quest: lineQuestId, title, at: at(placeFor(li)) }, l.cond);
 				report.note(ctx.name, stepNo, `quest ${lineQuestId} unknown to the data; quoted by name`, l.text);
 			}
-			if (!title) title = plain(l.text).replace(/^(accept|turn in)\s+/i, "");
+			const said = plain(l.text).replace(/^(accept|turn in)\s+/i, "");
+			if (goals.length > goalsBefore) goalTitle.set(goals[goals.length - 1], said);
+			if (!title) { title = said; titleGoal = goals[goals.length - 1]; }
 		} else if (n === "complete") {
-			const m = l.args.match(/^(\d+)(?:,(\d+))?/);
+			const m = l.args.match(/^-?(\d+)(?:,(\d+))?/);
 			if (!m) { report.count(".complete (unparsed, ignored)"); report.note(ctx.name, stepNo, "unparsed .complete", l.args); continue; }
 			const quest = data.quests[Number(m[1])];
 			if (!quest) { add({ kind: "complete", quest: Number(m[1]), title: ctx.titles.get(Number(m[1])) || plain(l.text) || "quest " + m[1], at: at(placeFor(li)) }, l.cond); report.note(ctx.name, stepNo, `quest ${m[1]} unknown to the data`, l.args); continue; }
@@ -333,11 +486,11 @@ function buildStep(step, stepNo, data, ctx) {
 				if ((quest.objectives || []).length === 0) { report.count("complete on a quest without objectives (dropped)"); continue; }
 				add({ kind: "complete", quest: Number(m[1]) }, l.cond); continue;
 			}
-			const hit = resolveObjective(quest, l.comment || l.text || "", null);
-			if (hit && hit.obj.type === "kill") add({ kind: "kill", npc: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
+			const hit = resolveObjective(quest, l.comment || l.text || "", null, { index: Number(m[2]) });
+			if (hit && hit.obj.type === "kill") add({ kind: "kill", npc: hit.obj.id, quest: Number(m[1]), oi: hit.index, text: friendlyKillText(hit.obj, quest, ctx.faction, l, data) }, l.cond);
 			else if (hit && hit.obj.type === "item") add({ kind: "collect", item: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
 			else if (hit && hit.obj.type === "object") add({ kind: "interact", object: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
-			else { add({ kind: "complete", quest: Number(m[1]) }, l.cond); report.note(ctx.name, stepNo, "objective not matched by name; whole quest used", `${l.args} ${l.comment || ""}`); }
+			else { add({ kind: "complete", quest: Number(m[1]) }, l.cond); report.count("objective not matched by name; whole quest used"); report.note(ctx.name, stepNo, "objective not matched by name; whole quest used", `${l.args} ${l.comment || ""}`); }
 		} else if (n === "collect") {
 			const [item, count, qid] = l.args.split(",").map((s) => s.trim());
 			const itemId = Number(item);
@@ -348,36 +501,83 @@ function buildStep(step, stepNo, data, ctx) {
 				add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 				report.count("buy without a vendor (auction house) -> collect");
 			} else if (buyText) {
-				const npc = npcFor("vendor", l.cond);
-				add({ kind: "buy", item: itemId, itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
+				const npc = npcFor("vendor", l.cond, { item: itemId, names: true, idx: li, kinds: ["collect"], text: l.comment || l.text });
+				const base = npc && baseItemSoldBy(data, itemId, npc.id);
+				if (base) report.count("buy of a made item -> buy of the item it is made from");
+				add({ kind: "buy", item: base || itemId, itemName: base ? undefined : itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
 				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", l.comment || "");
 			} else if (qid && data.quests[Number(qid)]) {
-				const hit = resolveObjective(data.quests[Number(qid)], "", itemId);
+				const hit = resolveObjective(data.quests[Number(qid)], "", itemId, { strictItem: true });
 				// RXP often collects ahead of the accept; Polestar wants the accept first,
 				// so an early pick-up counts the bag instead of the quest objective.
 				const early = !ctx.seen.has(Number(qid)) && ctx.accepted.has(Number(qid));
-				if (early) { add({ kind: "collect", item: itemId, itemName, count: count || (hit && hit.obj.count) || 1 }, l.cond); report.count("collect before accept -> bag count"); }
+				// The quest taken later in this step, or by no guide here (an item bought ahead
+				// at the auction house, cooking material): the bags count, there is no quest to wait for.
+				const takenLater = step.lines.slice(li + 1).some((c) => c.kind === "cmd" && c.name === "accept" && Number((c.args.match(/^-?(\d+)/) || [])[1]) === Number(qid));
+				if (takenLater || !ctx.accepted.has(Number(qid))) {
+					add({ kind: "collect", item: itemId, itemName, count: count || (hit && hit.obj.count) || 1 }, l.cond);
+					report.count(takenLater ? "collect before accept in the step -> bag count" : "collect for a quest no guide takes -> bag count");
+				} else if (early) { add({ kind: "collect", item: itemId, itemName, count: count || (hit && hit.obj.count) || 1 }, l.cond); report.count("collect before accept -> bag count"); }
 				else if (hit) add({ kind: "collect", item: itemId, itemName, quest: Number(qid), oi: hit.index }, l.cond);
 				else add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 			} else add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 		} else if (n === "vendor") {
-			const npc = npcFor("vendor", l.cond);
-			add({ kind: "vendor", npc: npc ? npc.id : undefined }, l.cond);
-			if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", plain(l.text));
-		} else if (n === "train") {
+			// ".vendor <id>" names the NPC itself.
+			const said = /^\d+$/.test(l.args.trim()) ? data.npcs[Number(l.args)] : null;
+			const npc = said || npcFor("vendor", l.cond);
+			const text = plain(l.text);
+			// "Buy [Dirk]" under .vendor: one item the data knows is a buy, not a junk sale.
+			const buyItem = npc && /\bbuy\b/i.test(text) ? boughtItem(step, l, npc, data) : null;
+			if (buyItem && buyItem.line != null && (buyItem.line < li || (step.lines[buyItem.line].cond || "") !== (l.cond || ""))) {
+				// The step's own .collect, written before or for other classes, already is the buy (or the bag count).
+				report.count(".vendor <id> with a buy text, the .collect before it covers it (dropped)");
+			} else if (buyItem) {
+				// A .collect of the item after it would only repeat the buy.
+				if (buyItem.line != null) consumed.add(buyItem.line);
+				add({ kind: "buy", item: buyItem.id, count: buyItem.count, npc: npc.id }, l.cond);
+				report.count(".vendor <id> with a buy text -> buy");
+			} else {
+				add({ kind: "vendor", npc: npc ? npc.id : undefined, comment: npc ? undefined : text || undefined }, l.cond);
+				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", text);
+			}
+		} else if (n === "train" || n === "trainer") {
 			const note = plain(l.text);
-			// "Train [Mining]": a profession has its own trainers, not the class trainer.
-			const prof = (note.match(/\[([^\]]+)\]/) || [])[1];
-			if (prof && PROFESSIONS.has(prof)) {
+			const opt = { idx: li, kinds: ["train", "trainer"], text: note };
+			// Spells the pet learns by fighting, not at a trainer.
+			if (n === "train" && /\b(attack mobs with it to learn|tame beast)\b/i.test(note)) {
+				add({ kind: "note", text: note }, l.cond);
+				report.count(".train pet spell learned by fighting -> note");
+				continue;
+			}
+			// A profession by spell id (".train 2018,3") or in the text; Anti-Venom is First Aid.
+			const [spell, flags] = n === "train" ? l.args.split(",").map((x) => Number(x.trim())) : [];
+			const prof = PROFESSION_SPELLS[spell] || (note.match(/\[([^\]]+)\]/) || [])[1] || (note.match(/\btrain\s+(Mining|Herbalism|Skinning|Alchemy|Blacksmithing|Enchanting|Engineering|Leatherworking|Tailoring|First Aid|Cooking|Fishing)\b/i) || [])[1];
+			const profName = prof && [...PROFESSIONS].find((p) => p.toLowerCase() === prof.toLowerCase());
+			if (profName) {
+				// ".train <id>,1|3" without text is RXP's skip check ("Mining Trained"): the step
+				// shows only while the skill is known (3) or not yet known (1), no trainer visit.
+				if (!note && flags) {
+					// Only the first rank's spell says "has the profession"; a recipe or later rank cannot be told by skill.
+					if (PROFESSION_SPELLS[spell] && PROFESSION_BASE.has(spell)) whens.push(`${flags & 2 ? "" : "!"}skill ${profName.includes(" ") ? JSON.stringify(profName) : profName} 1`);
+					if (PROFESSION_BASE.has(spell)) { formatNeeds = Math.max(formatNeeds, 5); report.count(".train profession check -> when skill"); }
+					else report.count(".train recipe check without text (dropped)");
+					continue;
+				}
 				// Polestar finds a profession's trainer by its own data; without that, the one RXP targets.
-				const pnpc = npcFor("trainer", l.cond);
-				if (pnpc || data.hasProfessions) add({ kind: "train", profession: prof, npc: pnpc ? pnpc.id : undefined }, l.cond);
-				else { add({ kind: "task", text: note }, l.cond); formatNeeds = 5; }
+				const pnpc = (npcFor("trainer", l.cond, opt) || npcFor("trainer", l.cond, { ...opt, names: true }));
+				if (pnpc || data.hasProfessions) add({ kind: "train", profession: profName, npc: pnpc ? pnpc.id : undefined }, l.cond);
+				else { add({ kind: "task", text: note || `Train ${profName}` }, l.cond); formatNeeds = 5; }
 				report.count(pnpc || data.hasProfessions ? ".train profession -> train <Profession>" : ".train profession, trainer unknown -> task");
 				continue;
 			}
-			const npc = npcFor("trainer", l.cond);
-			const lineClasses = parseCondition(l.cond).only.class || cond.only.class || CLASSES;
+			// Pets, mounts: not the class trainer's lesson.
+			if (n === "trainer" && /\bmount\b/i.test(note)) { report.count(".trainer for a mount (ignored)"); continue; }
+			// RXP writes ".train <spell>" and ".trainer" together at one trainer: one goal is enough.
+			if (n === "trainer" && step.lines.some((x) => x.kind === "cmd" && x.name === "train" && condsMeet(x.cond, l.cond))) { report.count(".trainer beside .train (covered)"); continue; }
+			const npc = (npcFor("trainer", l.cond, opt) || npcFor("trainer", l.cond, { ...opt, names: true }));
+			// A class guide's own class counts too: "train class" for a Mage guide is the Mage's.
+			const ownClasses = parseCondition(l.cond, ctx.scope).only.class || cond.only.class || null;
+			const lineClasses = ownClasses || (ctx.classes.length ? ctx.classes : CLASSES);
 			if (npc) add({ kind: "train", npc: npc.id, comment: note || undefined }, l.cond);
 			else {
 				// Data gap: Polestar has no Horde Paladin class trainer (lint/playtest say so).
@@ -387,7 +587,7 @@ function buildStep(step, stepNo, data, ctx) {
 					report.count("train (Paladin, no trainer in data) -> task");
 				}
 				if (rest.length) {
-					add({ kind: "train", class: true, comment: note || undefined }, rest.length < CLASSES.length ? rest.join("/") : null);
+					add({ kind: "train", class: true, comment: note || undefined }, ownClasses && rest.length < CLASSES.length ? rest.join("/") : null);
 					report.note(ctx.name, stepNo, "trainer not resolved; `train class` used", note);
 				}
 			}
@@ -397,15 +597,24 @@ function buildStep(step, stepNo, data, ctx) {
 			else { add({ kind: "task", text: plain(l.text) || "Use item " + id }, l.cond); formatNeeds = 5; }
 		} else if (n === "xp") {
 			// RXP: ".xp <12,1" skips the step while below level 12 (second number = skip);
-			// ".xp 16,1" / ".xp >16,1" skips it from level 16 on; ".xp 3+895" is a grind goal.
-			const m = l.args.match(/^([<>]?)\s*(\d+)(?:\+(\d+))?(?:,\s*(-?\d+))?$/);
+			// ".xp 16,1" / ".xp >16,1" skips it from level 16 on; ".xp 3+895" and ".xp 48.5"
+			// (a share of the level) are grind goals, and so is a bare ".xp 8".
+			const m = l.args.match(/^([<>]?)\s*(\d+)(?:\.(\d+)|\+(\d+))?(?:,\s*(-?\d+))?$/);
 			if (!m) report.count(".xp (unparsed)");
-			else if (m[4] && Number(m[4]) !== 0 && !l.cond) {
-				const lv = m[3] ? `${m[2]}+${m[3]}` : m[2];
+			else if (m[5] && Number(m[5]) !== 0 && !l.cond) {
+				const lv = m[3] ? `${m[2]}.${m[3]}` : m[4] ? `${m[2]}+${m[4]}` : m[2];
 				whens.push(m[1] === "<" ? `level>=${lv}` : `level<${lv}`);
 				report.count(".xp skip form -> when level");
-			} else if (!m[4] && m[1] === "" && m[3]) { add({ kind: "level", level: Number(m[2]), xp: Number(m[3]) }, l.cond); report.count(".xp L+N -> level"); }
-			else report.count(".xp (ignored)");
+			} else if (!m[5] && m[1] === "" && (!completewith || m[4])) {
+				// "level 48.5": whole percent only; one that rounds to 0 or 100 is a plain level.
+				const share = m[3] ? Math.round(Number(`0.${m[3]}`) * 100) : 0;
+				const level = m[3] && share >= 1 && share <= 99 ? Number(`${m[2]}.${m[3]}`) : Number(m[2]) + (share >= 100 ? 1 : 0);
+				add({ kind: "level", level, xp: m[4] ? Number(m[4]) : undefined }, l.cond);
+				// What the line says besides the level it names is the grind's text.
+				const said = plain(l.text);
+				if (said && !l.cond && !/^grind (to|until) (level )?[\d\s+\/.,]*(xp)?\.?$/i.test(said)) tips.push(bare(said));
+				report.count(m[3] ? ".xp N.F -> level" : m[4] ? ".xp L+N -> level" : ".xp N -> level");
+			} else report.count(completewith && !m[5] ? ".xp target in a step beside the route (farm signal only)" : ".xp (ignored)");
 		} else if (n === "skill") {
 			const m = l.args.match(/^([a-z]+),\s*(\d+)$/i);
 			const w = skillWhen(l.args);
@@ -422,8 +631,8 @@ function buildStep(step, stepNo, data, ctx) {
 			const w = moneyWhen(l.args);
 			if (w && !l.cond) { whens.push(w); formatNeeds = Math.max(formatNeeds, 5); report.count(".money -> when money"); }
 			else report.count(".money not expressible (ignored)");
-		} else if (n === "fp" && flightNamed(data, String(l.args || "").trim() || (plain(l.text).match(/Get the (.+?) flight path/i) || [])[1], ctx.faction, firstPt)) {
-			add({ kind: "getfp", location: flightNamed(data, String(l.args || "").trim() || (plain(l.text).match(/Get the (.+?) flight path/i) || [])[1], ctx.faction, firstPt) }, l.cond);
+		} else if (n === "fp" && flightOf(l)) {
+			add({ kind: "getfp", location: flightOf(l) }, l.cond);
 			report.count(".fp -> getfp");
 		} else if (n === "dungeon") {
 			const arg = String(l.args || "").trim();
@@ -468,21 +677,21 @@ function buildStep(step, stepNo, data, ctx) {
 			if (l.cond || !ids.length) report.count(`.${n} on a class line or without ids (ignored)`);
 			else if (kind === "onquest" || ids.length === 1) { whens.push(`${neg ? "!" : ""}${kind} ${ids.join(",")}`); report.count(`.${n} -> when ${neg ? "!" : ""}${kind}`); }
 			else report.count(`.${n} with several quests (Polestar takes one; ignored)`);
-		} else if (n === "fly" && flightNamed(data, String(l.args || "").trim(), ctx.faction, firstPt)) {
-			add({ kind: "fly", location: flightNamed(data, String(l.args || "").trim(), ctx.faction, firstPt) }, l.cond);
+		} else if (n === "fly" && flightOf(l)) {
+			add({ kind: "fly", location: flightOf(l) }, l.cond);
 			report.count(".fly -> fly");
 		} else if (n === "group") {
 			// The step needs a group (of N): shown on its quest work.
 			group = Number(l.args) >= 2 ? Number(l.args) : true;
 			if (l.cond) groupForSome = true;
 		} else if (n === "home") {
-			const inn = innNamed(data, (plain(l.text).match(/Hearthstone to (.+?)\.?$/i) || [])[1] || String(l.args || "").trim(), firstPt);
+			const inn = innNamed(data, (plain(l.text).match(/Hearthstone to (.+?)\.?$/i) || [])[1] || String(l.args || "").trim(), firstPt, ctx.faction);
 			add({ kind: "sethome", location: inn ? inn.location : undefined }, l.cond);
 			ctx.bind = inn ? inn.location : null;
 			report.count(inn ? ".home -> sethome" : ".home -> sethome nearest");
 		} else if (n === "hs" && ((plain(l.text).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1] || ctx.bind)) {
 			const name = (plain(l.text).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1];
-			const inn = name ? innNamed(data, name, null) : null;
+			const inn = name ? innNamed(data, name, null, ctx.faction, ctx.bind) : null;
 			add({ kind: "hearth", location: inn ? inn.location : name || ctx.bind }, l.cond);
 			report.count(".hs -> hearth");
 		} else if (n === "usespell" && goals.some((g) => g.kind === "cast" && g.spell === Number(l.args.split(",")[0]))) {
@@ -558,7 +767,11 @@ function buildStep(step, stepNo, data, ctx) {
 			notes.length = 0;
 		}
 		const textOnly = goals.every((g) => g.kind === "note");
-		if (!farm && !fights) for (const g of way) ctx.path.push({ ...g, only });
+		// A flight, a flight point or an inn has an arrow of its own to where it is done: the
+		// points before it are the walk there, not the way into the step after it.
+		const selfPlaced = goals.some((g) => ["fly", "getfp", "sethome"].includes(g.kind));
+		if (!farm && !fights && !selfPlaced) for (const g of way) ctx.path.push({ ...g, only });
+		else if (selfPlaced && way.length) report.count("waypoints of a flight/inn step (the goal's own arrow leads there; not carried on)", way.length);
 		if (goals.length && textOnly) {
 			if (farm) {
 				const placed = gotos.filter((g) => g.uiMap);
@@ -582,10 +795,12 @@ function buildStep(step, stepNo, data, ctx) {
 		if (gotos.length || tips.length || notes.length) report.count("step: waypoints only (kept as the way into the next step)");
 		return null;
 	}
-	if (!goals.length && !notes.length && gotos.length) {
+	// A grind step (`level` goals only) keeps RXP's last point as the place to go to.
+	const grindOnly = goals.length > 0 && goals.every((g) => g.kind === "level") && !completewith;
+	if ((!goals.length && !notes.length || grindOnly) && gotos.length) {
 		const g = gotos[gotos.length - 1];
 		if (g.uiMap) usedMaps.push(g.uiMap);
-		goals.push({ kind: "goto", x: g.x, y: g.y, live: g.live, text: tips[0] ? tips[0].slice(0, 40) : undefined, only: "" });
+		goals.unshift({ kind: "goto", x: g.x, y: g.y, live: g.live, text: tips[0] && !grindOnly ? shorten(tips[0], 80) : undefined, only: "" });
 	}
 
 	// Group work about one quest: the player says whether they do it with a group
@@ -629,6 +844,8 @@ function buildStep(step, stepNo, data, ctx) {
 		if (g.kind === "abandon") return g.quest;
 		const id = questOf(g);
 		if (id == null) return null;
+		// RXP shows a `.turnin -Q` only while Q is in the log: unless this guide takes Q, so does Polestar.
+		if (negGoals.has(g) && !ctx.ownSeen.has(id)) return id;
 		const unsure = ctx.maybeTaken.has(id) && !ctx.surelyTaken.has(id) && !goals.some((a) => a.kind === "accept" && a.quest === id);
 		return !ctx.seen.has(id) || unsure ? id : null;
 	};
@@ -644,10 +861,48 @@ function buildStep(step, stepNo, data, ctx) {
 	const ids = [...new Set(orphanGoals.map(orphanOf))];
 	report.count(`goals for quests accepted elsewhere or abandoned -> when onquest (${orphanGoals.length})`);
 	const rest = goals.filter((g) => !orphanOf(g));
-	const orphanSteps = ids.map((id) => ({ ...base, maps: [], goals: orphanGoals.filter((g) => orphanOf(g) === id), tips: [], notes: [], whens: [...whens, `onquest ${id}`], label: null, completesWith: null, loop: [] }));
-	if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: base.tips, notes }; return orphanSteps; }
-	// In the source's order: a hand-in written before an accept comes first.
-	return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, { ...base, goals: rest }] : [{ ...base, goals: rest }, ...orphanSteps];
+	// Each goal brings the text lines before its command: a split step shows its own goals'
+	// tips and a title of their own (an accept's or turn-in's, else its first tip), not the
+	// heading of the neighbouring quest.
+	const tipsOf = (gs) => [...new Set(gs.flatMap((g) => ownTips.get(g) || []))];
+	const eliteTipsOf = (gs) => [...new Set(gs.map((g) => ownElite.get(g)).filter(Boolean))];
+	const titleOf = (gs) => gs.map((g) => goalTitle.get(g)).find(Boolean) || tipsOf(gs)[0] || null;
+	const orphanTips = new Set(tipsOf(orphanGoals));
+	const orphanElite = new Set(eliteTipsOf(orphanGoals));
+	const loose = base.tips.filter((t) => !orphanTips.has(t) && !orphanElite.has(t));
+	const orphanSteps = ids.map((id) => {
+		const own = orphanGoals.filter((g) => orphanOf(g) === id);
+		return { ...base, title: own.includes(titleGoal) ? base.title : titleOf(own), maps: [], goals: own, tips: [...eliteTipsOf(own), ...tipsOf(own)], notes: [], whens: [...new Set([...whens, `onquest ${id}`])], label: null, completesWith: null, loop: [] };
+	});
+	// An accept written after the hand-in of its prerequisite must stay after it: the
+	// steps follow the source's order, and a way point goes with the goal it leads to.
+	const acceptAfterOrphan = goals.some((g, i) => g.kind === "accept" && !orphanOf(g) && goals.slice(0, i).some(orphanOf));
+	if (!acceptAfterOrphan) {
+		if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: [...orphanSteps[0].tips, ...loose], notes }; return orphanSteps; }
+		// In the source's order: a hand-in written before an accept comes first.
+		const restStep = { ...base, goals: rest, tips: loose, title: orphanGoals.includes(titleGoal) ? rest.map((g) => goalTitle.get(g)).find(Boolean) || loose[0] || null : base.title };
+		return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, restStep] : [restStep, ...orphanSteps];
+	}
+	const keyOf = goals.map((g) => orphanOf(g));
+	for (let i = goals.length - 1; i >= 0; i--) if (goals[i].kind === "goto") keyOf[i] = i + 1 < goals.length ? keyOf[i + 1] : keyOf[i - 1] ?? null;
+	const runs = [];
+	goals.forEach((g, i) => {
+		const last = runs[runs.length - 1];
+		if (last && last.key === keyOf[i]) last.goals.push(g);
+		else runs.push({ key: keyOf[i], goals: [g] });
+	});
+	const firstRest = runs.findIndex((r) => r.key == null);
+	const out = runs.map((r, i) => {
+		const title = r.goals.includes(titleGoal) ? base.title : titleOf(r.goals);
+		const tips = [...eliteTipsOf(r.goals), ...tipsOf(r.goals)];
+		if (r.key == null) return i === firstRest ? { ...base, title, goals: r.goals, tips: [...tips, ...loose], label: null } : { ...base, title, goals: r.goals, tips, notes: [], label: null, completesWith: null, loop: [] };
+		// The first step keeps the zone its way points are in.
+		return { ...base, title, maps: i === 0 ? base.maps : [], goals: r.goals, tips, notes: [], whens: [...new Set([...whens, `onquest ${r.key}`])], label: null, completesWith: null, loop: [] };
+	});
+	if (firstRest < 0) out[0] = { ...out[0], tips: [...out[0].tips, ...loose], notes };
+	// What waits for this step waits for all of it: the label sits on its last part.
+	out[out.length - 1].label = base.label;
+	return out;
 }
 
 // A guide whose name gives no levels (dungeon quest guides): from the level at
@@ -674,6 +929,17 @@ function menuPlace(group, subgroup) {
 	return { category: "Leveling", folder: `RXP ${name}${sub ? " · " + sub : ""}` };
 }
 
+// The races a header's `<<` line limits a guide to. "<< Alliance !NightElf" names every
+// race but one: those of the other side go, and all of the side's races limit nothing.
+const SIDE_RACES = { Alliance: ["Human", "Dwarf", "Gnome", "NightElf", "Skyborne"], Horde: ["Orc", "Troll", "Tauren", "Undead", "Skyborne"] };
+export function headerRaces(races, faction) {
+	const side = SIDE_RACES[faction];
+	if (!races) return [];
+	if (!side) return races;
+	const own = races.filter((r) => side.includes(r));
+	return own.length === side.length ? [] : own;
+}
+
 export function convertGuide(parsed, data, opts) {
 	const { report, slug, packId } = opts;
 	// RXP's `#displayname` is the name it shows (the name itself can be an internal key).
@@ -683,7 +949,7 @@ export function convertGuide(parsed, data, opts) {
 	const titles = new Map();
 	for (const s of parsed.steps) for (const l of s.lines) {
 		if (l.kind === "cmd" && (l.name === "accept" || l.name === "turnin") && l.text) {
-			const id = Number((l.args.match(/^(\d+)/) || [])[1]);
+			const id = Number((l.args.match(/^-?(\d+)/) || [])[1]);
 			if (id && !titles.has(id)) titles.set(id, plain(l.text).replace(/^(accept|turn in)\s+/i, ""));
 		}
 	}
@@ -693,13 +959,16 @@ export function convertGuide(parsed, data, opts) {
 	const before = opts.before || new Set();
 	const accepted = new Set(before);
 	for (const s of parsed.steps) for (const l of s.lines) {
-		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^(\d+)/) || [])[1]));
+		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^-?(\d+)/) || [])[1]));
 	}
 	const hc = parseCondition(parsed.header.faction).only;
-	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
 	const faction = hc.faction ? hc.faction[0] : null;
-	const races = hc.race || df.race || [];
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
+	// Only a `<<` line of the header limits the guide; `#defaultfor` just picks which guide
+	// RXP offers first, every character may still run the others.
+	const races = headerRaces(hc.race, faction);
+	// What the guide is for: inside it a condition counts as exact when it is a product there.
+	const scope = { class: hc.class || null, race: races.length ? races : null, faction: hc.faction || null };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, scope, classes: hc.class || [], loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
@@ -726,7 +995,7 @@ export function convertGuide(parsed, data, opts) {
 		name: parsed.header.name || slug,
 		title: info.zone || parsed.header.name,
 		faction,
-		classes: hc.class || df.class || null,
+		classes: hc.class || null,
 		races,
 		levels: info.levels || levelsOf([...accepted].filter((id) => !before.has(id)), data) || (String(parsed.header.subgroup || "").match(/\b(\d+-\d+)\b/) || [])[1] || null,
 		zone,
