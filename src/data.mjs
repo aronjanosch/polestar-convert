@@ -57,32 +57,64 @@ export function eliteOf(data, goal) {
 	return from.length && from.every(elite) ? data.npcs[from[0]].name : null;
 }
 
+// The item a vendor sells whose name is part of `item`'s name (Copper Rod for the Runed
+// Copper Rod made from it), or null: RXP's "buy" line then names the made item, not the
+// one the player buys. Only when exactly one fits.
+export function baseItemSoldBy(data, item, npcId) {
+	const it = data.items[item];
+	if (!it || !it.name || !npcId || (it.vendors || []).length) return null;
+	const hits = Object.entries(data.items).filter(([id, o]) => o.name && o.name !== it.name && it.name.endsWith(o.name) && (o.vendors || []).includes(npcId));
+	return hits.length === 1 ? Number(hits[0][0]) : null;
+}
+
 const near = (pt) => (o) => (pt && o.map === pt.uiMap ? Math.hypot(o.x - pt.x, o.y - pt.y) : 1e9);
 const closest = (list, pt) => [...list].sort((a, b) => near(pt)(a) - near(pt)(b))[0] || null;
 
 // The inn RXP names ("Southshore", or a zone: "Desolace"), nearest to `pt`
-// when several fit; null when none does.
-export function innNamed(data, name, pt) {
+// when several fit; null when none does. Of `faction`'s own side when a town has
+// inns of both (a neutral town keeps its one), and the inn the guide bound at
+// (`prefer`, a location) when it is among those that fit.
+export function innNamed(data, name, pt, faction = null, prefer = null) {
 	const want = String(name || "").trim().toLowerCase();
 	if (!want) return null;
+	const side = faction === "Alliance" ? 0 : faction === "Horde" ? 1 : null;
+	const pick = (list) => {
+		const own = side == null ? list : list.filter((i) => i.c === side);
+		const fit = own.length ? own : list;
+		return fit.find((i) => prefer && i.location === prefer) || closest(fit, pt);
+	};
 	const byName = data.inns.filter((i) => i.location.toLowerCase() === want || (i.names || []).some((n) => n.toLowerCase() === want));
-	if (byName.length) return closest(byName, pt);
+	if (byName.length) return pick(byName);
 	const zoneIds = Object.entries(data.zones).filter(([, z]) => String(z.name).toLowerCase() === want).map(([id]) => Number(id));
-	return closest(data.inns.filter((i) => zoneIds.includes(i.map)), pt);
+	return pick(data.inns.filter((i) => zoneIds.includes(i.map)));
 }
 
 // The flight point RXP names ("Crossroads", "Redridge Mountains", "Azshara")
 // for `faction`: by its short name, full name or zone; nearest to `pt` when
 // several fit. -> its short name (what `getfp` takes) or null.
 export function flightNamed(data, name, faction, pt) {
-	const want = String(name || "").trim().toLowerCase();
+	const bare = (t) => String(t || "").trim().toLowerCase().replace(/^the\s+/, "");
+	const want = bare(name);
+	if (!want) return null;
 	const side = faction === "Alliance" ? 1 : faction === "Horde" ? 2 : null;
 	const mine = data.flights.filter((n) => !side || n.faction === side || n.faction === 3);
-	const zoneOf = (n) => String((data.zones[n.map] || {}).name || "").toLowerCase();
-	const hits = mine.filter((n) => n.short.toLowerCase() === want || n.name.toLowerCase() === want || n.name.toLowerCase().startsWith(want + ","))
-		.concat(mine.filter((n) => zoneOf(n) === want));
-	const hit = hits.length ? (hits[0].short.toLowerCase() === want ? hits[0] : closest(hits, pt)) : null;
-	return hit ? hit.short : null;
+	const zoneOf = (n) => bare((data.zones[n.map] || {}).name);
+	// The first rule that finds a point decides: its names as written, the zone it is in,
+	// then a zone or point named by its start ("Redridge" for Redridge Mountains,
+	// "Sun Rock" for Sun Rock Retreat).
+	const rules = [
+		(n) => n.short.toLowerCase() === want || n.name.toLowerCase() === want || n.name.toLowerCase().startsWith(want + ","),
+		(n) => zoneOf(n) === want,
+		(n) => zoneOf(n).startsWith(want + " ") || bare(n.name.split(",").slice(1).join(",")).startsWith(want),
+		(n) => bare(n.short).startsWith(want + " ") || bare(n.short).split(/\s+/).includes(want),
+	];
+	for (const rule of rules) {
+		const hits = mine.filter(rule);
+		if (!hits.length) continue;
+		const exact = hits.find((n) => n.short.toLowerCase() === want);
+		return (exact || closest(hits, pt)).short;
+	}
+	return null;
 }
 
 // Whether Polestar's data gives a goal a place of its own (spawns of the npc,
