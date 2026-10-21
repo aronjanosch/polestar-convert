@@ -53,7 +53,7 @@ test("a 'Click Here to Continue' line is a task; a dungeon-choice confirm step i
 		"step",
 		"  Click Here to Run Ragefire Chasm Dungeon |confirm RFCflag",
 	].join("\n"));
-	assert.match(r.text, /^  task "Click Here to Continue"$/m);
+	assert.match(r.text, /^  task "Click Here to Continue"$/m); // nothing else to name it
 	assert.doesNotMatch(r.text, /Ragefire/);
 	assert.equal(r.stepsOut, 1);
 });
@@ -201,4 +201,40 @@ test("a race the guide is not for drops the step", () => {
 	].join("\n"));
 	assert.equal(r.stepsOut, 1);
 	assert.doesNotMatch(r.text, /Wrong race/);
+});
+
+test("a NOTE heading names the task of a 'Click Here to Continue' step, not the click", () => {
+	const r = conv([
+		"step",
+		"  _NOTE:_",
+		"  Mind Your Arrows",
+		"  |tip Buy more.",
+		"  Click Here to Continue |confirm",
+	].join("\n"));
+	assert.match(r.text, /^  task "Mind Your Arrows"$/m);
+	assert.doesNotMatch(r.text, /NOTE|Click Here/);
+});
+
+test("a confirm after a kill line ticks the kill, not the click", () => {
+	const r = conv([
+		"step",
+		"  kill Young Wolf##301+",
+		"  Click to Continue |confirm |goto Invented Vale/0 40,40",
+	].join("\n"));
+	assert.match(r.text, /^  task "Kill Young Wolf" @40,40$/m);
+});
+
+test("the text of a vendor or trainer line is not repeated as a tip; a kill line beside a collect is not either", () => {
+	const r = conv([
+		"step",
+		"  talk Giver Bob##201",
+		"  Sell Items |vendor Giver Bob##201 |goto Invented Vale/0 30,70",
+		"step",
+		"  accept Invented Errand##101",
+		"step",
+		"  kill Young Wolf##301",
+		"  collect Wolf Pelt##401 |q 101/2",
+	].join("\n"));
+	assert.doesNotMatch(r.text, /tip (Sell Items|Kill Young Wolf)/);
+	assert.match(r.text, /^  vendor 201$/m);
 });
