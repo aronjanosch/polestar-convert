@@ -145,7 +145,10 @@ function verbGoals(l, ctx, place) {
 				const hit = resolveObjective(quest, "", first.id);
 				if (hit && hit.obj.type === "item" && hit.obj.id === first.id) return got({ kind: "collect", item: first.id, quest: questId, oi: hit.index });
 			}
-			if (l.verb === "buy") return got({ kind: "buy", item: first.id, count });
+			// No vendor in the data (the auction house): bought where the line points, counted in the bags.
+			const sold = (data.items[first.id].vendors || []).length > 0;
+			if (l.verb === "buy" && sold) return got({ kind: "buy", item: first.id, count });
+			if (l.verb === "buy") return got({ kind: "collect", item: first.id, count, ...(place ? { at: pt(place), _map: place.uiMap } : {}) });
 			// A bag count at a place of its own (the bank, a chest) is there, not where the item drops.
 			// Farming points are rounds Polestar finds itself; a pickup ahead of the quest (the bank) is at its point.
 			const pickup = place && (future || l.mods.some((m) => m.name === "usebank"));
