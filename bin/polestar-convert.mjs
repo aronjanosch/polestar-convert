@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// polestar-convert rxp --file <RXP guide .lua> | --list <GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<name>"] [--max-start N] [--native-verbs abandon,destroy] [--self-found yes]
+// polestar-convert rxp --file <RXP guide .lua> | --list <GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<name>"] [--max-start N] [--self-found yes]
 //
 // Reads guides you own from your own install and writes `.guide` files into a
 // local Polestar pack. It carries no guide content of its own.
@@ -7,7 +7,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { extractGuides, parseGuide, parseName } from "../src/rxp/parse.mjs";
-import { convertGuide } from "../src/rxp/convert.mjs";
+import { convertGuide, spellNames } from "../src/rxp/convert.mjs";
 import { planChain, expandIncludes } from "../src/rxp/chain.mjs";
 import { Report } from "../src/ir.mjs";
 import { loadData } from "../src/data.mjs";
@@ -24,13 +24,11 @@ function args(argv) {
 const a = args(process.argv.slice(2));
 const [cmd] = a._;
 if (cmd !== "rxp" || !(a.file || a.list) || !a.polestar || !a.pack) {
-	console.error('usage: polestar-convert rxp --file <guide.lua> | --list <RXPGuides/Guides/GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<guide name>"] [--max-start N] [--native-verbs abandon,destroy] [--self-found yes]');
+	console.error('usage: polestar-convert rxp --file <guide.lua> | --list <RXPGuides/Guides/GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<guide name>"] [--max-start N] [--self-found yes]');
 	process.exit(2);
 }
 
 const data = loadData(a.polestar);
-// Verbs a newer Polestar has as goals; without them these RXP commands become tasks.
-const native = new Set(String(a["native-verbs"] || "").split(",").map((s) => s.trim()).filter(Boolean));
 const packJson = JSON.parse(readFileSync(join(a.pack, "pack.json"), "utf8"));
 const packId = packJson.id;
 const guidesDir = join(a.pack, "guides");
@@ -57,10 +55,12 @@ const report0 = new Report();
 const parsed = expandIncludes(files.flatMap((f) => extractGuides(readFileSync(f, "utf8")).map(parseGuide)), report0);
 
 const report = report0;
+// Spell names for `cast`, from every guide's lines that cast them.
+const spells = spellNames(parsed);
 // Slugs, hand-offs and the quests taken on the way in come from the whole file,
 // so a guide picked alone still knows what the guides before it accept.
 const plan = planChain(parsed, report);
-const convert = (g, rep, next) => convertGuide(g, data, { report: rep, slug: plan.slug.get(g), packId, next, before: plan.before.get(g), native, selfFound: a["self-found"] != null });
+const convert = (g, rep, next) => convertGuide(g, data, { report: rep, slug: plan.slug.get(g), packId, next, before: plan.before.get(g), spells, selfFound: a["self-found"] != null });
 // A first pass with a report of its own: a guide left with no steps (every step a
 // variant left out) is not written, nor one past `--max-start N`.
 const keep = (g) => {

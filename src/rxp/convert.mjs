@@ -14,7 +14,7 @@ const IGNORED = new Set([
 	"skipgossip", "skipgossipid", "subzone", "disablecheckbox", "is", "item", "addquestitem",
 	"trainer", "itemStat", "zone", "link", "line", "solo", "enabledungeon",
 ]);
-const TASKS = new Set(["hs", "home", "fp", "fly", "deathskip", "abandon", "destroy", "cast", "equip", "usespell", "bankdeposit", "bankwithdraw"]);
+const TASKS = new Set(["hs", "home", "fp", "fly", "deathskip", "abandon", "destroy", "cast", "equip", "bankdeposit", "bankwithdraw"]);
 // A label as Polestar takes it: letters, digits, `-` and `_`.
 const labelOf = (text) => String(text || "").trim().replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || null;
 // RXP's quest conditions on a step -> Polestar's `when` predicate and its `!`.
@@ -106,14 +106,43 @@ function resolveObjective(quest, label, itemId) {
 	return null;
 }
 
-// `.abandon <quest>` and `.destroy <item>[,count]` as Polestar goals, or null when the
-// quest or item is not in Polestar's data (the caller then falls back to a task).
-function nativeGoal(n, l, data) {
+// `.abandon <quest>`, `.destroy <item>[,count]`, `.cast <spell>` and `.usespell <spell>`
+// as Polestar goals (pack format 5), or null when Polestar cannot check it: a quest or
+// item not in its data, a spell no RXP line names (the caller then falls back to a task).
+// RXP's `.cast a,b` is done by any of the spells; Polestar's `cast` takes one, the first.
+function nativeGoal(n, l, data, spells) {
 	const id = Number(String(l.args).split(",")[0]);
 	if (!(id > 0)) return null;
-	if (n === "abandon" && data.quests && data.quests[id]) return { goal: { kind: "abandon", quest: id }, format: 6 };
-	if (n === "destroy" && data.items && data.items[id]) return { goal: { kind: "destroy", item: id }, format: 6 };
+	if (n === "abandon" && data.quests && data.quests[id]) return { kind: "abandon", quest: id };
+	if (n === "destroy" && data.items && data.items[id]) return { kind: "destroy", item: id };
+	// `.usespell` is a button beside the step in RXP, done or not: it never holds the step.
+	if ((n === "cast" || n === "usespell") && spells.has(id)) return { kind: "cast", spell: id, name: spells.get(id), optional: n === "usespell" || undefined };
 	return null;
+}
+
+// A spell's name from RXP's lines that cast it: the `[Name]` of its icon link, or
+// "Cast <Name>". Polestar wants the name for a spell that is not a recipe.
+export function spellNames(guides) {
+	const names = new Map();
+	for (const g of guides) for (const s of g.steps) for (const l of s.lines) {
+		if (l.kind !== "cmd" || (l.name !== "cast" && l.name !== "usespell") || !/^\d+$/.test(l.args.trim())) continue;
+		const id = Number(l.args.trim());
+		const raw = l.text || "";
+		const name = (raw.match(/\|t\[([^\]]+)\]/) || [])[1] || (plain(raw).match(/^Cast ([^.(]+?)\.?$/i) || [])[1];
+		if (name && plain(name) && !names.has(id)) names.set(id, plain(name));
+	}
+	return names;
+}
+
+// RXP's `.skill <profession>,<N>,1` skips the step from rank N on (`<N`: below N): the
+// step is Polestar's `when !skill <Profession> N` (`when skill`). Riding is no profession
+// in Polestar. null when the line is not that form.
+const SKILLS = { firstaid: "First Aid", cooking: "Cooking", fishing: "Fishing", mining: "Mining", herbalism: "Herbalism", skinning: "Skinning", alchemy: "Alchemy", blacksmithing: "Blacksmithing", enchanting: "Enchanting", engineering: "Engineering", leatherworking: "Leatherworking", tailoring: "Tailoring" };
+export function skillWhen(args) {
+	const m = String(args).replace(/\s/g, "").match(/^([a-z]+),(<?)(\d+),(\d+)/i);
+	const name = m && SKILLS[m[1].toLowerCase()];
+	if (!name || Number(m[4]) === 0 || Number(m[3]) < 1) return null;
+	return `${m[2] ? "" : "!"}skill ${name.includes(" ") ? JSON.stringify(name) : name} ${m[3]}`;
 }
 
 function buildStep(step, stepNo, data, ctx) {
@@ -214,6 +243,7 @@ function buildStep(step, stepNo, data, ctx) {
 	let formatNeeds = 4;
 	let closed = 0;
 	let group = null;
+	let groupForSome = false;
 	let info = false;
 	const add = (goal, lineCond) => {
 		const lc = parseCondition(lineCond);
@@ -246,7 +276,7 @@ function buildStep(step, stepNo, data, ctx) {
 			if (!eliteTips.includes(tip)) eliteTips.push(tip);
 			report.count(`${goal.kind} of elite work -> optional`);
 		}
-		goals.push({ ...goal, only: onlyText(mine), optional: elite || optionalStep ? true : undefined });
+		goals.push({ ...goal, only: onlyText(mine), optional: elite || optionalStep || goal.optional ? true : undefined });
 		// After the guide drops a quest, its later goals wait for it to be taken again.
 		if (goal.kind === "abandon") { ctx.maybeTaken.add(goal.quest); ctx.surelyTaken.delete(goal.quest); }
 	};
@@ -382,8 +412,9 @@ function buildStep(step, stepNo, data, ctx) {
 			else report.count(".xp (ignored)");
 		} else if (n === "skill") {
 			const m = l.args.match(/^([a-z]+),\s*(\d+)$/i);
-			const NAMES = { firstaid: "First Aid", cooking: "Cooking", fishing: "Fishing", mining: "Mining", herbalism: "Herbalism", skinning: "Skinning" };
-			if (m && NAMES[m[1].toLowerCase()]) { add({ kind: "skill", skill: NAMES[m[1].toLowerCase()], n: Number(m[2]) }, l.cond); report.count(".skill -> skill"); }
+			const w = skillWhen(l.args);
+			if (m && SKILLS[m[1].toLowerCase()]) { add({ kind: "skill", skill: SKILLS[m[1].toLowerCase()], n: Number(m[2]) }, l.cond); report.count(".skill -> skill"); }
+			else if (w && !l.cond) { whens.push(w); formatNeeds = Math.max(formatNeeds, 5); report.count(".skill skip form -> when skill"); }
 			else report.count(".skill (ignored)");
 		} else if (n === "money") {
 			// Counting the character's money does not hold up in play (selling junk, repairs):
@@ -441,7 +472,7 @@ function buildStep(step, stepNo, data, ctx) {
 		} else if (n === "group") {
 			// The step needs a group (of N): shown on its quest work.
 			group = Number(l.args) >= 2 ? Number(l.args) : true;
-			report.count(".group -> group, optional");
+			if (l.cond) groupForSome = true;
 		} else if (n === "home") {
 			const inn = innNamed(data, (plain(l.text).match(/Hearthstone to (.+?)\.?$/i) || [])[1] || String(l.args || "").trim(), firstPt);
 			add({ kind: "sethome", location: inn ? inn.location : undefined }, l.cond);
@@ -452,12 +483,16 @@ function buildStep(step, stepNo, data, ctx) {
 			const inn = name ? innNamed(data, name, null) : null;
 			add({ kind: "hearth", location: inn ? inn.location : name || ctx.bind }, l.cond);
 			report.count(".hs -> hearth");
-		} else if (ctx.native.has(n) && nativeGoal(n, l, data)) {
-			// A verb Polestar has gained (abandon, destroy): the goal checks itself instead of a tick.
-			const g = nativeGoal(n, l, data);
-			add(g.goal, l.cond);
-			formatNeeds = Math.max(formatNeeds, g.format);
-			report.count(`.${n} -> ${n} (native verb)`);
+		} else if (n === "usespell" && goals.some((g) => g.kind === "cast" && g.spell === Number(l.args.split(",")[0]))) {
+			report.count(".usespell beside its .cast (dropped)");
+		} else if (nativeGoal(n, l, data, ctx.spells)) {
+			// A goal that checks itself instead of a tick.
+			const g = nativeGoal(n, l, data, ctx.spells);
+			add(g, l.cond);
+			formatNeeds = Math.max(formatNeeds, 5);
+			report.count(`.${n} -> ${g.kind}`);
+		} else if (n === "usespell") {
+			report.count(".usespell without a spell name (dropped: a button in RXP)");
 		} else if (TASKS.has(n)) {
 			const t = plain(l.text) || n;
 			if (n === "destroy") { const id = Number(l.args.split(",")[0]); if (data.items[id] && !l.cond) whens.push(`has ${id}`); }
@@ -539,8 +574,17 @@ function buildStep(step, stepNo, data, ctx) {
 		goals.push({ kind: "goto", x: g.x, y: g.y, live: g.live, text: tips[0] ? tips[0].slice(0, 40) : undefined, only: "" });
 	}
 
-	// Group work holds no solo player: optional, as Polestar does with elites.
-	if (group) for (const g of goals) if (GROUP_KINDS.has(g.kind)) { g.group = group; g.optional = true; }
+	// Group work about one quest: the player says whether they do it with a group
+	// (`when group`, asked once per quest, on every step of it as in RXP). Else it
+	// holds no solo player: optional, as Polestar does with elites.
+	if (group) {
+		const groupQuests = new Set(goals.filter((g) => GROUP_KINDS.has(g.kind)).map((g) => g.quest).filter((q) => q != null));
+		const [q] = groupQuests;
+		const ask = groupQuests.size === 1 && !groupForSome && data.quests[q];
+		for (const g of goals) if (GROUP_KINDS.has(g.kind)) { g.group = group; if (!ask) g.optional = true; }
+		if (ask) { whens.push(`group ${q}`); formatNeeds = Math.max(formatNeeds, 5); report.count(".group, one quest -> when group"); }
+		else report.count(".group -> group, optional");
+	}
 	const allAlong = forceAlong || goals.length > 0 && goals.every((g) => ALONG_KINDS.has(g.kind) || ((g.kind === "use" || g.kind === "interact") && g.quest != null));
 	// The way here: the waypoints of the steps done along the way before this one.
 	// Of the way, a goal with a place of its own keeps the last point and those on
@@ -564,7 +608,11 @@ function buildStep(step, stepNo, data, ctx) {
 	// Accepts in a step with `when` may not happen: their quests' later goals wait
 	// for the quest, like those of quests taken in an earlier guide.
 	for (const g of goals) if (g.kind === "accept") (whens.length || g.optional || ctx.loose.has(g.quest) ? ctx.maybeTaken : ctx.surelyTaken).add(g.quest);
+	// An abandon applies only while the quest is in the log, as in RXP: a step that
+	// drops a quest the character never had, or took again later, would hold the
+	// route (Polestar 0.3.0 loops on it).
 	const orphanOf = (g) => {
+		if (g.kind === "abandon") return g.quest;
 		const id = questOf(g);
 		if (id == null) return null;
 		const unsure = ctx.maybeTaken.has(id) && !ctx.surelyTaken.has(id) && !goals.some((a) => a.kind === "accept" && a.quest === id);
@@ -580,7 +628,7 @@ function buildStep(step, stepNo, data, ctx) {
 	// in their own step that only applies while the quest is in the log.
 	// One step per quest: a player holding one of them must not wait on another's goals.
 	const ids = [...new Set(orphanGoals.map(orphanOf))];
-	report.count(`goals for quests accepted elsewhere -> when onquest (${orphanGoals.length})`);
+	report.count(`goals for quests accepted elsewhere or abandoned -> when onquest (${orphanGoals.length})`);
 	const rest = goals.filter((g) => !orphanOf(g));
 	const orphanSteps = ids.map((id) => ({ ...base, maps: [], goals: orphanGoals.filter((g) => orphanOf(g) === id), tips: [], notes: [], whens: [...whens, `onquest ${id}`], label: null, completesWith: null, loop: [] }));
 	if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: base.tips, notes }; return orphanSteps; }
@@ -637,7 +685,7 @@ export function convertGuide(parsed, data, opts) {
 	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
 	const faction = hc.faction ? hc.faction[0] : null;
 	const races = hc.race || df.race || [];
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), native: opts.native || new Set(), faction, races, loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
 	const steps = [];
 	parsed.steps.forEach((s, i) => {
 		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
