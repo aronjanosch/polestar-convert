@@ -96,7 +96,7 @@ export function render(guide, { report, slug, packId, next }) {
 			report.count("step of optional goals only -> goals kept (skip by hand)");
 			// Kept for a quest the player may not have: shown only while on it.
 			const [q] = qs;
-			if (q != null && !(s.whens || []).some((w) => w.startsWith("onquest"))) out.splice(whenAt, 0, `  when onquest ${q}`);
+			if (q != null && !(s.whens || []).some((w) => w.startsWith("onquest")) && !s.goals.some((g) => g.kind === "accept" && g.quest === q)) out.splice(whenAt, 0, `  when onquest ${q}`);
 		}
 		for (const k of s.skipto || []) out.push(`  skipto ${k.label} when ${k.when}`);
 		for (const g of s.goals) {
