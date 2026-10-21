@@ -99,5 +99,7 @@ export function plain(text) {
 		.replace(/\|r/g, "")
 		.replace(/::\d+/g, "")
 		.replace(/\s+/g, " ")
+		// RXP writes "the |cRXP_PICK_The Lay of Ameth'Aran|r" and "above the the cave".
+		.replace(/\b(the) the\b/gi, "$1")
 		.trim();
 }

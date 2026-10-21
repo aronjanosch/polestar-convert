@@ -44,3 +44,9 @@ test("every #next line is kept, in order, each with its own condition", () => {
 	assert.deepEqual(g.header.nexts, ["B << Hunter", "C; D << !Hunter"]);
 	assert.equal(g.header.next, "B << Hunter");
 });
+
+test("a doubled article in RXP's text is one", () => {
+	assert.equal(plain("Click the |cRXP_PICK_The Lay of Ameth'Aran|r"), "Click the Lay of Ameth'Aran");
+	assert.equal(plain("above the the cave"), "above the cave");
+	assert.equal(plain("The Deadmines"), "The Deadmines");
+});
