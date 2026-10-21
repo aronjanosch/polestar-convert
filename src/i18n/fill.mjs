@@ -3,7 +3,7 @@
 // text is never changed, and a line that does not pair stays "".
 
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 
 // As the clone's tools/lib/i18n/files.js writes a Lua string.
@@ -108,7 +108,9 @@ function polestar(polestarDir, args) {
 	return execFileSync("node", [join(polestarDir, "tools/polestar.js"), "i18n", "guides", ...args], { cwd: polestarDir, encoding: "utf8", stdio: "pipe" });
 }
 
-export async function fillPack({ polestar: clone, pack, locales, pairsByLocale, namesByLocale }) {
+export async function fillPack({ polestar: clone, pack: packArg, locales, pairsByLocale, namesByLocale }) {
+	// Polestar resolves --pack from the clone as cwd: pass one absolute path to every reader.
+	const pack = resolve(packArg);
 	try {
 		polestar(clone, ["sync", ...locales, "--pack", pack]);
 	} catch (e) {
