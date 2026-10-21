@@ -23,20 +23,32 @@ function parseLine(line) {
 
 const blocks = (text) => text.split(/\n\s*\n/).map((b) => b.split("\n").filter((l) => l.trim() !== ""));
 
+const TIP = /^\s*tip\b/;
+
 export function pairRendered(en, tr, report, pairs = new Map()) {
+	const add = (t, u) => {
+		if (t === u) return;
+		if (!pairs.has(t)) pairs.set(t, u);
+		else if (pairs.get(t) !== u) report.count("locale: text with two translations");
+	};
 	const be = blocks(en), bt = blocks(tr);
 	if (be.length !== bt.length) { report.count("locale: blocks differ"); return pairs; }
 	for (let i = 0; i < be.length; i++) {
 		if (be[i].length !== bt[i].length) { report.count("locale: block lines differ"); continue; }
+		// Polestar joins a step's tip lines with \n into one text, the sync key.
+		const tips = { en: [], tr: [], all: true };
 		for (let j = 0; j < be[i].length; j++) {
 			const a = parseLine(be[i][j]), b = parseLine(bt[i][j]);
-			if (a.shape !== b.shape || a.texts.length !== b.texts.length) { report.count("locale: line shape differs"); continue; }
-			a.texts.forEach((t, k) => {
-				if (t === b.texts[k]) return;
-				if (!pairs.has(t)) pairs.set(t, b.texts[k]);
-				else if (pairs.get(t) !== b.texts[k]) report.count("locale: text with two translations");
-			});
+			const tip = TIP.test(be[i][j]);
+			if (a.shape !== b.shape || a.texts.length !== b.texts.length) {
+				report.count("locale: line shape differs");
+				if (tip) tips.all = false;
+				continue;
+			}
+			a.texts.forEach((t, k) => add(t, b.texts[k]));
+			if (tip) { tips.en.push(a.texts[0]); tips.tr.push(b.texts[0]); }
 		}
+		if (tips.all && tips.en.length > 1) add(tips.en.join("\n"), tips.tr.join("\n"));
 	}
 	return pairs;
 }
