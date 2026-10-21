@@ -15,7 +15,7 @@ const ALIAS = new Map([
 	["scourge", "Undead"], ["undead", "Undead"], ["nightelf", "NightElf"], ["night elf", "NightElf"],
 ]);
 
-function canon(name) {
+export function canon(name) {
 	const low = name.toLowerCase();
 	if (ALIAS.has(low)) return ALIAS.get(low);
 	for (const list of [CLASSES, RACES, FACTIONS]) {
