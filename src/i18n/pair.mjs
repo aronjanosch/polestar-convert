@@ -24,12 +24,17 @@ function parseLine(line) {
 const blocks = (text) => text.split(/\n\s*\n/).map((b) => b.split("\n").filter((l) => l.trim() !== ""));
 
 const TIP = /^\s*tip\b/;
+// RXP keeps the English with this marker where its translator has not been yet.
+const UNTRANSLATED = "(NOT TRANSLATED IN :";
 
 export function pairRendered(en, tr, report, pairs = new Map()) {
+	// True when the texts are a real pair: translated, not marked untranslated.
 	const add = (t, u) => {
-		if (t === u) return;
+		if (t === u) return false;
+		if (u.includes(UNTRANSLATED)) { report.count("locale: not translated in source"); return false; }
 		if (!pairs.has(t)) pairs.set(t, u);
 		else if (pairs.get(t) !== u) report.count("locale: text with two translations");
+		return true;
 	};
 	const be = blocks(en), bt = blocks(tr);
 	if (be.length !== bt.length) { report.count("locale: blocks differ"); return pairs; }
@@ -45,8 +50,9 @@ export function pairRendered(en, tr, report, pairs = new Map()) {
 				if (tip) tips.all = false;
 				continue;
 			}
-			a.texts.forEach((t, k) => add(t, b.texts[k]));
-			if (tip) { tips.en.push(a.texts[0]); tips.tr.push(b.texts[0]); }
+			const real = a.texts.map((t, k) => add(t, b.texts[k]));
+			// Joined, an English tip would make the text a partial translation.
+			if (tip) { if (!real[0]) tips.all = false; tips.en.push(a.texts[0]); tips.tr.push(b.texts[0]); }
 		}
 		if (tips.all && tips.en.length > 1) add(tips.en.join("\n"), tips.tr.join("\n"));
 	}
