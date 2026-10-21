@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fillText } from "../src/i18n/fill.mjs";
+import { fillText, fillPack } from "../src/i18n/fill.mjs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, relative } from "node:path";
 
 const HEAD = `-- Chinese (zhCN): the guide x (y).
 -- Written by \`node tools/polestar.js i18n guides sync zhCN\`, which keeps every translation.
@@ -126,4 +129,16 @@ test("a wildcard stays within its line and its name's length", () => {
 	assert.equal(fillText(src, across, names({ "npc:1": ["凯尔德里克"] })).counts["no pair"], 1);
 	const long = new Map([["Talk to Keldric. Then wait for the boat\nGo home", "与凯尔德里克对话。然后等船\n回家"]]);
 	assert.equal(fillText(src, long, names({ "npc:1": ["凯尔德里克"] })).counts["no pair"], 1);
+});
+
+test("fillPack with a relative clone and pack path", async () => {
+	const clone = new URL("./fixtures/clone", import.meta.url).pathname;
+	const pack = mkdtempSync(join(tmpdir(), "fillpack-"));
+	const res = await fillPack({
+		polestar: relative(process.cwd(), clone), pack: relative(process.cwd(), pack), locales: ["zhCN"],
+		pairsByLocale: { zhCN: new Map([["Hello", "你好"]]) }, namesByLocale: { zhCN: () => [] },
+	});
+	assert.equal(res.counts.translated, 1);
+	assert.equal(res.check.code, 0);
+	assert.match(readFileSync(join(pack, "locales/zhCN/guides/x.lua"), "utf8"), /"Hello"\] = "你好"/);
 });

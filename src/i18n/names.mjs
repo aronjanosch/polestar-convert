@@ -2,7 +2,7 @@
 // the clone's names pack, its client tables (area, zone, spell) and its L file.
 
 import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
 
 const PACK_KINDS = ["npc", "object", "item", "quest", "map", "faction", "taxi"];
@@ -50,13 +50,17 @@ function readL(file) {
 	return map;
 }
 
-export async function loadNames(polestarDir, locale, { offline = false, log = () => {}, wago } = {}) {
+// The returned function carries `clientTables`: null, or why area/zone/spell names are missing.
+export async function loadNames(clone, locale, { offline = false, log = () => {}, wago } = {}) {
+	// createRequire reads a path without ./ as a package name: always an absolute one.
+	const polestarDir = resolve(clone);
 	const pack = readPack(join(polestarDir, "addon", `Polestar_Names_${locale}`, "Names.lua"), locale);
 	const L = readL(join(polestarDir, "addon", "Polestar", "Locales", `${locale}.lua`));
 
 	wago ??= createRequire(import.meta.url)(join(polestarDir, "tools", "lib", "data", "wago.js"));
 	const sourcesDir = join(polestarDir, "data", "sources");
 	const tables = new Map(); // kind -> Map<id, name>
+	let clientTables = null;
 	try {
 		const { build } = await wago.pickBuild({
 			sourcesDir, offline: true, product: "forever", tables: ["AreaTable", "UiMap", "SpellName"],
@@ -72,10 +76,11 @@ export async function loadNames(polestarDir, locale, { offline = false, log = ()
 	} catch (err) {
 		// one line for all three tables; those kinds then give nothing
 		tables.clear();
+		clientTables = err.message;
 		log(`client tables for ${locale}: ${err.message}`);
 	}
 
-	return (token, english) => {
+	const namesOf = (token, english) => {
 		const [kind, id] = token.split(":");
 		let name;
 		if (kind === "skill") name = L.get(english);
@@ -83,13 +88,17 @@ export async function loadNames(polestarDir, locale, { offline = false, log = ()
 		else name = tables.get(kind)?.get(id);
 		return name ? [name] : [];
 	};
+	namesOf.clientTables = clientTables;
+	return namesOf;
 }
 
 // The pack's names first, then the one paired from RXP's own line (no duplicates).
 export function withPaired(namesOf, paired) {
-	return (token, english) => {
+	const both = (token, english) => {
 		const names = namesOf(token, english);
 		const extra = paired.get(english);
 		return extra && !names.includes(extra) ? [...names, extra] : names;
 	};
+	both.clientTables = namesOf.clientTables;
+	return both;
 }

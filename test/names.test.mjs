@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { loadNames, withPaired } from "../src/i18n/names.mjs";
 
 const clone = new URL("./fixtures/clone/", import.meta.url).pathname;
@@ -69,4 +69,12 @@ test("paired names come after the pack's", async () => {
 	assert.deepEqual(namesOf("npc:1", "Same"), ["鲍勃"]);
 	assert.deepEqual(namesOf("npc:999", "Bob"), ["鲍勃先生"]);
 	assert.deepEqual(namesOf("npc:999", "Other"), []);
+});
+
+test("a relative clone path (no ./) works, and a failing client table says why", async () => {
+	const rel = relative(process.cwd(), clone.replace(/\/$/, ""));
+	const namesOf = await loadNames(rel, "zhCN", { offline: true }); // the clone's own wago.js, through require
+	assert.deepEqual(namesOf("npc:1", "Bob"), ["鲍勃"]);
+	assert.match(namesOf.clientTables, /no network/);
+	assert.equal((await load()).clientTables, null);
 });
