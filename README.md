@@ -188,20 +188,31 @@ per line.
 Zygor's guide text is the source; the player sees what Zygor shows. A step
 Zygor shows holds until it is done, ticked or skipped, and Polestar keeps
 that. The run of the Classic Leveling guides (both factions, 100 guides: 49
-Horde, 51 Alliance) took 7,238 Zygor steps to 7,760 Polestar steps, 608 of
-them along copies (below).
+Horde, 51 Alliance) took 7,238 Zygor steps to 7,695 Polestar steps, 614 of
+them along copies (below). Lint passes and every guide plays through for
+every class (983 plays).
 
 - **Sticky** (`stickystart "X"`): the labelled step's countable goals (kill,
   collect, quest objectives) are copied into an `along until <label>` step
   before the start; with a `stickystop` before the label it ends `along until`
-  that step instead. 480 along-until-label copies, 128 along-until-stop.
+  that step instead. 486 along-until-label copies, 128 along-until-stop.
   Accepts and turn-ins are never copied; a goal of a quest the guide has not
-  accepted before the copy is left out (22 goals).
+  accepted before the copy is left out.
 - **Talk** to a giver or vendor the same step names is dropped: the accept,
   turn-in or vendor goal places the NPC (3,849 lines).
 - **`|confirm`** ("Click Here to Continue") is a `task` at its `|goto`: Zygor
-  holds the player there. A dungeon choice (`|confirm <Name>flag`) is dropped:
-  Polestar asks in Options (16).
+  holds the player there, named by the step's own text (a `_NOTE:_` heading's
+  line, the "Kill X" line) rather than "Click Here to Continue". A dungeon
+  choice (`|confirm <Name>flag`) is dropped: Polestar asks in Options (16).
+- **Text with a quest objective** (`Capture #5# Rats |q 6661/1`, tames,
+  escorts) is that objective's goal, matched by name or Zygor's number (254).
+- **`|or`**: kills on the way beside a way (`|complete subzone(...)`) are
+  optional; the way holds the step.
+- **Bags**: a `collect` or `buy` for a quest not taken yet (`|future`, bank
+  pickups) or of an item no vendor sells (the auction house) is a bag count at
+  the line's point, not the objective.
+- **Givers the data places nowhere** (a giver the data places nowhere) take the
+  route's last point for the arrow (10).
 - **Text** a line only shows is a tip; text for some classes or races is a
   `note` beside the step's goals, or a task alone (Polestar tips take no
   condition).
@@ -225,10 +236,10 @@ them along copies (below).
   97, buffs 37, `equipped` 18, `skillmax` 32, `region` 7, `rep` 7). Each is in
   reports/zygor-gaps.json.
 
-Lint on the pack: 0 errors, 827 warnings, (191; Zygor gives no point for them either), spell names of a clone without
-`professions.json` (102), coordinates on another map than the step's zone with
-no `zone map` (101: a goal Zygor sends to a spot its own guide does not
-name), and Class guides without `why` and `reward` (32).
+Lint on the pack: 0 errors, 883 warnings: mostly `collect`/`kill` of targets
+with no spawn in the data (199; Zygor gives no point for them either), spell
+names of a clone without `professions.json`, and Class guides without `why`
+and `reward` (32).
 
 ## Tests
 
