@@ -667,9 +667,32 @@ function buildStep(step, stepNo, data, ctx) {
 	report.count(`goals for quests accepted elsewhere or abandoned -> when onquest (${orphanGoals.length})`);
 	const rest = goals.filter((g) => !orphanOf(g));
 	const orphanSteps = ids.map((id) => ({ ...base, maps: [], goals: orphanGoals.filter((g) => orphanOf(g) === id), tips: [], notes: [], whens: [...whens, `onquest ${id}`], label: null, completesWith: null, loop: [] }));
-	if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: base.tips, notes }; return orphanSteps; }
-	// In the source's order: a hand-in written before an accept comes first.
-	return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, { ...base, goals: rest }] : [{ ...base, goals: rest }, ...orphanSteps];
+	// An accept written after the hand-in of its prerequisite must stay after it: the
+	// steps follow the source's order, and a way point goes with the goal it leads to.
+	const acceptAfterOrphan = goals.some((g, i) => g.kind === "accept" && !orphanOf(g) && goals.slice(0, i).some(orphanOf));
+	if (!acceptAfterOrphan) {
+		if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: base.tips, notes }; return orphanSteps; }
+		// A hand-in written before an accept comes first.
+		return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, { ...base, goals: rest }] : [{ ...base, goals: rest }, ...orphanSteps];
+	}
+	const keyOf = goals.map((g) => orphanOf(g));
+	for (let i = goals.length - 1; i >= 0; i--) if (goals[i].kind === "goto") keyOf[i] = i + 1 < goals.length ? keyOf[i + 1] : keyOf[i - 1] ?? null;
+	const runs = [];
+	goals.forEach((g, i) => {
+		const last = runs[runs.length - 1];
+		if (last && last.key === keyOf[i]) last.goals.push(g);
+		else runs.push({ key: keyOf[i], goals: [g] });
+	});
+	const firstRest = runs.findIndex((r) => r.key == null);
+	const out = runs.map((r, i) => {
+		if (r.key == null) return i === firstRest ? { ...base, goals: r.goals, label: null } : { ...base, goals: r.goals, tips: [], notes: [], label: null, completesWith: null, loop: [] };
+		// The first step keeps the zone its way points are in.
+		return { ...base, maps: i === 0 ? base.maps : [], goals: r.goals, tips: [], notes: [], whens: [...whens, `onquest ${r.key}`], label: null, completesWith: null, loop: [] };
+	});
+	if (firstRest < 0) out[0] = { ...out[0], tips: base.tips, notes };
+	// What waits for this step waits for all of it: the label sits on its last part.
+	out[out.length - 1].label = base.label;
+	return out;
 }
 
 // A guide whose name gives no levels (dungeon quest guides): from the level at
