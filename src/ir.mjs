@@ -26,7 +26,7 @@
 //   interact {object, quest, oi}  buy {item, itemName?, count, npc?}  (no npc: nearest)
 //   vendor {npc?}  train {npc?|class|profession, comment?}  use {item}
 //   level {level, xp?}  skill {skill, n}  task {text}  note {text}
-//   abandon {quest}  destroy {item}  cast {spell, name}  goto {x, y, live, map?, r?, text?}
+//   abandon {quest}  destroy {item}  cast {spell, name}  enter {place, at?}  goto {x, y, live, map?, r?, text?}
 //   sethome {location?} (none: the nearest inn)  hearth {location}  getfp {location}  fly {location}
 // Any goal may carry `group: N | true` (needs a group).
 // `at` = {x, y, live, map?}: where the goal is, when the data does not know; `map`
@@ -62,6 +62,7 @@ export function goalText(g) {
 		case "abandon": return `abandon ${g.quest}`;
 		case "destroy": return `destroy ${g.item}`;
 		case "cast": return `cast ${g.spell} ${q(g.name)}`;
+		case "enter": return `enter ${q(g.place)}${atText(g.at)}`;
 		case "goto": return `goto ${g.x},${g.y}${g.text ? " " + q(g.text) : ""}${g.map != null ? " map " + g.map : ""}${g.r ? " r " + g.r : ""}${g.live ? "" : " era"}`;
 		case "sethome": return g.location ? `sethome ${q(g.location)}` : "sethome nearest";
 		case "hearth": case "getfp": case "fly": return `${g.kind} ${q(g.location)}`;
