@@ -129,8 +129,9 @@ async function translate() {
 	const locales = want === "all" ? found : want.split(",").map((l) => l.trim()).filter((l) => found.includes(l) || (console.error(`no translated guides for ${l}`), false));
 	if (!locales.length) return;
 
-	const pairsByLocale = {}, namesByLocale = {}, runs = {};
-	for (const locale of locales) {
+	const pairsByLocale = {}, namesByLocale = {}, runs = {}, failed = {};
+	// One language that throws is left out; the others and the English go on.
+	for (const locale of locales) try {
 		const dir = join(langDir, `Guides-${locale}`);
 		// `--list`: only the files the language's own list loads.
 		const listed = a.list && new Set([...readFileSync(join(dir, listName), "utf8").matchAll(/<Script file="([^"]+)"/g)]
@@ -144,12 +145,24 @@ async function translate() {
 		runs[locale] = run;
 		pairsByLocale[locale] = run.pairs;
 		namesByLocale[locale] = withPaired(await loadNames(a.polestar, locale, { log: console.error }), run.names);
+	} catch (e) {
+		failed[locale] = e.message;
+		delete runs[locale]; delete pairsByLocale[locale];
+		console.error(`${locale}: failed: ${e.message}`);
 	}
-	const { files: filled, check } = await fillPack({ polestar: a.polestar, pack: a.pack, locales, pairsByLocale, namesByLocale });
-
 	const out = { locales: {} };
+	for (const [locale, message] of Object.entries(failed)) out.locales[locale] = { failed: message, pairing: { "locale: failed": 1 } };
+	const done = locales.filter((l) => !failed[l]);
+	const writeReport = () => {
+		const reportsDir = join(a.pack, "reports");
+		if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
+		writeFileSync(join(reportsDir, "rxp-locales.json"), JSON.stringify(out, null, 1) + "\n");
+	};
+	if (!done.length) { writeReport(); process.exitCode = 1; return; }
+	const { files: filled, check } = await fillPack({ polestar: a.polestar, pack: a.pack, locales: done, pairsByLocale, namesByLocale });
+
 	console.log("\n== translations");
-	for (const locale of locales) {
+	for (const locale of done) {
 		const total = { texts: 0, translated: 0, kept: 0, "no pair": 0, "name not found": 0 };
 		const pairing = {};
 		const guides = {};
@@ -163,8 +176,7 @@ async function translate() {
 		console.log(`${locale}: ${total.translated} of ${total.texts} texts translated`);
 	}
 	out.check = check;
-	const reportsDir = join(a.pack, "reports");
-	if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-	writeFileSync(join(reportsDir, "rxp-locales.json"), JSON.stringify(out, null, 1) + "\n");
+	writeReport();
 	console.log(check.code ? `i18n guides check failed:\n${check.output}` : "i18n guides check: ok");
+	if (check.code || done.length < locales.length) process.exitCode = 1;
 }
