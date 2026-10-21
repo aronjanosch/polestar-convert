@@ -17,7 +17,9 @@ function groupTag(group) {
 }
 
 const keyOf = (g) => `${g.header.group || ""}\\${g.header.name || ""}`;
-const sideOf = (g) => (parseCondition(g.header.faction).only.faction || [null])[0];
+// The header's `<<` side, else the one its group name carries: "(A)" or "(H)".
+const sideOf = (g) => (parseCondition(g.header.faction).only.faction || [null])[0]
+	|| { A: "Alliance", H: "Horde" }[(String(g.header.group || "").match(/\(([AH])\)/) || [])[1]] || null;
 
 // `#include Group\Name` in a step: RXP puts that guide's steps there (its dungeon
 // variants of the starting routes are a step turning a dungeon on and the route).
@@ -79,35 +81,43 @@ export function planChain(guides, report) {
 		slug.set(g, s);
 	}
 
-	// `next`: "Name", "Group\Name", "Name << Warlock", several split by ";".
-	// Same group first, then the same faction.
-	// An option for only some of the guide's characters (a Hunter route) stays when
-	// the options together cover all of them: Polestar offers each character the
-	// options whose guide is for them. Alone it would send everyone there.
+	// `next`: "Name", "Group\Name", several split by ";", a line may end in "<< cond".
+	// RXP takes the first `#next` line that holds for the character, and on it the
+	// first guide that exists for them (a guide whose header `<<` leaves them out is
+	// not loaded). Polestar's `next` cannot name a class, so every character of the
+	// guide is run through that and the guides chosen for any of them are the options.
 	const next = new Map();
 	for (const g of guides) {
-		const out = [];
-		const partial = [];
-		for (const raw of String(g.header.next || "").split(";")) {
-			const opt = raw.replace(/<<.*$/, "").trim();
-			if (!opt) continue;
-			const cut = opt.lastIndexOf("\\");
-			const group = cut >= 0 ? opt.slice(0, cut) : g.header.group || "";
-			const name = cut >= 0 ? opt.slice(cut + 1) : opt;
-			let hit = byKey.get(`${group}\\${name}`);
-			if (!hit) hit = (byName.get(name) || []).find((o) => sideOf(o) === sideOf(g)) || null;
-			if (hit && twinOf.has(hit)) hit = twinOf.get(hit);
-			if (hit && !covers(hit, g)) { partial.push(opt); if (!out.includes(hit)) out.push(hit); continue; }
-			if (hit && !out.includes(hit)) out.push(hit);
-			else if (!hit) report.note(g.header.name, 0, `next guide "${opt}" is not in this run (left out)`, g.header.next);
+		const lines = (g.header.nexts || []).map((raw) => {
+			const ci = raw.indexOf("<<");
+			const parts = (ci >= 0 ? raw.slice(0, ci) : raw).split(";").map((x) => x.trim()).filter(Boolean).map((opt) => {
+				const cut = opt.lastIndexOf("\\");
+				return { opt, group: cut >= 0 ? opt.slice(0, cut).trim() : g.header.group || "", name: cut >= 0 ? opt.slice(cut + 1).trim() : opt };
+			});
+			return { raw, only: ci >= 0 ? parseCondition(raw.slice(ci + 2)).only : {}, parts };
+		});
+		// The guide of a part for a character, or null: one of its side, open to its class and race.
+		const resolve = (part, ch) => {
+			const ok = (o) => o && [null, ch.faction].includes(sideOf(o)) && meets(who(o), ch);
+			// RXP looks in the part's group, and only elsewhere when the group has no such guide.
+			let hit = byKey.get(`${part.group}\\${part.name}`);
+			if (hit) { if (!ok(hit)) hit = null; }
+			else hit = (byName.get(part.name) || []).find(ok) || null;
+			return hit && twinOf.has(hit) ? twinOf.get(hit) : hit;
+		};
+		const picked = new Map();
+		for (const ch of charactersOf(g)) {
+			const li = lines.findIndex((l) => meets(l.only, ch));
+			if (li < 0) continue;
+			const parts = lines[li].parts.map((p) => resolve(p, ch));
+			const pi = parts.findIndex(Boolean);
+			if (pi >= 0 && !picked.has(parts[pi])) picked.set(parts[pi], li * 100 + pi);
 		}
-		if (partial.length && coversAll(out, g)) report.count("next options for some characters, together for all (kept)", partial.length);
-		else if (partial.length) {
-			for (const opt of partial) report.note(g.header.name, 0, `next guide "${opt}" is not for every character of this one (left out)`, g.header.next);
-			next.set(g, out.filter((o) => covers(o, g)));
-			continue;
+		for (const l of lines) for (const p of l.parts) {
+			if (!byName.has(p.name)) report.note(g.header.name, 0, `next guide "${p.opt}" is not in this run (left out)`, l.raw);
 		}
-		next.set(g, out);
+		// In the order the lines name them: the first is the author's default.
+		next.set(g, [...picked].sort((x, y) => x[1] - y[1]).map(([o]) => o));
 	}
 
 	// Quests accepted in the guides that hand off into each guide, down the chain.
@@ -131,25 +141,21 @@ export function planChain(guides, report) {
 	return { slug, next, before, hidden };
 }
 
-// Whether every character guide `g` is for may follow `to`: what `to` names of
-// class and race (the header's `<<` line) holds for all of `g`'s.
+// What a header's `<<` line leaves of class and race: null for no limit.
 const who = (x) => {
 	const h = parseCondition(x.header.faction).only;
 	return { class: h.class || null, race: h.race || null };
 };
-function covers(to, g) {
-	const t = who(to), m = who(g);
-	return ["class", "race"].every((k) => !t[k] || (m[k] && m[k].every((n) => t[k].includes(n))));
+const SIDE = { Alliance: ["Human", "Dwarf", "Gnome", "NightElf", "Skyborne"], Horde: ["Orc", "Troll", "Tauren", "Undead", "Skyborne"] };
+// Every class and race the guide is for (a guide of no side: any race).
+function charactersOf(g) {
+	const w = who(g);
+	const side = SIDE[sideOf(g)];
+	const races = (w.race || RACES).filter((r) => !side || side.includes(r));
+	const factions = (r) => (r === "Skyborne" ? (sideOf(g) ? [sideOf(g)] : ["Alliance", "Horde"]) : [SIDE.Alliance.includes(r) ? "Alliance" : "Horde"]);
+	return (w.class || CLASSES).flatMap((c) => races.flatMap((r) => factions(r).map((faction) => ({ class: c, race: r, faction }))));
 }
-
-// Whether every character of `g` (each class and race it is for) is one some guide
-// of `list` is for.
-function coversAll(list, g) {
-	const m = who(g);
-	const ts = list.map(who);
-	return (m.class || CLASSES).every((c) => (m.race || RACES).every((r) =>
-		ts.some((t) => (!t.class || t.class.includes(c)) && (!t.race || t.race.includes(r)))));
-}
+const meets = (only, ch) => (!only.class || only.class.includes(ch.class)) && (!only.race || only.race.includes(ch.race)) && (!only.faction || only.faction.includes(ch.faction));
 
 function acceptsOf(g) {
 	const out = new Set();
