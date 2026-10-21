@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// polestar-convert zygor --dir <ZygorGuidesViewerClassic> --polestar <clone> --pack <pack dir> [--only "<guide>"]
 // polestar-convert rxp --file <RXP guide .lua> | --list <GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<name>"] [--max-start N] [--self-found yes]
 //
 // Reads guides you own from your own install and writes `.guide` files into a
@@ -25,6 +26,10 @@ const a = args(process.argv.slice(2));
 const [cmd] = a._;
 if (cmd === "journey") {
 	(await import("../src/journey/cli.mjs")).run(a);
+	process.exit(0);
+}
+if (cmd === "zygor") {
+	(await import("../src/zygor/cli.mjs")).run(a);
 	process.exit(0);
 }
 if (cmd !== "rxp" || !(a.file || a.list) || !a.polestar || !a.pack) {
