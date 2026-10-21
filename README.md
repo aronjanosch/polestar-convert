@@ -87,6 +87,10 @@ A new source (Journey, Zygor) is an adapter that fills the intermediate form.
 - `.zone Ironforge` in a travel step is `enter "Ironforge"` at RXP's last point:
   done on entering the zone, as in RXP. Beside the route (`#completewith`) it
   stays a way into the next step.
+- RXP's `#next A; B << !Hunter` becomes `next A, B` when the guides named are,
+  together, for every character of this one: Polestar offers each character
+  the options whose guide is for them (a Hunter route only to Hunters). A
+  guide for some characters alone would send everyone there, so it is left out.
 - `.group` on a step about one quest is `when group <quest>`: Polestar asks
   once per quest, or takes the player's "Group quests" option. RXP marks every
   step of a group quest so, the accept included, and a quest not taken takes its
