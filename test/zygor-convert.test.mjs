@@ -74,7 +74,7 @@ test("a step for hardcore only is gone; `not hardcore()` keeps the step without 
 test("a sticky name used twice binds each start to the next label after it", () => {
 	const r = conv([
 		"step",
-		"  talk Giver Bob##201",
+		"  accept Invented Errand##101",
 		"stickystart \"A\"",
 		"step",
 		"  talk Giver Bob##201",
@@ -97,7 +97,7 @@ test("a sticky name used twice binds each start to the next label after it", () 
 test("a sticky stop before a step ends the along copy at that step", () => {
 	const r = conv([
 		"step",
-		"  talk Giver Bob##201",
+		"  accept Invented Errand##101",
 		"stickystart \"S\"",
 		"step",
 		"  kill 8 Young Wolf##301 |q 101/1",
@@ -115,7 +115,7 @@ test("a sticky stop before a step ends the along copy at that step", () => {
 test("a class-only collect inside a sticky keeps its only in the along copy", () => {
 	const r = conv([
 		"step",
-		"  talk Giver Bob##201",
+		"  accept Invented Errand##101",
 		"stickystart \"A\"",
 		"step",
 		"  talk Giver Bob##201",

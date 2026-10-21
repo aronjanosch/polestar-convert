@@ -7,7 +7,7 @@
 import { translate, completeGoal } from "./cond.mjs";
 import { refs } from "./parse.mjs";
 import { onlyText, andOnly, canon, RACES, CLASSES } from "../cond.mjs";
-import { zoneIdNamed, zoneName, questEndPlaced, questOpenTo, journalPlace, innNamed, flightNamed } from "../data.mjs";
+import { zoneIdNamed, zoneName, questEndPlaced, questOpenTo, journalPlace, innNamed, flightNamed, goalPlaced } from "../data.mjs";
 import { resolveObjective } from "../objective.mjs";
 import { render } from "../emit.mjs";
 
@@ -18,15 +18,18 @@ const NO_FORM = new Set(["havebuff", "nobuff", "equipped", "unequipped", "region
 const PLACED = new Set(["accept", "turnin", "talk", "vendor", "train", "buy"]);
 // Kinds a Zygor step fights or farms for: the points of such a step are rounds Polestar finds itself.
 const FARM = new Set(["kill", "collect", "interact"]);
+// Kinds that name a quest's objective or turn-in: they need the quest in the log.
+const QUEST_KINDS = new Set(["collect", "kill", "interact", "complete", "turnin"]);
 const FORMAT5 = new Set(["task", "destroy", "money", "enter", "cast", "abandon", "skill"]);
 const FORMAT5_WHEN = /^!?(dungeon|skill|money|cooldown|group|upgrade)\b/;
 // The label as Polestar takes it (letters, digits, `-`, `_`).
 const labelOf = (text) => String(text || "").trim().replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || null;
 
-// What the player reads: colour codes, emphasis and `Name##id` out.
+// What the player reads: colour codes, emphasis and `Name##id` out; no double quotes (Polestar tokens).
 export function clean(text) {
 	return String(text || "")
 		.replace(/##\d+\+?/g, "")
+		.replace(/"/g, "'")
 		.replace(/\{[a-z]?\}/gi, "")
 		.replace(/\|c[0-9a-f]{8}|\|r/gi, "")
 		.replace(/(^|[\s"(])_+/g, "$1").replace(/_+(?=[\s.,!?")]|$)/g, "")
@@ -136,7 +139,7 @@ function verbGoals(l, ctx, place) {
 			const count = l.verb === "expcollect" ? Number((l.text.match(/##\d+,(\d+)/) || [])[1]) || 1 : lead;
 			if (quest && (quest.objectives || []).length) {
 				const hit = resolveObjective(quest, "", first.id);
-				if (hit && hit.obj.type === "item") return got({ kind: "collect", item: first.id, quest: questId, oi: hit.index });
+				if (hit && hit.obj.type === "item" && hit.obj.id === first.id) return got({ kind: "collect", item: first.id, quest: questId, oi: hit.index });
 			}
 			if (l.verb === "buy") return got({ kind: "buy", item: first.id, count });
 			return got({ kind: "collect", item: first.id, count });
@@ -176,7 +179,7 @@ function verbGoals(l, ctx, place) {
 // One Zygor line -> its goals, display text and tips. Mods first, then the verb.
 function lineOf(l, ctx, zs) {
 	const mod = (n) => l.mods.find((m) => m.name === n);
-	const res = { goals: [], texts: [], notes: [], tips: [], goto: null, nexts: [], gotoUsed: false };
+	const res = { goals: [], texts: [], notes: [], tips: [], goto: null, nexts: [] };
 	// The line's own condition: `|only` mods on this line only.
 	let lc = { only: {}, whens: [], never: false };
 	for (const m of l.mods) if (m.name === "only") lc = both(lc, condOf(m.args, ctx, zs, l.raw));
@@ -192,10 +195,8 @@ function lineOf(l, ctx, zs) {
 	// A line for other races than the guide's is not for this player at all.
 	if (lc.only.race && ctx.races.length && !lc.only.race.some((r) => ctx.races.includes(r))) { ctx.report.count("line for other races (dropped)"); return res; }
 
-	let verb = l.verb ? verbGoals(l, ctx, res.goto) : { goals: [], shown: !!text };
-	if (!l.verb) verb = { goals: [], shown: !!text };
+	const verb = l.verb ? verbGoals(l, ctx, res.goto) : { goals: [], shown: !!text };
 	const goals = verb.goals;
-	if (goals.length) { res.gotoUsed = !!res.goto; }
 	res.goals.push(...goals.map((x) => ({ ...x, only })));
 	if (verb.shown && text && l.verb !== "path" && l.verb !== "map") {
 		// Text for some classes only is a note there (a step of its own holds nothing for it).
@@ -205,7 +206,6 @@ function lineOf(l, ctx, zs) {
 	if (cf && !/flag$/i.test(cf.args) && text) {
 		res.texts = res.texts.filter((t) => t !== text);
 		res.goals.push({ kind: "task", text, only, ...(res.goto ? { at: pt(res.goto), _map: res.goto.uiMap } : {}) });
-		res.gotoUsed = !!res.goto;
 	}
 	const cm = mod("complete");
 	if (cm) {
@@ -244,9 +244,15 @@ function lineOf(l, ctx, zs) {
 		if (m.name === "next") res.nexts.push({ label: unquote(m.args), only: lc.only, whens: lc.whens, line: l.raw });
 		if (NO_FORM.has(m.name)) { ctx.report.count(`|${m.name}: no Polestar form (line kept)`); gapOf(ctx, zs, l.raw, `|${m.name} ${m.args} has no Polestar form; kept without it`, true); }
 	}
-	// A predicate on a line has no step to hold it (a step's when would reach its other lines).
-	if (lc.whens.length) { ctx.report.count("line condition with a predicate (kept without it)"); gapOf(ctx, zs, l.raw, `${lc.whens.join(", ")} on a line has no place to hold; kept without it`, true); }
+	// A predicate on a goal line: the step takes it when all its goals share it (see convertStep).
+	if (lc.whens.length) for (const x of res.goals) x._whens = lc.whens;
+	if (lc.whens.length && !res.goals.length) { ctx.report.count("line condition with a predicate on a text line (kept without it)"); gapOf(ctx, zs, l.raw, `${lc.whens.join(", ")} on a text line has no place to hold; kept without it`, true); }
 	if (l.mods.some((m) => m.name === "notinsticky")) for (const x of res.goals) x._notSticky = true;
+	// Every goal of a line with a goto sits on its map; a farming goal the data places nowhere takes the goto as its @.
+	if (res.goto) for (const x of res.goals) {
+		if (x._map == null) x._map = res.goto.uiMap;
+		if (!x.at && ["kill", "collect", "interact"].includes(x.kind) && !goalPlaced(ctx.data, x)) x.at = pt(res.goto);
+	}
 	// The last point of a line that makes no goal is the way into the step.
 	if (!res.goals.length && res.goto) res.way = res.goto;
 	return res;
@@ -273,13 +279,14 @@ function convertStep(zs, zi, ctx) {
 			const jumps = l.mods.filter((m) => m.name === "next");
 			for (const m of jumps) st.nexts.push({ label: unquote(m.args), only: {}, whens: [], line: l.raw });
 			const g = l.mods.find((m) => m.name === "goto");
-			if (g) st.way = parseGotoMod(g.args, ctx.data) || st.way;
+			if (g) { st.way = parseGotoMod(g.args, ctx.data) || st.way; if (st.way && ctx.firstMap == null) ctx.firstMap = st.way.uiMap; }
 			for (const t of l.mods.filter((m) => m.name === "tip")) { const s = clean(t.args); if (s) st.tips.push(s); }
 			const cm = l.mods.find((m) => m.name === "complete");
 			if (cm) { const goal = completeGoal(cm.args); if (goal) st.goals.push({ ...goal, only: onlyText(sc.only) }); }
 			continue;
 		}
 		const r = lineOf(l, ctx, zs);
+		if (r.goto && ctx.firstMap == null) ctx.firstMap = r.goto.uiMap;
 		st.goals.push(...r.goals.map((x) => ({ ...x, only: x.only || "" })));
 		st.texts.push(...r.texts);
 		st.notes.push(...r.notes);
@@ -287,6 +294,16 @@ function convertStep(zs, zi, ctx) {
 		st.nexts.push(...r.nexts);
 		if (r.way) st.way = r.way;
 	}
+	// The predicate of a goal line holds the step when all its goals share it; else each goal keeps none, gapped.
+	const keys = new Set(st.goals.map((g) => (g._whens || []).join("\n")));
+	if (st.goals.length && keys.size === 1 && st.goals[0]._whens) st.whens.push(...st.goals[0]._whens);
+	else for (const g of st.goals) if (g._whens) {
+		// A task would hold the step for everyone; as a tip it shows and holds nothing.
+		if (g.kind === "task") { st.tips.push(g.text); g.kind = "drop"; report.count("task with a predicate beside other goals (shown as a tip)"); continue; }
+		report.count("goal line predicate in a step of other goals (kept without it)");
+		gapOf(ctx, zs, g.kind, `${g._whens.join(", ")} on a ${g.kind} beside other goals has no place to hold; kept without it`, true);
+	}
+	st.goals = st.goals.filter((g) => g.kind !== "drop");
 	return st;
 }
 
@@ -441,18 +458,41 @@ export function convertGuide(guide, data, opts) {
 
 	// The step's own form: its zone is the first map its goals or way sit on.
 	const steps = [];
+	// Quests taken before this guide (its chain) count as accepted; a goal of a quest not
+	// accepted earlier in the guide waits in a step `when onquest <quest>`.
+	const seenQ = new Set(opts.before || []);
+	const splitOrphans = (out, copy) => {
+		const main = [];
+		const orphan = new Map();
+		for (const g of out.goals) {
+			if (g.kind === "accept") seenQ.add(g.quest);
+			if (QUEST_KINDS.has(g.kind) && g.quest != null && !seenQ.has(g.quest)) {
+				if (!orphan.has(g.quest)) orphan.set(g.quest, []);
+				orphan.get(g.quest).push(g);
+			} else main.push(g);
+		}
+		if (!orphan.size) return [out];
+		if (copy) { report.count("sticky copy: goals of quests not accepted before it (left out)"); return main.length ? [{ ...out, goals: main }] : []; }
+		report.count("goals of quests not accepted earlier -> when onquest");
+		const pre = [...orphan].map(([q, gs]) => ({ ...out, goals: gs, tips: [], notes: [], maps: [], whens: [...out.whens, `onquest ${q}`], label: null, skipto: [], alongUntil: null, format: formatOf({ goals: gs, skipto: [], whens: [`onquest ${q}`] }) }));
+		if (!main.length) { if (out.label) pre[pre.length - 1].label = out.label; return pre; }
+		return [...pre, { ...out, goals: main }];
+	};
 	for (const s of withCopies) {
 		const maps = [];
 		const way = s.wayKeep;
 		if (way) maps.push(way.uiMap);
 		for (const g of s.goals) if (g._map != null) maps.push(g._map);
 		const wayGoal = way ? [{ kind: "goto", x: way.x, y: way.y, live: true, map: way.uiMap, optional: true, only: "" }] : [];
-		const goals = [...wayGoal, ...s.goals].map((g) => { const { _map, _notSticky, ...rest } = g; return rest; });
+		const goals = [...wayGoal, ...s.goals].map((g) => { const { _map, _notSticky, _whens, ...rest } = g; return rest; });
 		if (!goals.length) continue;
-		steps.push({ stepNo: s.stepNo || s.no, title: null, only: s.only, whens: s.whens, goals, tips: s.tips || [], notes: [], maps: [...new Set(maps)], loop: [], allAlong: !!s.alongTarget, label: s.label || null, alongUntil: s.alongUntil || null, skipto: (s.skipto || []).map((k) => ({ label: k.label, when: k.when })), format: formatOf({ goals, skipto: s.skipto || [], whens: s.whens }) });
+		const out = { stepNo: s.stepNo || s.no, title: null, only: s.only, whens: s.whens, goals, tips: s.tips || [], notes: [], maps: [...new Set(maps)], loop: [], allAlong: !!s.alongTarget, label: s.label || null, alongUntil: s.alongUntil || null, skipto: (s.skipto || []).map((k) => ({ label: k.label, when: k.when })), format: formatOf({ goals, skipto: s.skipto || [], whens: s.whens }) };
+		steps.push(...splitOrphans(out, !!s.alongTarget));
 	}
 	const accepted = new Set(steps.flatMap((s) => s.goals.filter((g) => g.kind === "accept").map((g) => g.quest)));
-	const defaultMap = (steps.find((s) => s.maps.length) || {}).maps?.[0] ?? null;
+	// The zone: the first goto of the guide, else the first step's map, else the guide's own zone or its capital.
+	const capital = zoneIdNamed(data, faction === "Alliance" ? "Stormwind City" : "Orgrimmar");
+	const defaultMap = ctx.firstMap ?? (steps.find((s) => s.maps.length) || {}).maps?.[0] ?? zoneIdNamed(data, title) ?? capital;
 	const zone = defaultMap != null ? zoneName(data, defaultMap) : null;
 	const guideOut = {
 		name: guide.name,

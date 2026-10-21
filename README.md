@@ -5,7 +5,7 @@ guide pack (WoW: Forever). It ships no guide content: you point it at your own
 install, it writes `.guide` files into your own pack, and Polestar's `lint` and
 `playtest` check the result. Keep the output to yourself.
 
-Status: early. Source adapters: RestedXP (`rxp`), Journey (`journey`).
+Status: early. Source adapters: RestedXP (`rxp`), Journey (`journey`), Zygor (`zygor`).
 
 ## Use
 
@@ -46,6 +46,20 @@ A whole pack plays much faster one guide per process:
 `tools/playtest-parallel.sh <pack> [--polestar <clone>] [--jobs N]` (the same
 plays as `polestar playtest`; exit 1 when any is stuck or failed).
 
+Zygor (the Classic leveling guides of the install, both factions: the 1-60
+chain and the class quest guides):
+
+```sh
+node polestar-convert/bin/polestar-convert.mjs zygor \
+  --dir "<WoW>/Interface/AddOns/ZygorGuidesViewerClassic" --polestar polestar --pack my-pack \
+  [--only "Leveling Guides\\Invented Starter (1-13)" | --only h-invented-starter-1-13]
+```
+
+Zygor's play style is fixed as the RXP run's: softcore (`hardcore()` false),
+not self-found (`selfmade()` false). The run writes `reports/zygor-gaps.json`,
+what Polestar cannot carry per guide and step; ZYGOR-POLESTAR-GAPS.md says what
+Polestar would need for each.
+
 ## Layout
 
 ```
@@ -56,6 +70,11 @@ src/emit.mjs         intermediate guide -> Polestar .guide text
 src/data.mjs         Polestar's reference data (ids, names, coordinates)
 src/journey/         Journey adapter: decode slots, Lua tables, conditions, steps
                      (format: JOURNEY-FORMAT.md; IR wishes: JOURNEY-IR-NOTES.md)
+src/zygor/parse.mjs  Zygor Lua -> guides, steps and lines (no Lua is evaluated)
+src/zygor/cond.mjs   `|only` / `|complete` expressions -> only, when, goals
+src/zygor/convert.mjs  Zygor steps -> intermediate guide: sticky copies, jumps, labels
+src/zygor/cli.mjs    the run: chain, accepts of the chain, files, gaps report
+src/objective.mjs    a source's quest objective matched to Polestar's (RXP, Zygor)
 ```
 
 A new source (Journey, Zygor) is an adapter that fills the intermediate form.
@@ -163,6 +182,52 @@ petllama writes RXP's text beside the route as `along` notes, which Polestar
 never lists, and splits class variants into one step per class, so the same
 text appears several times. Here the text is a task in one step, with `only`
 per line.
+
+## How it differs from Zygor
+
+Zygor's guide text is the source; the player sees what Zygor shows. A step
+Zygor shows holds until it is done, ticked or skipped, and Polestar keeps
+that. The run of the Classic Leveling guides (both factions, N guides: N
+Horde, N Alliance) took N Zygor steps to N Polestar steps, N of
+them along copies (below).
+
+- **Sticky** (`stickystart "X"`): the labelled step's countable goals (kill,
+  collect, quest objectives) are copied into an `along until <label>` step
+  before the start; with a `stickystop` before the label it ends `along until`
+  that step instead. N along-until-label copies, N along-until-stop.
+  Accepts and turn-ins are never copied; a goal of a quest the guide has not
+  accepted before the copy is left out.
+- **Talk** to a giver or vendor the same step names is dropped: the accept,
+  turn-in or vendor goal places the NPC.
+- **`|confirm`** ("Click Here to Continue") is a `task` at its `|goto`: Zygor
+  holds the player there. A dungeon choice (`|confirm <Name>flag`) is dropped:
+  Polestar asks in Options.
+- **Text** a line only shows is a tip; text for some classes or races is a
+  `note` beside the step's goals, or a task alone (Polestar tips take no
+  condition).
+- **Conditions** on a step (`|only` lines standing alone) are its `only` and
+  `when`; `|only if` on a goal line goes to the step's `when` when all its goals
+  share it. The race of a step the guide
+  is not for drops it; `hardcore()` and `selfmade()` drop the steps they
+  make impossible.
+- **Quests**: a goal for a quest no earlier step accepts goes in a step `when
+  onquest <quest>`.
+- **Jumps** (`|next "label"`): a forward jump is a `skipto`, and a jump to
+  the next step is no jump. A backward one is dropped and gapped.
+- **Labels** are unique per guide (Zygor repeats a few: `-2`); a label Polestar
+  does not name is not written.
+- **Waypoints**: the `|goto` points of a fighting or farming line are dropped:
+  Polestar finds the spots. A goal the data places nowhere takes its line's
+  `goto` as its `@`; a line without a goal leaves its point as the way into the
+  next step (kept only when no step goal places itself).
+- **Conditions Polestar has no form for** are kept without the condition and
+  gapped (`walking` N lines, `indoors`, `or` across kinds, `discountgold`, buffs, `equipped`, `skillmax`, `region`, `rep`). Each is in
+  reports/zygor-gaps.json.
+
+Lint on the pack: 0 errors, N warnings, (Zygor gives no point for them either), spell names of a clone without
+`professions.json`, coordinates on another map than the step's zone with
+no `zone map` (a goal Zygor sends to a spot its own guide does not
+name), and Class guides without `why` and `reward`.
 
 ## Tests
 
