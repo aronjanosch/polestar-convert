@@ -1,7 +1,7 @@
 // The renderer takes the intermediate form only: no RXP, no Polestar data.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { render } from "../src/emit.mjs";
+import { render, shorten } from "../src/emit.mjs";
 import { Report, goalText, questOf } from "../src/ir.mjs";
 
 const step = (o) => ({ stepNo: 1, only: {}, whens: [], goals: [], tips: [], notes: [], maps: [], loop: [], allAlong: false, format: 4, ...o });
@@ -81,4 +81,12 @@ test("skipto is written before the goals and its label is written", () => {
 	]);
 	assert.match(r.text, /^  skipto c when turnedin 100\n  accept 100$/m);
 	assert.match(r.text, /^  label c$/m);
+});
+
+test("a long heading is cut at a word with an ellipsis, a short one is left alone", () => {
+	assert.equal(shorten("Kill the boars", 120), "Kill the boars");
+	const long = "Be careful as Scarred Crag Boars cast Charge, which only works at range and hits quite hard for a few seconds at a time, so keep moving";
+	const cut = shorten(long, 60);
+	assert.ok(cut.length <= 63 && cut.endsWith("...") && long.startsWith(cut.slice(0, -3)));
+	assert.equal(cut, "Be careful as Scarred Crag Boars cast Charge, which only...");
 });

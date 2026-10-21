@@ -6,7 +6,7 @@
 import { parseCondition, onlyText, condsMeet, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
 import { goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
-import { render } from "../emit.mjs";
+import { render, shorten } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 import { resolveObjective } from "../objective.mjs";
 
@@ -603,7 +603,7 @@ function buildStep(step, stepNo, data, ctx) {
 	if ((!goals.length && !notes.length || grindOnly) && gotos.length) {
 		const g = gotos[gotos.length - 1];
 		if (g.uiMap) usedMaps.push(g.uiMap);
-		goals.unshift({ kind: "goto", x: g.x, y: g.y, live: g.live, text: tips[0] && !grindOnly ? tips[0].slice(0, 40) : undefined, only: "" });
+		goals.unshift({ kind: "goto", x: g.x, y: g.y, live: g.live, text: tips[0] && !grindOnly ? shorten(tips[0], 80) : undefined, only: "" });
 	}
 
 	// Group work about one quest: the player says whether they do it with a group
