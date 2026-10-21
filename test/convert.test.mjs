@@ -2,8 +2,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseGuide } from "../src/rxp/parse.mjs";
-import { skillWhen, spellNames, moneyWhen, cooldownWhen, convertGuide, friendlyKillText } from "../src/rxp/convert.mjs";
+import { skillWhen, spellNames, moneyWhen, cooldownWhen, convertGuide, friendlyKillText, headerRaces } from "../src/rxp/convert.mjs";
 import { goalText, Report } from "../src/ir.mjs";
+import { innNamed } from "../src/data.mjs";
 
 test("RXP's skill skip form becomes a when skill", () => {
 	assert.equal(skillWhen("cooking,50,1"), "!skill Cooking 50");
@@ -124,4 +125,28 @@ test("RXP's objective number is the fallback when no name fits, and is checked a
 	assert.equal(resolveObjective(murlocs, "Murloc Streamrunners slain (4)", null, { index: 1 }).index, 1);
 	// an item that is not the quest's objective is no hit
 	assert.equal(resolveObjective({ objectives: [{ type: "item", id: 5, text: "Ore" }] }, "", 9, { strictItem: true }), null);
+});
+
+test("a header's race limit keeps the guide's own side only", () => {
+	const all = ["Human", "Dwarf", "Gnome", "NightElf", "Orc", "Troll", "Tauren", "Undead", "Skyborne"];
+	assert.deepEqual(headerRaces(all.filter((r) => r !== "NightElf"), "Alliance"), ["Human", "Dwarf", "Gnome", "Skyborne"]);
+	assert.deepEqual(headerRaces(["Human", "Dwarf", "Gnome", "NightElf", "Skyborne"], "Alliance"), []);
+	assert.deepEqual(headerRaces(["Orc", "Troll"], "Horde"), ["Orc", "Troll"]);
+	assert.deepEqual(headerRaces(undefined, "Horde"), []);
+});
+
+test("an inn named by zone is one of the guide's own side, the bound one first", () => {
+	const data = {
+		zones: { 1444: { name: "Feralas" } },
+		inns: [
+			{ location: "Camp Mojache", names: [], map: 1444, c: 1, x: 75, y: 45 },
+			{ location: "Feathermoon Stronghold", names: [], map: 1444, c: 0, x: 31, y: 43 },
+			{ location: "Theramore", names: [], map: 1, c: 0, x: 1, y: 1 },
+			{ location: "Booty Bay", names: [], map: 2, c: 0, x: 1, y: 1 },
+		],
+	};
+	assert.equal(innNamed(data, "Feralas", null, "Alliance").location, "Feathermoon Stronghold");
+	assert.equal(innNamed(data, "Feralas", null, "Horde").location, "Camp Mojache");
+	assert.equal(innNamed(data, "Feralas", null, "Horde", "Camp Mojache").location, "Camp Mojache");
+	assert.equal(innNamed(data, "Booty Bay", null, "Horde").location, "Booty Bay");
 });

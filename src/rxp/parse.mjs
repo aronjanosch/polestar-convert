@@ -50,6 +50,9 @@ export function parseGuide(body) {
 			else if (line.startsWith("#")) {
 				const [, key, val] = line.match(/^#(\w+)\s*(.*)$/) || [];
 				if (!key) continue;
+				// Each `#next` line may carry its own `<<`; RXP takes the first that holds.
+				if (key === "next") (header.nexts ||= []).push(val.trim());
+				if (key === "next" && header.next != null) continue;
 				if (["name", "next", "version", "group", "subgroup", "defaultfor", "groupid"].includes(key)) header[key] = val.trim();
 				else header.flags.push(key + (val ? " " + val : ""));
 			}
@@ -98,5 +101,7 @@ export function plain(text) {
 		.replace(/\|r/g, "")
 		.replace(/::\d+/g, "")
 		.replace(/\s+/g, " ")
+		// RXP writes "the |cRXP_PICK_The Lay of Ameth'Aran|r" and "above the the cave".
+		.replace(/\b(the) the\b/gi, "$1")
 		.trim();
 }

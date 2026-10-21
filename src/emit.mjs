@@ -4,6 +4,14 @@
 import { onlyText } from "./cond.mjs";
 import { goalText, questOf } from "./ir.mjs";
 
+// A text cut for a heading at a word, with "..." where it was cut. Polestar wraps a
+// heading, so only a sentence-long one is cut at all.
+export function shorten(text, max) {
+	const t = String(text);
+	if (t.length <= max) return t;
+	return t.slice(0, max).replace(/\s+\S*$/, "").replace(/[\s,;:.-]+$/, "") + "...";
+}
+
 // Polestar reads " -- " as the start of a comment, allowed on goal lines only.
 const free = (text) => String(text).replace(/\s--\s/g, " - ");
 
@@ -55,10 +63,10 @@ export function render(guide, { report, slug, packId, next }) {
 
 	steps.forEach((s, i) => {
 		format = Math.max(format, s.format);
-		out.push(`step${s.title ? " " + free(s.title.slice(0, 60)) : ""}`);
+		out.push(`step${s.title ? " " + free(shorten(s.title, 120)) : ""}`);
 		const only = onlyText(s.only);
 		if (only) out.push(`  only ${only}`);
-		for (const w of s.whens || []) out.push(`  when ${w}`);
+		for (const w of new Set(s.whens || [])) out.push(`  when ${w}`);
 		const whenAt = out.length;
 		const grind = s.loop.length > 0 && s.goals.some((g) => ["kill", "collect", "interact"].includes(g.kind));
 		const maps = [...(grind ? s.loop.map((g) => g.uiMap) : []), ...(s.maps || [])].filter(Boolean);
@@ -82,7 +90,7 @@ export function render(guide, { report, slug, packId, next }) {
 			else if (s.completesWith === "next" || waitsFor[i] === -2) { out.push("  along"); along = true; }
 		}
 		if (waited.has(i) || (s.label && named.has(s.label))) out.push(`  label ${labelName[i]}`);
-		for (const t of s.tips) if (t !== s.title) out.push(`  tip ${free(t)}`);
+		for (const t of s.tips) if (t !== s.title || shorten(t, 120) !== t) out.push(`  tip ${free(t)}`);
 		const loopable = s.goals.some((g) => ["kill", "collect", "interact"].includes(g.kind) && !g.at);
 		if (s.loop.length >= 2 && loopable) { out.push("  loop"); for (const g of s.loop) out.push(`  goto ${g.x},${g.y}${g.live ? "" : " era"}`); }
 		const optional = s.completesWith && !along && !s.goals.every((g) => ["money", "note"].includes(g.kind));
