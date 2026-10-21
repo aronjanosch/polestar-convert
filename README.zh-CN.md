@@ -21,13 +21,15 @@ cd ..
 
 ## 转换 RXP 攻略(含中文)
 
-每条命令写成一行,可直接粘贴到 cmd、PowerShell 或 Git Bash:
+每条命令写成一行,可直接粘贴到 cmd、PowerShell 或 Git Bash。示例里的 `C:\Program Files (x86)\World of Warcraft\_classic_beta_` 请换成你自己的魔兽世界安装文件夹:
 
 ```sh
 node polestar/tools/polestar.js new my-pack --id my-pack --yes
 node polestar-convert/bin/polestar-convert.mjs rxp --list "C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns\RXPGuides\Guides\GuideList-forever.xml" --polestar polestar --pack my-pack --locales zhCN
 cd my-pack
 node ../polestar/tools/polestar.js lint
+node ../polestar/tools/polestar.js compile
+node ../polestar/tools/polestar.js install
 ```
 
 `--locales <all|none|zhCN,deDE,…>`,默认 `all`。RXP 为每种语言(deDE、esES、frFR、ptBR、zhCN)
@@ -37,8 +39,9 @@ node ../polestar/tools/polestar.js lint
 
 - 每种语言第一次运行时,会从 wago.tools(公开的游戏数据)下载客户端的区域和地图名称以及法术名称,
   保存到 Polestar 目录下被 git 忽略的 `data/sources/wago/`。不会上传任何攻略内容。
-- 已经有译文的行不会被修改,所以你自己的修正在重新运行后仍会保留。
-- 转换后按上面 README 的方法用 Polestar 编译并安装;编译器会根据 `locales/` 生成该语言的文本插件。
+- 已经有译文的行不会被修改,所以你自己的修正在重新运行后仍会保留。转换器自己填写的行也算"已有译文":
+  想采用 RXP 更新的翻译或转换器的修复,请删除攻略包里的 `locales/<locale>/` 文件夹(你自己在其中的修改会丢失),然后重新运行。
+- 转换后用上面的 `compile` 和 `install` 命令编译并安装(在攻略包文件夹里运行);编译器会根据 `locales/` 生成该语言的文本插件。
 - 攻略包里的 `reports/rxp-locales.json` 按语言记录:文本总数、已翻译数,以及仍是英文的原因(每个攻略附示例)。
 
 ## 哪些显示中文
@@ -49,10 +52,11 @@ node ../polestar/tools/polestar.js lint
 
 ## 哪些仍是英文
 
-- Journey 和 Zygor 的攻略文字。
+- Journey 和 Zygor 自己的攻略文字(与 RXP 逐字相同的句子可能会显示为译文)。
 - 没能和翻译版对上的 RXP 文本。
 - `a guide file` 里的 RXP 攻略(30–60 级和副本攻略):RXP 没有这个文件的翻译版。
 - RXP 自己标为 "NOT TRANSLATED" 的文本。
+- 游戏还没有显示过名称的新 Forever NPC:在译文句子里会显示英文名,直到玩家看到或选中过它一次。
 
 ## 注意
 
