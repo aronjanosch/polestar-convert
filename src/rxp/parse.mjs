@@ -18,11 +18,11 @@ export function extractGuides(lua) {
 
 // "a >> b << c" -> { main: "a", text: "b", cond: "c" }
 function split(raw) {
+	// RXP cuts at the first `<<` (spaces optional): all after it is the condition.
 	let cond = null;
 	let rest = raw;
-	const ci = rest.lastIndexOf(" << ");
-	if (ci >= 0) { cond = rest.slice(ci + 4).trim(); rest = rest.slice(0, ci); }
-	else if (rest.startsWith("<< ")) { cond = rest.slice(3).trim(); rest = ""; }
+	const ci = rest.indexOf("<<");
+	if (ci >= 0) { cond = rest.slice(ci + 2).trim() || null; rest = rest.slice(0, ci); }
 	let text = null;
 	const ti = rest.indexOf(">>");
 	if (ti >= 0) { text = rest.slice(ti + 2).trim(); rest = rest.slice(0, ti); }
@@ -34,8 +34,11 @@ export function parseGuide(body) {
 	const steps = [];
 	let step = null;
 	for (const rawLine of body.split(/\r?\n/)) {
-		const line = rawLine.trim();
-		if (!line || line.startsWith("--")) continue;
+		// RXP drops `--` to the end of the line before it parses anything.
+		const cut = rawLine.indexOf("--");
+		const comment = cut >= 0 ? rawLine.slice(cut + 2).trim() : null;
+		const line = (cut >= 0 ? rawLine.slice(0, cut) : rawLine).trim();
+		if (!line) continue;
 		if (/^step(\s|$)/.test(line)) {
 			const m = line.match(/<<\s*(.+)$/);
 			step = { cond: m ? m[1].trim() : null, tags: [], lines: [] };
@@ -63,8 +66,7 @@ export function parseGuide(body) {
 			const m = line.match(/^\.(\w+)\s*(.*)$/);
 			if (!m) continue;
 			let { main, text, cond } = split(m[2]);
-			main = main.replace(/\s+--.*$/, "").trim();
-			step.lines.push({ kind: "cmd", name: m[1], args: main, text, cond, comment: (m[2].match(/\s--\s*(.*?)(\s+>>|\s+<<|$)/) || [])[1] || null });
+			step.lines.push({ kind: "cmd", name: m[1], args: main, text, cond, comment: comment || null });
 			continue;
 		}
 		if (line.startsWith(">>")) {
