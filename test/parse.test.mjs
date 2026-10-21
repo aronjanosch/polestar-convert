@@ -38,3 +38,9 @@ test("names and markup", () => {
 	assert.deepEqual(parseName("12-14 Silverpine Forest"), { levels: "12-14", zone: "Silverpine Forest" });
 	assert.equal(plain("|cRXP_WARN_Be careful|r |T123:0|t[Item]"), "Be careful [Item]");
 });
+
+test("every #next line is kept, in order, each with its own condition", () => {
+	const g = parseGuide("#name A\n#next B << Hunter\n#next C; D << !Hunter\nstep\n.goto 1,2,3");
+	assert.deepEqual(g.header.nexts, ["B << Hunter", "C; D << !Hunter"]);
+	assert.equal(g.header.next, "B << Hunter");
+});
