@@ -64,11 +64,41 @@ test("a cmd with other args does not pair", () => {
 	assert.equal(guide.steps[0].lines[2].text, "Accept A Thing");
 });
 
-test("different step counts: no guide", () => {
+// Five steps, each its own goto, so each step has its own signature.
+const many = (words) => `#name 1-6 Testville\n${words.map((w, i) => `step\n    >>${w}\n    .goto 1,${i + 1},${i + 1}\n`).join("")}`;
+const EN5 = many(["One", "Two", "Three", "Four", "Five"]);
+const TR5 = ["一", "二", "三", "四", "五"];
+const texts = (g) => g.steps.map((s) => s.lines[0].text);
+
+test("one extra translated step", () => {
 	const report = new Report();
-	const tr = parseGuide(TR);
-	tr.steps.pop();
-	assert.deepEqual(alignFile([parseGuide(EN)], [tr], report), [null]);
+	const tr = parseGuide(many(TR5)), extra = parseGuide(many(["多"])).steps[0];
+	extra.lines[1].args = "1,99,99";
+	tr.steps.splice(2, 0, extra);
+	const [a] = alignFile([parseGuide(EN5)], [tr], report);
+	assert.deepEqual(texts(a.guide), TR5);
+	assert.equal(report.counts.get("locale: step not paired"), undefined);
+});
+
+test("one English step missing in tr", () => {
+	const report = new Report();
+	const tr = parseGuide(many(TR5));
+	tr.steps.splice(3, 1);
+	const [a] = alignFile([parseGuide(EN5)], [tr], report);
+	assert.deepEqual(texts(a.guide), ["一", "二", "三", "Four", "五"]);
+	assert.equal(report.counts.get("locale: step not paired"), 1);
+});
+
+test("mostly different guides are not paired", () => {
+	const report = new Report();
+	const tr = parseGuide(many(TR5));
+	tr.steps.forEach((s, i) => { if (i < 3) s.lines[1].args = `2,${i},${i}`; });
+	assert.deepEqual(alignFile([parseGuide(EN5)], [tr], report), [null]);
 	assert.equal(report.counts.get("locale: guide not paired"), 1);
-	assert.deepEqual(alignFile([parseGuide(EN)], [], new Report()), [null]);
+});
+
+test("a missing translation: no guide", () => {
+	const report = new Report();
+	assert.deepEqual(alignFile([parseGuide(EN)], [], report), [null]);
+	assert.equal(report.counts.get("locale: guide not paired"), 1);
 });
