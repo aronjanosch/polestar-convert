@@ -93,11 +93,13 @@ function byPattern(pairs) {
 		}
 		return buckets.get(n);
 	};
-	return (key) => {
-		const parts = key.split(TOKEN).filter((_, i) => i % 2 === 0);
-		if (parts.length < 2) return undefined;
+	// A wildcard stands for a spelling of one name: within its line and no
+	// longer than the comment's name, so it never swallows a sentence.
+	return (key, tokens) => {
+		const parts = key.split(TOKEN);
+		if (parts.length < 3) return undefined;
 		const head = parts[0].slice(0, 12);
-		const re = new RegExp(`^${parts.map(escape).join("(.+?)")}$`, "s");
+		const re = new RegExp(`^${parts.map((p, i) => i % 2 === 0 ? escape(p) : `([^\\n]{1,${tokens.get(p)?.length || 200}}?)`).join("")}$`);
 		const found = (head ? bucket(head.length).get(head) ?? [] : [...pairs.keys()]).filter((en) => re.test(en));
 		return found.length === 1 ? pairs.get(found[0]) : undefined;
 	};
@@ -121,7 +123,7 @@ export function fillText(fileText, pairs, namesOf) {
 		if (rawValue !== "") { counts.kept++; return line; }
 		const key = decode(rawKey);
 		const english = key.replace(TOKEN, (all, tok) => mine.get(tok) ?? all);
-		const tr = pairs.get(english) ?? fuzzy(key);
+		const tr = pairs.get(english) ?? fuzzy(key, mine);
 		if (tr === undefined || tr === "") { counts["no pair"]++; examples.push({ step, what: "no pair", line: english }); return line; }
 		const done = putTokens(tr, key, mine, namesOf);
 		if (done.missing) { counts["name not found"]++; examples.push({ step, what: "name not found", line: english }); return line; }
