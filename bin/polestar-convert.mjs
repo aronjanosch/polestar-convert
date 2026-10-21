@@ -23,6 +23,10 @@ function args(argv) {
 
 const a = args(process.argv.slice(2));
 const [cmd] = a._;
+if (cmd === "journey") {
+	(await import("../src/journey/cli.mjs")).run(a);
+	process.exit(0);
+}
 if (cmd !== "rxp" || !(a.file || a.list) || !a.polestar || !a.pack) {
 	console.error('usage: polestar-convert rxp --file <guide.lua> | --list <RXPGuides/Guides/GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<guide name>"] [--max-start N] [--self-found yes]');
 	process.exit(2);
