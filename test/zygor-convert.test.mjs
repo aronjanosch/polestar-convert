@@ -238,3 +238,39 @@ test("the text of a vendor or trainer line is not repeated as a tip; a kill line
 	assert.doesNotMatch(r.text, /tip (Sell Items|Kill Young Wolf)/);
 	assert.match(r.text, /^  vendor 201$/m);
 });
+
+test("a text line with a quest objective is that objective's goal; a heading ending in ':' names nothing", () => {
+	const r = conv([
+		"step",
+		"  accept Invented Errand##101 |goto Invented Vale/0 30,70",
+		"step",
+		"  _Inside the Den:_",
+		"  use Old Rag##402",
+		"  Round Up #8# Wolves |q 101/1",
+	].join("\n"));
+	assert.match(r.text, /^  kill 301 quest 101\.1$/m);
+	assert.doesNotMatch(r.text, /task "Inside the Den:"/);
+});
+
+test("a giver the data places nowhere, with no goto of its own, takes the last point of the route", () => {
+	const r = conv([
+		"step",
+		"  Enter the Den |goto Invented Vale/0 76.5,51.1",
+		"step",
+		"  talk Giver Bob##201",
+		"  turnin Invented Errand##101",
+	].join("\n"));
+	assert.match(r.text, /^  turnin 101 @76\.5,51\.1$/m);
+});
+
+test("in an |or step a kill on the way does not hold it; the way does", () => {
+	const r = conv([
+		"step",
+		"  accept Invented Errand##101",
+		"step",
+		"  kill 8 Young Wolf##301 |q 101/1 |goto Invented Vale/0 40,40 |or",
+		"  Enter the Den |complete subzone(\"The Den\") |or",
+	].join("\n"));
+	assert.match(r.text, /^  kill 301 quest 101\.1 optional$/m);
+	assert.match(r.text, /^  enter "The Den"$/m);
+});
