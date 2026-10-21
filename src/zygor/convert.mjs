@@ -93,6 +93,8 @@ function questGoal(kind, ref, place, ctx) {
 	if (place) return { kind, quest: ref.id, at: pt(place), _map: place.uiMap };
 	const listed = journalPlace(data, ref.id, kind === "accept" ? "start" : "finish");
 	if (listed) return { kind, quest: ref.id, at: { x: listed.x, y: listed.y, live: listed.live }, _map: listed.map };
+	// A giver inside a place the data has no map for (the Deeprun Tram): the arrow leads to the route's last point.
+	if (ctx.lastPlace) { report.count(`${kind}: giver without a place (the route's last point)`); return { kind, quest: ref.id, at: pt(ctx.lastPlace), _map: ctx.lastPlace.uiMap }; }
 	report.count(`${kind}: giver without a place (no @)`);
 	return { kind, quest: ref.id };
 }
@@ -176,6 +178,25 @@ function verbGoals(l, ctx, place) {
 	}
 }
 
+// A text line that counts a quest objective (`Capture #5# Rats |q 6661/1`): that
+// objective's goal, matched by its name or as the quest's only one; else the text shows.
+function objectiveGoals(l, text, ctx) {
+	const m = /^(\d+)\/(\d+)/.exec((l.mods.find((x) => x.name === "q") || {}).args || "");
+	const quest = m && ctx.data.quests[Number(m[1])];
+	const objs = (quest && quest.objectives) || [];
+	// By name first; else Zygor's number, which follows the game's quest log as Polestar's does.
+	const n = m ? Number(m[2]) : 0;
+	const hit = objs.length ? resolveObjective(quest, text.replace(/#\d+#\s*/g, ""), null) || (objs[n - 1] ? { obj: objs[n - 1], index: n } : null) : null;
+	if (!hit) return { goals: [], shown: !!text };
+	const questId = Number(m[1]), o = hit.obj;
+	ctx.report.count("text line with a quest objective -> its goal");
+	if (o.type === "item") return { goals: [{ kind: "collect", item: o.id, quest: questId, oi: hit.index }], shown: false };
+	if (o.type === "object") return { goals: [{ kind: "interact", object: o.id, quest: questId, oi: hit.index }], shown: false };
+	if (o.type === "kill") return { goals: [{ kind: "kill", npc: o.id, quest: questId, oi: hit.index }], shown: false };
+	// An event (escort, explore): Polestar counts it with the whole quest.
+	return { goals: [{ kind: "complete", quest: questId }], shown: false };
+}
+
 // One Zygor line -> its goals, display text and tips. Mods first, then the verb.
 function lineOf(l, ctx, zs) {
 	const mod = (n) => l.mods.find((m) => m.name === n);
@@ -197,7 +218,7 @@ function lineOf(l, ctx, zs) {
 	// A line for other races than the guide's is not for this player at all.
 	if (lc.only.race && ctx.races.length && !lc.only.race.some((r) => ctx.races.includes(r))) { ctx.report.count("line for other races (dropped)"); return res; }
 
-	const verb = l.verb ? verbGoals(l, ctx, res.goto) : { goals: [], shown: !!text };
+	const verb = l.verb ? verbGoals(l, ctx, res.goto) : objectiveGoals(l, text, ctx);
 	const goals = verb.goals;
 	res.goals.push(...goals.map((x) => ({ ...x, only })));
 	if (verb.shown && text && l.verb !== "path" && l.verb !== "map") {
@@ -258,6 +279,7 @@ function lineOf(l, ctx, zs) {
 	if (lc.whens.length) for (const x of res.goals) x._whens = lc.whens;
 	if (lc.whens.length && !res.goals.length) { ctx.report.count("line condition with a predicate on a text line (kept without it)"); gapOf(ctx, zs, l.raw, `${lc.whens.join(", ")} on a text line has no place to hold; kept without it`, true); }
 	if (l.mods.some((m) => m.name === "notinsticky")) for (const x of res.goals) x._notSticky = true;
+	if (l.mods.some((m) => m.name === "or")) for (const x of res.goals) x._or = true;
 	// Every goal of a line with a goto sits on its map; a farming goal the data places nowhere takes the goto as its @.
 	if (res.goto) for (const x of res.goals) {
 		if (x._map == null) x._map = res.goto.uiMap;
@@ -289,7 +311,7 @@ function convertStep(zs, zi, ctx) {
 			const jumps = l.mods.filter((m) => m.name === "next");
 			for (const m of jumps) st.nexts.push({ label: unquote(m.args), only: {}, whens: [], line: l.raw });
 			const g = l.mods.find((m) => m.name === "goto");
-			if (g) { st.way = parseGotoMod(g.args, ctx.data) || st.way; if (st.way && ctx.firstMap == null) ctx.firstMap = st.way.uiMap; }
+			if (g) { st.way = parseGotoMod(g.args, ctx.data) || st.way; if (st.way && ctx.firstMap == null) ctx.firstMap = st.way.uiMap; if (st.way) ctx.lastPlace = st.way; }
 			for (const t of l.mods.filter((m) => m.name === "tip")) { const s = clean(t.args); if (s) st.tips.push(s); }
 			const cm = l.mods.find((m) => m.name === "complete");
 			if (cm) { const goal = completeGoal(cm.args); if (goal) st.goals.push({ ...goal, only: onlyText(sc.only) }); }
@@ -297,6 +319,7 @@ function convertStep(zs, zi, ctx) {
 		}
 		const r = lineOf(l, ctx, zs);
 		if (r.goto && ctx.firstMap == null) ctx.firstMap = r.goto.uiMap;
+		if (r.goto) ctx.lastPlace = r.goto;
 		st.goals.push(...r.goals.map((x) => ({ ...x, only: x.only || "" })));
 		st.texts.push(...r.texts);
 		st.kills.push(...r.kills);
@@ -327,7 +350,14 @@ function finish(st, ctx) {
 		goals = goals.filter((g) => g.kind !== "talk");
 		if (goals.length !== before) ctx.report.count("talk to a giver or vendor the step already names (dropped)");
 	}
-	const tips = [...st.tips];
+	// A heading ("Inside Deeprun Tram:") shows above the step; it names no task.
+	const tips = [...st.tips, ...st.texts.filter((t) => /:$/.test(t))];
+	st.texts = st.texts.filter((t) => !/:$/.test(t));
+	// Zygor's `|or`: one of the goals ends the step. Kills on the way there do not hold it.
+	if (goals.some((g) => g._or && FARM.has(g.kind)) && goals.some((g) => g._or && !FARM.has(g.kind))) {
+		for (const g of goals) if (g._or && FARM.has(g.kind)) g.optional = true;
+		ctx.report.count("|or: farming beside a way (optional)");
+	}
 	const farms = goals.some((g) => g.kind === "collect" || g.kind === "kill");
 	const texts = [...new Set(st.texts)].filter((t) => !(farms && (st.kills || []).includes(t)));
 	for (const g of goals) if (g._generic && texts.length) g.text = texts.shift();
