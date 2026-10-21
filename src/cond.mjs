@@ -80,6 +80,14 @@ export function andOnly(a, b) {
 	return out;
 }
 
+// Some player passes both RXP conditions (null = everybody).
+export function condsMeet(a, b) {
+	const x = parseCondition(a), y = parseCondition(b);
+	if (x.never || y.never) return false;
+	const both = andOnly(x.only, y.only);
+	return Object.values(both).every((list) => list.length > 0);
+}
+
 export function onlyText(only) {
 	const parts = [];
 	for (const kind of ["class", "race", "faction"]) {

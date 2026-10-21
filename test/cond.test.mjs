@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseCondition, andOnly, onlyText } from "../src/cond.mjs";
+import { parseCondition, andOnly, onlyText, condsMeet } from "../src/cond.mjs";
 
 test("a class list is an OR", () => {
 	assert.deepEqual(parseCondition("Warrior/Priest").only, { class: ["Warrior", "Priest"] });
@@ -29,4 +29,13 @@ test("step and line conditions intersect", () => {
 
 test("unknown words are listed, not guessed", () => {
 	assert.deepEqual(parseCondition("skip").unknown, ["skip"]);
+});
+
+test("two conditions meet when some player passes both", () => {
+	assert.equal(condsMeet("Shaman", "Warrior"), false);
+	assert.equal(condsMeet("Shaman", "Warrior/Shaman"), true);
+	assert.equal(condsMeet("Shaman", null), true);
+	assert.equal(condsMeet(null, null), true);
+	assert.equal(condsMeet("Orc Shaman", "!Shaman"), false);
+	assert.equal(condsMeet("Orc", "Shaman"), true);
 });
