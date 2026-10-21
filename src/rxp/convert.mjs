@@ -588,7 +588,11 @@ function buildStep(step, stepNo, data, ctx) {
 			notes.length = 0;
 		}
 		const textOnly = goals.every((g) => g.kind === "note");
-		if (!farm && !fights) for (const g of way) ctx.path.push({ ...g, only });
+		// A flight, a flight point or an inn has an arrow of its own to where it is done: the
+		// points before it are the walk there, not the way into the step after it.
+		const selfPlaced = goals.some((g) => ["fly", "getfp", "sethome"].includes(g.kind));
+		if (!farm && !fights && !selfPlaced) for (const g of way) ctx.path.push({ ...g, only });
+		else if (selfPlaced && way.length) report.count("waypoints of a flight/inn step (the goal's own arrow leads there; not carried on)", way.length);
 		if (goals.length && textOnly) {
 			if (farm) {
 				const placed = gotos.filter((g) => g.uiMap);
