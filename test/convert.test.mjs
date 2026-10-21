@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseGuide } from "../src/rxp/parse.mjs";
-import { skillWhen, spellNames, moneyWhen, cooldownWhen } from "../src/rxp/convert.mjs";
+import { skillWhen, spellNames, moneyWhen, cooldownWhen, headerRaces } from "../src/rxp/convert.mjs";
 import { goalText } from "../src/ir.mjs";
 
 test("RXP's skill skip form becomes a when skill", () => {
@@ -45,4 +45,12 @@ test("RXP's cooldown skip form becomes a when cooldown up to RXP's 2 seconds", (
 	assert.equal(cooldownWhen("item,6948,>2,1"), "!cooldown item 6948");
 	assert.equal(cooldownWhen("spell,1259416,>0,1"), "!cooldown spell 1259416");
 	assert.equal(cooldownWhen("item,6948,<600"), null);
+});
+
+test("a header's race limit keeps the guide's own side only", () => {
+	const all = ["Human", "Dwarf", "Gnome", "NightElf", "Orc", "Troll", "Tauren", "Undead", "Skyborne"];
+	assert.deepEqual(headerRaces(all.filter((r) => r !== "NightElf"), "Alliance"), ["Human", "Dwarf", "Gnome", "Skyborne"]);
+	assert.deepEqual(headerRaces(["Human", "Dwarf", "Gnome", "NightElf", "Skyborne"], "Alliance"), []);
+	assert.deepEqual(headerRaces(["Orc", "Troll"], "Horde"), ["Orc", "Troll"]);
+	assert.deepEqual(headerRaces(undefined, "Horde"), []);
 });
