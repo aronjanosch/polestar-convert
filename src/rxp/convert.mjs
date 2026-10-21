@@ -476,13 +476,13 @@ function buildStep(step, stepNo, data, ctx) {
 			group = Number(l.args) >= 2 ? Number(l.args) : true;
 			if (l.cond) groupForSome = true;
 		} else if (n === "home") {
-			const inn = innNamed(data, (plain(l.text).match(/Hearthstone to (.+?)\.?$/i) || [])[1] || String(l.args || "").trim(), firstPt);
+			const inn = innNamed(data, (plain(l.text).match(/Hearthstone to (.+?)\.?$/i) || [])[1] || String(l.args || "").trim(), firstPt, ctx.faction);
 			add({ kind: "sethome", location: inn ? inn.location : undefined }, l.cond);
 			ctx.bind = inn ? inn.location : null;
 			report.count(inn ? ".home -> sethome" : ".home -> sethome nearest");
 		} else if (n === "hs" && ((plain(l.text).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1] || ctx.bind)) {
 			const name = (plain(l.text).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1];
-			const inn = name ? innNamed(data, name, null) : null;
+			const inn = name ? innNamed(data, name, null, ctx.faction, ctx.bind) : null;
 			add({ kind: "hearth", location: inn ? inn.location : name || ctx.bind }, l.cond);
 			report.count(".hs -> hearth");
 		} else if (n === "usespell" && goals.some((g) => g.kind === "cast" && g.spell === Number(l.args.split(",")[0]))) {
