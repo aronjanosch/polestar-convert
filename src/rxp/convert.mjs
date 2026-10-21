@@ -3,11 +3,12 @@
 // data does not know is quoted by name or the line becomes a `task`/`note`, and
 // the report says so.
 
-import { parseCondition, onlyText, CLASSES } from "../cond.mjs";
+import { parseCondition, onlyText, condsMeet, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
 import { goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
 import { render } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
+import { resolveObjective } from "../objective.mjs";
 
 const IGNORED = new Set([
 	"target", "mob", "unitscan", "itemcount", "macro", "timer",
@@ -78,32 +79,6 @@ function parseGoto(args, data, ctx) {
 	}
 	// Zone percentages on the map RXP names, in the Era frame RXP writes them in.
 	return { uiMap: zoneIdNamed(data, mapPart), x, y, live: false, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0", zoneText: mapPart };
-}
-
-function normName(text) {
-	return plain(text).toLowerCase().replace(/\(.*?\)/g, "").replace(/\bx\d+\b/g, "")
-		.replace(/^(kill|collect|loot|free|talk to|use|find|click|cast|escort|speak with)\s+/g, "").replace(/[^a-z0-9' ]/g, " ").replace(/\s+/g, " ").trim();
-}
-
-// Match an RXP objective to Polestar's by the name RXP prints, not by the
-// number: the two number the objectives differently (e.g. quest 376).
-function resolveObjective(quest, label, itemId) {
-	const objs = quest.objectives || [];
-	if (!objs.length) return null;
-	if (itemId != null) {
-		const hit = objs.findIndex((o) => o.type === "item" && o.id === itemId);
-		if (hit >= 0) return { obj: objs[hit], index: hit + 1 };
-	}
-	if (objs.length === 1) return { obj: objs[0], index: 1 };
-	const want = normName(label);
-	if (want) {
-		const withNames = objs.map((o, i) => ({ o, i, have: normName(o.text || "") })).filter((x) => x.have);
-		const exact = withNames.filter((x) => x.have === want);
-		if (exact.length === 1) return { obj: exact[0].o, index: exact[0].i + 1 };
-		const partial = withNames.filter((x) => want.includes(x.have) || x.have.includes(want));
-		if (partial.length === 1) return { obj: partial[0].o, index: partial[0].i + 1 };
-	}
-	return null;
 }
 
 // `.abandon <quest>`, `.destroy <item>[,count]`, `.cast <spell>` and `.usespell <spell>`
@@ -192,7 +167,7 @@ function buildStep(step, stepNo, data, ctx) {
 			const g = parseGoto(l.args, data, ctx);
 			if (g) { g.cond = l.cond; gotos.push(g); }
 		} else if (l.kind === "cmd" && l.name === "target") {
-			targets.push(l.args.replace(/^\+/, "").trim());
+			targets.push({ name: l.args.replace(/^\+/, "").trim(), cond: l.cond });
 		}
 		if ((l.text || "").includes("RXP_BUY")) buyText = true;
 	}
@@ -211,9 +186,12 @@ function buildStep(step, stepNo, data, ctx) {
 		return !any.length || any.some(taken);
 	};
 	const firstPt = gotos.length ? gotos[gotos.length - 1] : null;
-	const npcFor = (role) => {
+	// Only the targets the line's own condition can meet: "Talk to Frang << Warrior",
+	// "Talk to Shikrik << Shaman" in one step are two trainers, one per class.
+	const npcFor = (role, lineCond = null) => {
 		const cands = [];
-		for (const name of targets) {
+		for (const { name, cond: tcond } of targets) {
+			if (!condsMeet(tcond, lineCond)) continue;
 			const r = findNpc(data, name, mapId, firstPt);
 			if (r.npc) cands.push(r.npc);
 		}
@@ -365,12 +343,12 @@ function buildStep(step, stepNo, data, ctx) {
 			const itemId = Number(item);
 			const known = data.items[itemId];
 			const itemName = known ? undefined : plain(l.comment || l.text || "item " + itemId);
-			if (buyText && !npcFor("vendor") && !((known || {}).vendors || []).length) {
+			if (buyText && !npcFor("vendor", l.cond) && !((known || {}).vendors || []).length) {
 				// No vendor sells it: bought at the auction house, so the bag counts.
 				add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 				report.count("buy without a vendor (auction house) -> collect");
 			} else if (buyText) {
-				const npc = npcFor("vendor");
+				const npc = npcFor("vendor", l.cond);
 				add({ kind: "buy", item: itemId, itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
 				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", l.comment || "");
 			} else if (qid && data.quests[Number(qid)]) {
@@ -383,7 +361,7 @@ function buildStep(step, stepNo, data, ctx) {
 				else add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 			} else add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 		} else if (n === "vendor") {
-			const npc = npcFor("vendor");
+			const npc = npcFor("vendor", l.cond);
 			add({ kind: "vendor", npc: npc ? npc.id : undefined }, l.cond);
 			if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", plain(l.text));
 		} else if (n === "train") {
@@ -392,13 +370,13 @@ function buildStep(step, stepNo, data, ctx) {
 			const prof = (note.match(/\[([^\]]+)\]/) || [])[1];
 			if (prof && PROFESSIONS.has(prof)) {
 				// Polestar finds a profession's trainer by its own data; without that, the one RXP targets.
-				const pnpc = npcFor("trainer");
+				const pnpc = npcFor("trainer", l.cond);
 				if (pnpc || data.hasProfessions) add({ kind: "train", profession: prof, npc: pnpc ? pnpc.id : undefined }, l.cond);
 				else { add({ kind: "task", text: note }, l.cond); formatNeeds = 5; }
 				report.count(pnpc || data.hasProfessions ? ".train profession -> train <Profession>" : ".train profession, trainer unknown -> task");
 				continue;
 			}
-			const npc = npcFor("trainer");
+			const npc = npcFor("trainer", l.cond);
 			const lineClasses = parseCondition(l.cond).only.class || cond.only.class || CLASSES;
 			if (npc) add({ kind: "train", npc: npc.id, comment: note || undefined }, l.cond);
 			else {
