@@ -40,7 +40,12 @@ const RUNTIME = new Set(["QUEST", "OBJECTIVE", "OBJECTIVECOUNT", "ITEM", "BANKIT
 // Profession skills, their tiers and weapon kinds: runtime values too (Condition.lua).
 const PROFESSIONS = ["FIRSTAID", "COOKING", "FISHING", "HERBALISM", "MINING", "SKINNING", "ALCHEMY", "BLACKSMITHING", "ENCHANTING", "ENGINEERING", "LEATHERWORKING", "TAILORING"];
 for (const p of PROFESSIONS) { RUNTIME.add(p); RUNTIME.add(p + "_POINTS"); }
-for (const n of ["APPRENTICE", "JOURNEYMAN", "EXPERT", "ARTISAN", "BOWS", "CROSSBOW", "GUNS", "THROWN", "WANDS"]) RUNTIME.add(n);
+for (const n of ["BOWS", "CROSSBOW", "GUNS", "THROWN", "WANDS"]) RUNTIME.add(n);
+// Profession tiers (services/Professions.lua); a profession's value is the tier learnt.
+const TIERS = { APPRENTICE: 1, JOURNEYMAN: 2, EXPERT: 3, ARTISAN: 4, MASTER: 5, GRANDMASTER: 6 };
+// Journey's profession keys -> the names Polestar's `skill` takes.
+const SKILL_NAMES = { FIRSTAID: "First Aid", COOKING: "Cooking", FISHING: "Fishing", HERBALISM: "Herbalism", MINING: "Mining", SKINNING: "Skinning", ALCHEMY: "Alchemy",
+	BLACKSMITHING: "Blacksmithing", ENCHANTING: "Enchanting", ENGINEERING: "Engineering", LEATHERWORKING: "Leatherworking", TAILORING: "Tailoring" };
 // A guide id ("H12B"): true when that guide is installed, as all of Journey's are.
 const GUIDE_ID = /^[AHB]\d+[A-Z]*$/;
 
@@ -117,9 +122,13 @@ function fold(e, who, opts) {
 		case "bool": case "num": case "str": return e;
 		case "name": {
 			const n = e.name;
+			// The grouping setting, asked per quest in Polestar (`when group <quest>`);
+			// texts read Journey's default.
+			if (n === "GROUPS" && opts.askGroups && !opts.route && !(opts.fixed && n in opts.fixed)) return e;
 			if (opts.fixed && n in opts.fixed) { const v = opts.fixed[n]; return typeof v === "number" ? { op: "num", v } : B(!!v); }
 			if (n in FIXED) { const v = FIXED[n]; return typeof v === "number" ? { op: "num", v } : B(v); }
 			if (n in QUEST_STATES) return { op: "num", v: QUEST_STATES[n] };
+			if (n in TIERS) return { op: "num", v: TIERS[n] };
 			if (n in CLASS_NAMES || n in RACE_NAMES || n === "HORDE" || n === "ALLIANCE") return B(who.has(n));
 			if (RUNTIME.has(rootName(e)) && opts.assume) { const v = opts.assume(n, null); if (v !== undefined) return typeof v === "number" ? { op: "num", v } : B(!!v); }
 			if (RUNTIME.has(rootName(e))) return opts.local && LOCAL_STATE.has(n) ? (n === "ACTIVE" || n === "CHECKPOINT" ? { op: "num", v: 0 } : B(false)) : e;
@@ -286,6 +295,8 @@ function literalTerms(e, names, negate = false) {
 	if (negate) cmp = neg[cmp];
 	const key = a.op === "index" && a.keys.every(isConst) ? a.keys.map((k) => k.v) : null;
 	const root = a.op === "index" ? a.name : a.op === "name" ? a.name : null;
+	// The quest is the step's, filled in once its goals are known.
+	if (root === "GROUPS" && isB(b) && !b.v) return [[`${cmp === "==" ? "!" : ""}group ${GROUP_QUEST}`]];
 	if (root === "QUEST" && key && b.op === "num") return questTerms(cmp, b.v, key[0]);
 	if ((root === "LEVEL" || root === "LEVELD") && b.op === "num") {
 		if (cmp === "==") return [[`level>=${b.v}`, `level<${b.v + 1}`]];
@@ -309,6 +320,15 @@ function literalTerms(e, names, negate = false) {
 	if (root === "AREA" && b.op === "num" && (cmp === "==" || cmp === "~=") && names && names.area(b.v)) return [[`${cmp === "~=" ? "!" : ""}subzone "${names.area(b.v)}"`]];
 	// Journey reads WMOAREA from the subzone text (PARENTWMOAREA from the zone text).
 	if ((root === "WMOAREA" || root === "PARENTWMOAREA") && b.op === "num" && (cmp === "==" || cmp === "~=") && names && names.wmo && names.wmo(b.v)) return [[`${cmp === "~=" ? "!" : ""}${root === "WMOAREA" ? "subzone" : "zone"} "${names.wmo(b.v)}"`]];
+	// A profession: learnt (a tier of 1 or more) is rank 1; its points are the rank.
+	const skill = a.op === "name" && b.op === "num" && SKILL_NAMES[a.name.replace(/_POINTS$/, "")];
+	const at = skill && { ">=": b.v, ">": b.v + 1, "<": b.v, "<=": b.v + 1 }[cmp];
+	if (skill && at != null && (a.name.endsWith("_POINTS") || at <= 1)) {
+		const n = at;
+		const pred = `skill ${skill.includes(" ") ? `"${skill}"` : skill} ${n}`;
+		if (n <= 0) return cmp === ">=" || cmp === ">" ? [[]] : [];
+		return [[cmp === "<" || cmp === "<=" ? "!" + pred : pred]];
+	}
 	if (root === "HEARTHSTONE" && key && isB(b) && !b.v && names && names.inn(key[0])) return [[`${cmp === "==" ? "!" : ""}bound "${names.inn(key[0])}"`]];
 	return null;
 }
@@ -326,6 +346,8 @@ function negatePred(p) {
 }
 
 const MAX_TERMS = 8;
+// Placeholder for the quest of a `group` predicate.
+export const GROUP_QUEST = "<quest>";
 
 // Residual -> { alts: [[pred, ...], ...], unknown: [text] }: Polestar `when` lists
 // of which one must hold (each list ANDs its predicates), made exclusive of the

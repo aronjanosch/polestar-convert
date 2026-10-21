@@ -3,7 +3,7 @@
 // names and places come from Polestar's data; what it does not know is left out
 // and listed, never guessed.
 
-import { evaluate, pairsOf, whenAlts, consistent, onlyString, onlyFor, normalCase, RACE_NAMES, CLASS_NAMES } from "./cond.mjs";
+import { evaluate, pairsOf, whenAlts, consistent, onlyString, onlyFor, normalCase, RACE_NAMES, CLASS_NAMES, GROUP_QUEST } from "./cond.mjs";
 import { worldToZone, questOpenTo, questEndPlaced, eliteOf, innNamed } from "../data.mjs";
 import { render } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
@@ -390,7 +390,7 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 				if (bk.condition && !holds(bk.condition, groupPairs, ctx, false)) continue;
 				if (bk.destroy != null) {
 					const item = Number(bk.destroy);
-					if (ctx.native.has("destroy") && data.items[item]) { chunk(gWhens).goals.push({ kind: "destroy", item, only: "" }); format = Math.max(format, 6); report.count("destroy button -> destroy"); }
+					if (data.items[item]) { chunk(gWhens).goals.push({ kind: "destroy", item, only: "" }); format = Math.max(format, 5); report.count("destroy button -> destroy"); }
 					else { chunk(gWhens).goals.push({ kind: "task", text: `Destroy ${entityName(ctx, "item", item)}`, only: "" }); format = Math.max(format, 5); report.count("destroy button -> task"); }
 				} else if (bk.item != null && data.items[bk.item] && data.items[bk.item].name === "Hearthstone") {
 					// Where to: the inn the text names, else where the guide last bound.
@@ -474,6 +474,24 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 		c.tips = [];
 		c.notes = [];
 	}
+	// A group whose goals hold nothing (optional extras, notes) is shown in
+	// Journey beside the groups that hold the step: it joins them, the one
+	// before it with the same `when` first. On its own Polestar would pass it at once.
+	const holding = (c) => c.goals.some((g) => g.kind !== "note" && !g.optional);
+	for (let i = 0; i < chunks.length; i++) {
+		const c = chunks[i];
+		if (!c.goals.length || holding(c) || c.along.length) continue;
+		const before = chunks.slice(0, i).reverse(), after = chunks.slice(i + 1);
+		const to = [...before, ...after].find((x) => holding(x) && x.key.split("#")[1] === c.key.split("#")[1]) || before.find(holding) || after.find(holding);
+		if (!to) continue;
+		to.goals.push(...c.goals);
+		to.tips.push(...c.tips);
+		to.notes.push(...c.notes);
+		c.goals = [];
+		c.tips = [];
+		c.notes = [];
+		report.count("group with nothing that holds it -> joins the step's other goals");
+	}
 	const first = chunks.find((c) => c.goals.length) || chunks[0];
 
 	const steps = [];
@@ -528,7 +546,28 @@ function buildVariant(st, stepNo, ctx, stepOnly, stepPairs, stepWhens) {
 		s.title = c.title || (s.tips[0] ? titleOf(s.tips[0]) : title);
 		steps.push(s);
 	}
-	return steps;
+	return withGroupQuest(steps, data, report);
+}
+
+// `group <quest>` names the step's group quest: an elite one first, else its first
+// quest. A step with none reads Journey's default, grouping on.
+function withGroupQuest(steps, data, report) {
+	return steps.filter((s) => {
+		if (!s.whens.some((w) => w.endsWith(GROUP_QUEST))) return true;
+		const quests = s.goals.filter((g) => g.quest != null);
+		const g = quests.find((x) => eliteOf(data, x)) || quests[0];
+		if (g) {
+			s.whens = s.whens.map((w) => w.replace(GROUP_QUEST, g.quest));
+			// With a group chosen, elite work holds the step.
+			if (s.whens.includes(`group ${g.quest}`)) s.goals = s.goals.map((x) => (x.eliteOnly ? { ...x, optional: undefined } : x));
+			report.count("GROUPS -> when group <quest>");
+			return true;
+		}
+		report.count("GROUPS on a step without a quest -> grouping on");
+		if (s.whens.includes("!group " + GROUP_QUEST)) return false;
+		s.whens = s.whens.filter((w) => w !== "group " + GROUP_QUEST);
+		return true;
+	});
 }
 
 // Spawn points of the data in the live frame of `map` (zone percentages).
@@ -576,7 +615,7 @@ function addTask(task, t) {
 			if (!t.eliteTips.includes(tip)) t.eliteTips.push(tip);
 			report.count(`${g.kind} of elite work -> optional`);
 		}
-		c.goals.push({ ...g, only: g.only != null ? g.only : only, optional: g.optional || elite ? true : undefined });
+		c.goals.push({ ...g, only: g.only != null ? g.only : only, optional: g.optional || elite ? true : undefined, eliteOnly: elite && !g.optional ? true : undefined });
 	};
 	if (typeof task === "string" || (isTable(task) && isText(task))) {
 		for (const v of textVariants(task, ctx, t.pairs)) {
@@ -778,8 +817,8 @@ export function convertGuide(info, guide, data, opts) {
 		// Where the route stands, for texts: taken 1, handed in 3, else 0.
 		route: (q) => (ctx.turned.has(q) ? 3 : ctx.seen.has(q) ? 1 : 0),
 		// Conditions read with Forever's fixed names and its quests.
-		ev: { fixed: opts.fixed || {}, questKnown: (id) => !!data.quests[id], assume: (name, keys) => assume(ctx, name, keys) },
-		varsSet: new Set(), assumed: new Map(), native: opts.native || new Set(), jumps: new Set(), lastMap: Number(info.zone) || null, bind: null,
+		ev: { fixed: opts.fixed || {}, askGroups: true, questKnown: (id) => !!data.quests[id], assume: (name, keys) => assume(ctx, name, keys) },
+		varsSet: new Set(), assumed: new Map(), jumps: new Set(), lastMap: Number(info.zone) || null, bind: null,
 	};
 	// Where the guide's buttons lead on ("Go to 6-12 ..."): its hand-offs, the last
 	// one first. A button shown only when the guide is finished counts.
@@ -857,8 +896,19 @@ export function convertGuide(info, guide, data, opts) {
 			if (g.kind === "turnin" && !s.whens.length && !g.only && !g.optional) turned.add(g.quest);
 			s.goals.push(g);
 		}
+		// An along step is never current and its list shows goals only: its words
+		// and notes go with the next step the route stops at.
+		if (s.completesWith === "next") {
+			const own = onlyString(s.only || {});
+			carry.push(...(own ? [] : s.tips));
+			carryNotes.push(...(own ? s.tips.map((t) => ({ kind: "note", text: t, only: own })) : []), ...s.goals.filter((g) => g.kind === "note").map((g) => (own && !g.only ? { ...g, only: own } : g)));
+			if (s.tips.length || s.goals.some((g) => g.kind === "note")) report.count("words of an along step -> the next step");
+			s.tips = [];
+			s.goals = s.goals.filter((g) => g.kind !== "note");
+			if (!s.goals.length) continue;
+		}
 		// Words of a step left with no goals go with the next one.
-		if (carry.length || carryNotes.length) { s.tips = [...carry, ...s.tips]; s.goals = [...carryNotes, ...s.goals]; carry = []; carryNotes = []; }
+		else if (carry.length || carryNotes.length) { s.tips = [...carry, ...s.tips]; s.goals = [...carryNotes, ...s.goals]; carry = []; carryNotes = []; }
 		if (!s.goals.some((g) => g.kind !== "note")) {
 			// Words for some characters only stay notes for them; the step's own `only` goes with them.
 			const own = onlyString(s.only || {});
@@ -885,7 +935,9 @@ export function convertGuide(info, guide, data, opts) {
 	// A step nothing holds (notes and optional goals only) is passed at once:
 	// a manual task keeps it in front of the player until ticked or skipped.
 	for (const s of out) {
-		if (s.goals.some((g) => g.kind !== "note" && !g.optional)) continue;
+		// Predicates of Polestar 0.3.0.
+		if (s.whens.some((w) => /^!?(skill|group|money)\b/.test(w))) s.format = Math.max(s.format, 5);
+		if (s.completesWith === "next" || s.goals.some((g) => g.kind !== "note" && !g.optional)) continue;
 		const text = s.tips[0] || (s.goals.find((g) => g.kind === "note") || {}).text || s.title;
 		if (!text) continue;
 		if (s.tips[0] === text) s.tips = s.tips.slice(1);

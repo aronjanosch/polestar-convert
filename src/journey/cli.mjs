@@ -1,4 +1,4 @@
-// polestar-convert journey --dir <Journey addon> --polestar <clone> --pack <pack dir> [--only "<description or guideID>"] [--max-start N] [--native-verbs destroy] [--ah no] [--groups no]
+// polestar-convert journey --dir <Journey addon> --polestar <clone> --pack <pack dir> [--only "<description or guideID>"] [--max-start N] [--ah no] [--groups no]
 //
 // Reads the guides of your own Journey install and writes `.guide` files into a
 // local Polestar pack. Decoded guide text stays in memory; nothing of it is
@@ -12,7 +12,7 @@ import { loadNames } from "./names.mjs";
 import { Report } from "../ir.mjs";
 import { loadData } from "../data.mjs";
 
-const USAGE = 'usage: polestar-convert journey --dir <Journey addon folder> --polestar <clone> --pack <pack dir> [--only "<description or guideID>"] [--max-start N] [--native-verbs destroy] [--ah no] [--groups no]';
+const USAGE = 'usage: polestar-convert journey --dir <Journey addon folder> --polestar <clone> --pack <pack dir> [--only "<description or guideID>"] [--max-start N] [--ah no] [--groups no]';
 
 // "H06TG" (a jump button's guide) -> the catalog's "H06TG_FVR".
 function catalogId(catalog, id) {
@@ -24,8 +24,8 @@ export function run(a) {
 	if (!a.dir || !a.polestar || !a.pack) { console.error(USAGE); process.exit(2); }
 	const data = loadData(a.polestar);
 	const names = loadNames(a.polestar, data);
-	const native = new Set(String(a["native-verbs"] || "").split(",").map((s) => s.trim()).filter(Boolean));
-	const fixed = { AH: a.ah !== "no", GROUPS: a.groups !== "no" };
+	// Grouping: asked per quest in Polestar unless the caller fixes it.
+	const fixed = { AH: a.ah !== "no", ...(a.groups ? { GROUPS: a.groups !== "no" } : {}) };
 	const packId = JSON.parse(readFileSync(join(a.pack, "pack.json"), "utf8")).id;
 	const guidesDir = join(a.pack, "guides");
 	if (!existsSync(guidesDir)) mkdirSync(guidesDir, { recursive: true });
@@ -45,7 +45,7 @@ export function run(a) {
 	// anything is left of it.
 	const first = new Map();
 	for (const e of entries) {
-		const r = convertGuide(e, guideOf(e), data, { report: new Report(), slug: slugOf(e), packId, names, native, fixed });
+		const r = convertGuide(e, guideOf(e), data, { report: new Report(), slug: slugOf(e), packId, names, fixed });
 		first.set(e.guideID, r);
 	}
 	// The guides each one hands off to (its jump buttons naming another guide) and,
@@ -79,7 +79,7 @@ export function run(a) {
 		const byId = new Map(entries.map((x) => [x.guideID, x]));
 		// A hand-off to a guide this run does not write would point nowhere.
 		const next = (nextIds.get(e.guideID) || []).filter((id) => (a.only ? kept : written).has(id) && byId.get(id).faction === e.faction).map((id) => slugOf(byId.get(id)));
-		const r = convertGuide(e, guideOf(e), data, { report, slug: slugOf(e), packId, names, native, fixed, before: before.get(e.guideID), next });
+		const r = convertGuide(e, guideOf(e), data, { report, slug: slugOf(e), packId, names, fixed, before: before.get(e.guideID), next });
 		writeFileSync(join(guidesDir, `${slugOf(e)}.guide`), r.text);
 		gaps[`${slugOf(e)}.guide`] = r.gaps;
 		console.log(`${slugOf(e)}: ${r.stepsIn} Journey steps -> ${r.stepsOut} steps, pack format ${r.format}`);
@@ -87,7 +87,7 @@ export function run(a) {
 
 	const reportsDir = join(a.pack, "reports");
 	if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-	const settings = { ah: fixed.AH, groups: fixed.GROUPS, hardcore: false, nativeVerbs: [...native] };
+	const settings = { ah: fixed.AH, groups: "GROUPS" in fixed ? fixed.GROUPS : "asked per quest (when group)", hardcore: false };
 	writeFileSync(join(reportsDir, "journey-gaps.json"), JSON.stringify({ source: "Journey (local install)", settings, guides: gaps }, null, 1) + "\n");
 	const total = Object.values(gaps).reduce((n, g) => n + g.length, 0);
 	console.log(`gaps: ${total} entries in ${join(reportsDir, "journey-gaps.json")}`);
