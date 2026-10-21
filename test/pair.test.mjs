@@ -73,3 +73,19 @@ test("joined tips need every tip paired", () => {
 	assert.equal(p.get("A"), "甲");
 	assert.equal(r.counts.get("locale: line shape differs"), 1);
 });
+
+test("a text RXP marks untranslated is no pair", () => {
+	const r = new Report();
+	const p = pairRendered("step Go\n  tip Watch out", "step 去\n  tip Watch out (NOT TRANSLATED IN :zhCN YET)", r);
+	assert.equal(p.has("Watch out"), false);
+	assert.equal(r.counts.get("locale: not translated in source"), 1);
+});
+
+test("joined tips need every tip a real pair", () => {
+	const p = pairRendered("step Go\n  tip A\n  tip B\n\nstep Run\n  tip C\n  tip D", "step 去\n  tip 甲\n  tip B (NOT TRANSLATED IN :zhCN YET)\n\nstep 跑\n  tip 丙\n  tip D", new Report());
+	assert.equal(p.get("A"), "甲");
+	assert.equal(p.has("B"), false);
+	assert.equal(p.has("A\nB"), false);
+	assert.equal(p.get("C"), "丙");
+	assert.equal(p.has("C\nD"), false);
+});
