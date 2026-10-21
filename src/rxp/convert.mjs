@@ -846,6 +846,8 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		if (id == null) return null;
 		// RXP shows a `.turnin -Q` only while Q is in the log: unless this guide takes Q, so does Polestar.
 		if (negGoals.has(g) && !ctx.ownSeen.has(id)) return id;
+		// A dungeon detour (`when dungeon`) works quests its dungeon guide hands out: unless this guide takes them, they wait for the quest.
+		if (g.kind !== "accept" && whens.some((w) => w.startsWith("dungeon ")) && !ctx.ownSeen.has(id)) return id;
 		const unsure = ctx.maybeTaken.has(id) && !ctx.surelyTaken.has(id) && !goals.some((a) => a.kind === "accept" && a.quest === id);
 		return !ctx.seen.has(id) || unsure ? id : null;
 	};
