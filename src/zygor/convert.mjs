@@ -179,7 +179,7 @@ function verbGoals(l, ctx, place) {
 // One Zygor line -> its goals, display text and tips. Mods first, then the verb.
 function lineOf(l, ctx, zs) {
 	const mod = (n) => l.mods.find((m) => m.name === n);
-	const res = { goals: [], texts: [], notes: [], tips: [], goto: null, nexts: [] };
+	const res = { goals: [], texts: [], kills: [], notes: [], tips: [], goto: null, nexts: [] };
 	// The line's own condition: `|only` mods on this line only.
 	let lc = { only: {}, whens: [], never: false };
 	for (const m of l.mods) if (m.name === "only") lc = both(lc, condOf(m.args, ctx, zs, l.raw));
@@ -190,7 +190,9 @@ function lineOf(l, ctx, zs) {
 	// A dungeon choice (`|confirm <Name>flag`) is Polestar's Options, not the step.
 	if (cf && /flag$/i.test(cf.args)) { ctx.report.count("dungeon choice (confirm flag): dropped, Polestar asks in Options"); return res; }
 	// A kill line that makes no goal shows as a kill.
-	const text = l.verb === "kill" ? clean(`Kill ${l.text}`) : clean(l.text);
+	let text = l.verb === "kill" ? clean(`Kill ${l.text}`) : clean(l.text);
+	// Zygor's "_NOTE:_" is a heading over the line that says what the note is.
+	if (/^NOTE:?$/i.test(text)) text = "";
 	const only = onlyText(lc.only);
 	// A line for other races than the guide's is not for this player at all.
 	if (lc.only.race && ctx.races.length && !lc.only.race.some((r) => ctx.races.includes(r))) { ctx.report.count("line for other races (dropped)"); return res; }
@@ -201,11 +203,14 @@ function lineOf(l, ctx, zs) {
 	if (verb.shown && text && l.verb !== "path" && l.verb !== "map") {
 		// Text for some classes only is a note there (a step of its own holds nothing for it).
 		if (only) res.notes.push({ text, only }); else res.texts.push(text);
+		// "Kill X" beside a collect or kill: Polestar names the source itself (see finish).
+		if (l.verb === "kill" && !goals.length) res.kills.push(text);
 	}
 	// `|confirm` holds the player at the line: a task with the line's text and goto.
 	if (cf && !/flag$/i.test(cf.args) && text) {
 		res.texts = res.texts.filter((t) => t !== text);
-		res.goals.push({ kind: "task", text, only, ...(res.goto ? { at: pt(res.goto), _map: res.goto.uiMap } : {}) });
+		// "Click Here to Continue" says nothing: the step's own text names the task (see finish).
+		res.goals.push({ kind: "task", text, only, _generic: /^click( here)? to continue$/i.test(text) || undefined, ...(res.goto ? { at: pt(res.goto), _map: res.goto.uiMap } : {}) });
 	}
 	const cm = mod("complete");
 	if (cm) {
@@ -239,6 +244,11 @@ function lineOf(l, ctx, zs) {
 	}
 	const dm = mod("ding");
 	if (dm && /^\d+$/.test(dm.args.trim())) res.goals.push({ kind: "level", level: Number(dm.args), only });
+	// "Train Abilities |trainer", "Sell Items |vendor": the goal says it already.
+	if (res.goals.some((x) => ["vendor", "train", "learn", "level"].includes(x.kind))) {
+		res.texts = res.texts.filter((t) => t !== text);
+		res.notes = res.notes.filter((n) => n.text !== text);
+	}
 	for (const t of l.mods.filter((m) => m.name === "tip")) { const s = clean(t.args); if (s) res.tips.push(s); }
 	for (const m of l.mods) {
 		if (m.name === "next") res.nexts.push({ label: unquote(m.args), only: lc.only, whens: lc.whens, line: l.raw });
@@ -272,7 +282,7 @@ function convertStep(zs, zi, ctx) {
 		return null;
 	}
 	ctx.curNo = zs.no;
-	const st = { zi, no: zs.no, label: zs.label, starts: zs.starts, stops: zs.stops, goals: [], texts: [], notes: [], tips: [], nexts: [], way: null, only: sc.only, whens: sc.whens };
+	const st = { zi, no: zs.no, label: zs.label, starts: zs.starts, stops: zs.stops, goals: [], texts: [], kills: [], notes: [], tips: [], nexts: [], way: null, only: sc.only, whens: sc.whens };
 	for (const l of zs.lines) {
 		if (isModsOnly(l)) {
 			// Step-level mods: a jump, a way point, a check; the `only` above.
@@ -289,6 +299,7 @@ function convertStep(zs, zi, ctx) {
 		if (r.goto && ctx.firstMap == null) ctx.firstMap = r.goto.uiMap;
 		st.goals.push(...r.goals.map((x) => ({ ...x, only: x.only || "" })));
 		st.texts.push(...r.texts);
+		st.kills.push(...r.kills);
 		st.notes.push(...r.notes);
 		st.tips.push(...r.tips);
 		st.nexts.push(...r.nexts);
@@ -317,7 +328,9 @@ function finish(st, ctx) {
 		if (goals.length !== before) ctx.report.count("talk to a giver or vendor the step already names (dropped)");
 	}
 	const tips = [...st.tips];
-	const texts = [...new Set(st.texts)];
+	const farms = goals.some((g) => g.kind === "collect" || g.kind === "kill");
+	const texts = [...new Set(st.texts)].filter((t) => !(farms && (st.kills || []).includes(t)));
+	for (const g of goals) if (g._generic && texts.length) g.text = texts.shift();
 	if (!goals.length) {
 		if (texts.length) goals.push({ kind: "task", text: texts.shift(), only: "" });
 		else if (tips.length) goals.push({ kind: "task", text: tips.shift(), only: "" });
