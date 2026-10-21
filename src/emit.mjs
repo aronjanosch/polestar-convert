@@ -21,9 +21,11 @@ export function render(guide, { report, slug, packId, next }) {
 		seenLabel.set(s.label, n);
 		return n > 1 ? `${s.label}-${n}` : s.label;
 	});
+	// A label that `alongUntil` or `skipto` names is written as it is.
+	const named = new Set(steps.flatMap((s) => [s.alongUntil, ...(s.skipto || []).map((k) => k.label)]).filter(Boolean));
 	// -1: no `until`; -2: the target is the last step, so the list ends when done.
 	const waitsFor = steps.map((s, i) => {
-		if (!s.completesWith || !s.allAlong) return -1;
+		if (s.alongUntil || !s.completesWith || !s.allAlong) return -1;
 		const target = s.completesWith === "next" ? (i + 1 < steps.length ? i + 1 : -1) : steps.findIndex((o, j) => j > i && o.label === s.completesWith);
 		if (target < 0) return -1;
 		if (target + 1 >= steps.length) return -2;
@@ -71,13 +73,15 @@ export function render(guide, { report, slug, packId, next }) {
 			else { curMap = m; conditionalMap = null; }
 		}
 		let along = false;
+		// The producer names the label itself, so the step waits for exactly it.
+		if (s.alongUntil) { out.push(`  along until ${s.alongUntil}`); along = true; format = Math.max(format, 4); }
 		// A step that stays listed until done (RXP `#sticky`) is an along step of its own.
-		if (s.sticky && !s.completesWith && s.allAlong) { out.push("  along"); along = true; }
+		else if (s.sticky && !s.completesWith && s.allAlong) { out.push("  along"); along = true; }
 		else if (s.completesWith && s.allAlong) {
 			if (waitsFor[i] >= 0) { out.push(`  along until ${labelName[waitsFor[i]]}`); along = true; format = Math.max(format, 4); }
 			else if (s.completesWith === "next" || waitsFor[i] === -2) { out.push("  along"); along = true; }
 		}
-		if (waited.has(i)) out.push(`  label ${labelName[i]}`);
+		if (waited.has(i) || (s.label && named.has(s.label))) out.push(`  label ${labelName[i]}`);
 		for (const t of s.tips) if (t !== s.title) out.push(`  tip ${free(t)}`);
 		const loopable = s.goals.some((g) => ["kill", "collect", "interact"].includes(g.kind) && !g.at);
 		if (s.loop.length >= 2 && loopable) { out.push("  loop"); for (const g of s.loop) out.push(`  goto ${g.x},${g.y}${g.live ? "" : " era"}`); }
@@ -94,6 +98,7 @@ export function render(guide, { report, slug, packId, next }) {
 			const [q] = qs;
 			if (q != null && !(s.whens || []).some((w) => w.startsWith("onquest"))) out.splice(whenAt, 0, `  when onquest ${q}`);
 		}
+		for (const k of s.skipto || []) out.push(`  skipto ${k.label} when ${k.when}`);
 		for (const g of s.goals) {
 			let line = `  ${goalText(g)}`;
 			if (g.group) line += g.group === true ? " group" : ` group ${g.group}`;
