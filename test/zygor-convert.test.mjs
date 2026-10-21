@@ -274,3 +274,12 @@ test("in an |or step a kill on the way does not hold it; the way does", () => {
 	assert.match(r.text, /^  kill 301 quest 101\.1 optional$/m);
 	assert.match(r.text, /^  enter "The Den"$/m);
 });
+
+test("a collect for a quest not taken yet (|future) is a bag count at its goto, not the objective", () => {
+	const r = conv([
+		"step",
+		"  collect 3 Wolf Pelt##401 |goto Invented Vale/0 39.6,41.9 |q 101 |future",
+	].join("\n"));
+	assert.match(r.text, /^  collect 401 x3 @39\.6,41\.9$/m);
+	assert.doesNotMatch(r.text, /when onquest/);
+});
