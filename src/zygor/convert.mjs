@@ -319,7 +319,7 @@ function convertStep(zs, zi, ctx) {
 			if (g) { st.way = parseGotoMod(g.args, ctx.data) || st.way; if (st.way && ctx.firstMap == null) ctx.firstMap = st.way.uiMap; if (st.way) ctx.lastPlace = st.way; }
 			for (const t of l.mods.filter((m) => m.name === "tip")) { const s = clean(t.args); if (s) st.tips.push(s); }
 			const cm = l.mods.find((m) => m.name === "complete");
-			if (cm) { const goal = completeGoal(cm.args); if (goal) st.goals.push({ ...goal, only: onlyText(sc.only) }); }
+			if (cm) { const goal = completeGoal(cm.args); if (goal) st.goals.push({ ...goal, only: onlyText(sc.only), ...(l.mods.some((m) => m.name === "or") ? { _or: true } : {}) }); }
 			continue;
 		}
 		const r = lineOf(l, ctx, zs);
