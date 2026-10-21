@@ -7,23 +7,24 @@
 
 ## 安装
 
-1. 用 mise 安装 Node(需要 Node 24 或更新版本):`mise use -g node@24`
-2. 克隆 Polestar 并生成参考数据:
+1. 安装 Node 24 或更新版本(例如从 nodejs.org 下载安装包;也可以用 mise 等工具)。
+2. 需要已安装 Git。克隆 Polestar 并生成参考数据:
 
 ```sh
 git clone -b next https://github.com/fitzforge/polestar && cd polestar && node tools/polestar.js data build && cd ..
 ```
 
-把本仓库(polestar-convert)也克隆到同一目录。找不到 QuestieDB 时,加上 `--questie <WoW>/Interface/AddOns`。
+把本仓库也克隆到同一目录。两个文件夹必须分别叫 `polestar` 和 `polestar-convert`,下面的命令按这两个名字写。在中国大陆访问 GitHub 或 nodejs.org 可能较慢,可以使用镜像或代理。找不到 QuestieDB 时,加上 `--questie <WoW>/Interface/AddOns`。
 
 ## 转换 RXP 攻略(含中文)
 
+每条命令写成一行,可直接粘贴到 cmd、PowerShell 或 Git Bash:
+
 ```sh
 node polestar/tools/polestar.js new my-pack --id my-pack --yes
-node polestar-convert/bin/polestar-convert.mjs rxp \
-  --list "C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns\RXPGuides\Guides\GuideList-forever.xml" \
-  --polestar polestar --pack my-pack --locales zhCN
-cd my-pack && node ../polestar/tools/polestar.js lint
+node polestar-convert/bin/polestar-convert.mjs rxp --list "C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns\RXPGuides\Guides\GuideList-forever.xml" --polestar polestar --pack my-pack --locales zhCN
+cd my-pack
+node ../polestar/tools/polestar.js lint
 ```
 
 `--locales <all|none|zhCN,deDE,…>`,默认 `all`。RXP 为每种语言(deDE、esES、frFR、ptBR、zhCN)
@@ -31,7 +32,7 @@ cd my-pack && node ../polestar/tools/polestar.js lint
 工具通过 Polestar 的 `i18n guides sync` 填写攻略包里的 `locales/<locale>/` 翻译文件,
 再运行 `i18n guides check`。`none` 表示关闭(不同步,也不下载)。
 
-- 每种语言第一次运行时,会从 wago.tools(公开的游戏数据)下载客户端的区域、地区和法术名称,
+- 每种语言第一次运行时,会从 wago.tools(公开的游戏数据)下载客户端的区域和地图名称以及法术名称,
   保存到 Polestar 目录下被 git 忽略的 `data/sources/wago/`。不会上传任何攻略内容。
 - 已经有译文的行不会被修改,所以你自己的修正在重新运行后仍会保留。
 - 转换后按上面 README 的方法用 Polestar 编译并安装;编译器会根据 `locales/` 生成该语言的文本插件。
