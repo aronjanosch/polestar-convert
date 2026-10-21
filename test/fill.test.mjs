@@ -89,3 +89,10 @@ test("retired entries stay untouched", () => {
 	const { text } = fillText(src, new Map([["Go home", "回家"]]), names({}));
 	assert.match(text, /\t-- \["Go home"\] = "",/);
 });
+
+test("what stays empty is listed with its step", () => {
+	const { examples } = fillText(file(KILL), new Map(), names(NAMES));
+	assert.deepEqual(examples, [{ step: 3, what: "no pair", line: "Kill Bob south of Testville" }]);
+	const missing = fillText(file(KILL), pairs, names({ ...NAMES, "area:10": [] }));
+	assert.deepEqual(missing.examples, [{ step: 3, what: "name not found", line: "Kill Bob south of Testville" }]);
+});
