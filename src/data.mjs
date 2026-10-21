@@ -57,6 +57,16 @@ export function eliteOf(data, goal) {
 	return from.length && from.every(elite) ? data.npcs[from[0]].name : null;
 }
 
+// The item a vendor sells whose name is part of `item`'s name (Copper Rod for the Runed
+// Copper Rod made from it), or null: RXP's "buy" line then names the made item, not the
+// one the player buys. Only when exactly one fits.
+export function baseItemSoldBy(data, item, npcId) {
+	const it = data.items[item];
+	if (!it || !it.name || !npcId || (it.vendors || []).length) return null;
+	const hits = Object.entries(data.items).filter(([id, o]) => o.name && o.name !== it.name && it.name.endsWith(o.name) && (o.vendors || []).includes(npcId));
+	return hits.length === 1 ? Number(hits[0][0]) : null;
+}
+
 const near = (pt) => (o) => (pt && o.map === pt.uiMap ? Math.hypot(o.x - pt.x, o.y - pt.y) : 1e9);
 const closest = (list, pt) => [...list].sort((a, b) => near(pt)(a) - near(pt)(b))[0] || null;
 

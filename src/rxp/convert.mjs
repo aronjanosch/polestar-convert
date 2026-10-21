@@ -5,7 +5,7 @@
 
 import { parseCondition, onlyText, condsMeet, onlyMeet, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
-import { goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
+import { baseItemSoldBy, goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
 import { render } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 import { resolveObjective } from "../objective.mjs";
@@ -165,6 +165,24 @@ function boughtItem(step, line, npc, data) {
 // A condition RXP never meets (`skip`, `sod`): the step is switched off. One that is no
 // product of class x race x faction splits into one step per disjoint product, unless
 // the step is a label's target (the copies would share it).
+// Questie encodes "listen to X", "heal X", "escort X" as a kill objective on a friendly
+// NPC. The quest log counts it, so the goal stays a `kill ... quest Q.O`, but the player
+// must not read "Kill <friendly>": its text is what RXP writes, else "Talk to <name>".
+// A fight with a friendly (the quest says defeat, beat, subdue) stays a kill. Polestar's
+// own test of friendly: the NPC's side, or both.
+const TALK_WORDS = /^(talk|speak|listen|heal|escort|find|show|lead|keep|defend|view|check|observe|perform|wait|follow|watch|help|protect|free|use|wake|resurrect|give|ask|take|rescue)\b/i;
+const FIGHT_WORDS = /\b(kill|slay|defeat|beat|subdue|face)\b/i;
+export function friendlyKillText(obj, quest, faction, l, data) {
+	const npc = data.npcs && data.npcs[obj.id];
+	if (!npc || !(npc.faction === "AH" || (faction && npc.faction === faction[0]))) return undefined;
+	if (FIGHT_WORDS.test(quest.objectiveText || "")) return undefined;
+	const said = plain(l.text || l.comment || "").replace(/^\|?\d+\/\d+\s*/, "").replace(/\s*\(\d+\)$/, "").trim();
+	if (TALK_WORDS.test(said)) return said;
+	if ((obj.count || 1) > 1) return said || undefined;
+	if (!npc.name) return undefined;
+	return `${/^find\b/i.test(quest.objectiveText || "") ? "Find" : "Talk to"} ${npc.name}`;
+}
+
 function buildStep(step, stepNo, data, ctx) {
 	const { report } = ctx;
 	const cond = parseCondition(step.cond, ctx.scope);
@@ -343,6 +361,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	let info = false;
 	// The `only` of each disjoint product a line's condition is, those the step reaches.
 	const groupsOf = (lineCond) => parseCondition(lineCond, ctx.scope).groups.filter((g) => onlyMeet(g, cond.only));
+	let negLine = false;
 	const add = (goal, lineCond) => {
 		for (const mine of groupsOf(lineCond)) addFor(goal, mine);
 	};
@@ -374,7 +393,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			if (!eliteTips.includes(tip)) eliteTips.push(tip);
 			report.count(`${goal.kind} of elite work -> optional`);
 		}
-		goals.push({ ...goal, only: onlyText(mine), optional: elite || optionalStep || goal.optional ? true : undefined });
+		goals.push({ ...goal, only: onlyText(mine), optional: elite || optionalStep || goal.optional || negLine ? true : undefined });
 		// After the guide drops a quest, its later goals wait for it to be taken again.
 		if (goal.kind === "abandon") { ctx.maybeTaken.add(goal.quest); ctx.surelyTaken.delete(goal.quest); }
 	};
@@ -408,7 +427,10 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			continue;
 		}
 		const n = l.name;
-		const lineQuestId = Number((l.args.match(/^(\d+)/) || [])[1]);
+		// RXP's `.turnin -214`: the line is skipped while the quest is not in the log
+		// (`skipIfMissing`), so it never holds the step: its goals are optional.
+		negLine = /^-\d/.test(l.args);
+		const lineQuestId = Number((l.args.match(/^-?(\d+)/) || [])[1]);
 		if ((n === "accept" || n === "turnin") && !lineQuestId) { report.count(`.${n} (no quest id, ignored)`); continue; }
 		if (n === "accept" || n === "turnin") {
 			const known = data.quests[lineQuestId];
@@ -432,7 +454,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			}
 			if (!title) title = plain(l.text).replace(/^(accept|turn in)\s+/i, "");
 		} else if (n === "complete") {
-			const m = l.args.match(/^(\d+)(?:,(\d+))?/);
+			const m = l.args.match(/^-?(\d+)(?:,(\d+))?/);
 			if (!m) { report.count(".complete (unparsed, ignored)"); report.note(ctx.name, stepNo, "unparsed .complete", l.args); continue; }
 			const quest = data.quests[Number(m[1])];
 			if (!quest) { add({ kind: "complete", quest: Number(m[1]), title: ctx.titles.get(Number(m[1])) || plain(l.text) || "quest " + m[1], at: at(placeFor(li)) }, l.cond); report.note(ctx.name, stepNo, `quest ${m[1]} unknown to the data`, l.args); continue; }
@@ -441,11 +463,11 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				if ((quest.objectives || []).length === 0) { report.count("complete on a quest without objectives (dropped)"); continue; }
 				add({ kind: "complete", quest: Number(m[1]) }, l.cond); continue;
 			}
-			const hit = resolveObjective(quest, l.comment || l.text || "", null);
-			if (hit && hit.obj.type === "kill") add({ kind: "kill", npc: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
+			const hit = resolveObjective(quest, l.comment || l.text || "", null, { index: Number(m[2]) });
+			if (hit && hit.obj.type === "kill") add({ kind: "kill", npc: hit.obj.id, quest: Number(m[1]), oi: hit.index, text: friendlyKillText(hit.obj, quest, ctx.faction, l, data) }, l.cond);
 			else if (hit && hit.obj.type === "item") add({ kind: "collect", item: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
 			else if (hit && hit.obj.type === "object") add({ kind: "interact", object: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
-			else { add({ kind: "complete", quest: Number(m[1]) }, l.cond); report.note(ctx.name, stepNo, "objective not matched by name; whole quest used", `${l.args} ${l.comment || ""}`); }
+			else { add({ kind: "complete", quest: Number(m[1]) }, l.cond); report.count("objective not matched by name; whole quest used"); report.note(ctx.name, stepNo, "objective not matched by name; whole quest used", `${l.args} ${l.comment || ""}`); }
 		} else if (n === "collect") {
 			const [item, count, qid] = l.args.split(",").map((s) => s.trim());
 			const itemId = Number(item);
@@ -457,14 +479,22 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				report.count("buy without a vendor (auction house) -> collect");
 			} else if (buyText) {
 				const npc = npcFor("vendor", l.cond, { item: itemId, names: true, idx: li, kinds: ["collect"], text: l.comment || l.text });
-				add({ kind: "buy", item: itemId, itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
+				const base = npc && baseItemSoldBy(data, itemId, npc.id);
+				if (base) report.count("buy of a made item -> buy of the item it is made from");
+				add({ kind: "buy", item: base || itemId, itemName: base ? undefined : itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
 				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", l.comment || "");
 			} else if (qid && data.quests[Number(qid)]) {
-				const hit = resolveObjective(data.quests[Number(qid)], "", itemId);
+				const hit = resolveObjective(data.quests[Number(qid)], "", itemId, { strictItem: true });
 				// RXP often collects ahead of the accept; Polestar wants the accept first,
 				// so an early pick-up counts the bag instead of the quest objective.
 				const early = !ctx.seen.has(Number(qid)) && ctx.accepted.has(Number(qid));
-				if (early) { add({ kind: "collect", item: itemId, itemName, count: count || (hit && hit.obj.count) || 1 }, l.cond); report.count("collect before accept -> bag count"); }
+				// The quest taken later in this step, or by no guide here (an item bought ahead
+				// at the auction house, cooking material): the bags count, there is no quest to wait for.
+				const takenLater = step.lines.slice(li + 1).some((c) => c.kind === "cmd" && c.name === "accept" && Number((c.args.match(/^-?(\d+)/) || [])[1]) === Number(qid));
+				if (takenLater || !ctx.accepted.has(Number(qid))) {
+					add({ kind: "collect", item: itemId, itemName, count: count || (hit && hit.obj.count) || 1 }, l.cond);
+					report.count(takenLater ? "collect before accept in the step -> bag count" : "collect for a quest no guide takes -> bag count");
+				} else if (early) { add({ kind: "collect", item: itemId, itemName, count: count || (hit && hit.obj.count) || 1 }, l.cond); report.count("collect before accept -> bag count"); }
 				else if (hit) add({ kind: "collect", item: itemId, itemName, quest: Number(qid), oi: hit.index }, l.cond);
 				else add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 			} else add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
@@ -792,9 +822,32 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	report.count(`goals for quests accepted elsewhere or abandoned -> when onquest (${orphanGoals.length})`);
 	const rest = goals.filter((g) => !orphanOf(g));
 	const orphanSteps = ids.map((id) => ({ ...base, maps: [], goals: orphanGoals.filter((g) => orphanOf(g) === id), tips: [], notes: [], whens: [...whens, `onquest ${id}`], label: null, completesWith: null, loop: [] }));
-	if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: base.tips, notes }; return orphanSteps; }
-	// In the source's order: a hand-in written before an accept comes first.
-	return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, { ...base, goals: rest }] : [{ ...base, goals: rest }, ...orphanSteps];
+	// An accept written after the hand-in of its prerequisite must stay after it: the
+	// steps follow the source's order, and a way point goes with the goal it leads to.
+	const acceptAfterOrphan = goals.some((g, i) => g.kind === "accept" && !orphanOf(g) && goals.slice(0, i).some(orphanOf));
+	if (!acceptAfterOrphan) {
+		if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: base.tips, notes }; return orphanSteps; }
+		// A hand-in written before an accept comes first.
+		return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, { ...base, goals: rest }] : [{ ...base, goals: rest }, ...orphanSteps];
+	}
+	const keyOf = goals.map((g) => orphanOf(g));
+	for (let i = goals.length - 1; i >= 0; i--) if (goals[i].kind === "goto") keyOf[i] = i + 1 < goals.length ? keyOf[i + 1] : keyOf[i - 1] ?? null;
+	const runs = [];
+	goals.forEach((g, i) => {
+		const last = runs[runs.length - 1];
+		if (last && last.key === keyOf[i]) last.goals.push(g);
+		else runs.push({ key: keyOf[i], goals: [g] });
+	});
+	const firstRest = runs.findIndex((r) => r.key == null);
+	const out = runs.map((r, i) => {
+		if (r.key == null) return i === firstRest ? { ...base, goals: r.goals, label: null } : { ...base, goals: r.goals, tips: [], notes: [], label: null, completesWith: null, loop: [] };
+		// The first step keeps the zone its way points are in.
+		return { ...base, maps: i === 0 ? base.maps : [], goals: r.goals, tips: [], notes: [], whens: [...whens, `onquest ${r.key}`], label: null, completesWith: null, loop: [] };
+	});
+	if (firstRest < 0) out[0] = { ...out[0], tips: base.tips, notes };
+	// What waits for this step waits for all of it: the label sits on its last part.
+	out[out.length - 1].label = base.label;
+	return out;
 }
 
 // A guide whose name gives no levels (dungeon quest guides): from the level at
@@ -830,7 +883,7 @@ export function convertGuide(parsed, data, opts) {
 	const titles = new Map();
 	for (const s of parsed.steps) for (const l of s.lines) {
 		if (l.kind === "cmd" && (l.name === "accept" || l.name === "turnin") && l.text) {
-			const id = Number((l.args.match(/^(\d+)/) || [])[1]);
+			const id = Number((l.args.match(/^-?(\d+)/) || [])[1]);
 			if (id && !titles.has(id)) titles.set(id, plain(l.text).replace(/^(accept|turn in)\s+/i, ""));
 		}
 	}
@@ -840,7 +893,7 @@ export function convertGuide(parsed, data, opts) {
 	const before = opts.before || new Set();
 	const accepted = new Set(before);
 	for (const s of parsed.steps) for (const l of s.lines) {
-		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^(\d+)/) || [])[1]));
+		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^-?(\d+)/) || [])[1]));
 	}
 	const hc = parseCondition(parsed.header.faction).only;
 	const df = parseCondition((parsed.header.defaultfor || "").replace(/,/g, " ")).only;
