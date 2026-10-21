@@ -73,7 +73,38 @@ function putTokens(translated, key, tokens, namesOf) {
 	return { text: text.replace(/(\d+)/g, (_, i) => `{${names[i].tok}}`) };
 }
 
+const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// The compiler may make a token from a short spelling ("Keldric") while the
+// comment holds the full name, so the rebuilt English pairs nothing. Then the
+// key is a pattern, each token a wildcard; it counts only when one text fits.
+// The English texts are bucketed by their start, built per prefix length.
+function byPattern(pairs) {
+	const buckets = new Map();
+	const bucket = (n) => {
+		if (!buckets.has(n)) {
+			const b = new Map();
+			for (const en of pairs.keys()) {
+				const k = en.slice(0, n);
+				if (!b.has(k)) b.set(k, []);
+				b.get(k).push(en);
+			}
+			buckets.set(n, b);
+		}
+		return buckets.get(n);
+	};
+	return (key) => {
+		const parts = key.split(TOKEN).filter((_, i) => i % 2 === 0);
+		if (parts.length < 2) return undefined;
+		const head = parts[0].slice(0, 12);
+		const re = new RegExp(`^${parts.map(escape).join("(.+?)")}$`, "s");
+		const found = (head ? bucket(head.length).get(head) ?? [] : [...pairs.keys()]).filter((en) => re.test(en));
+		return found.length === 1 ? pairs.get(found[0]) : undefined;
+	};
+}
+
 export function fillText(fileText, pairs, namesOf) {
+	const fuzzy = byPattern(pairs);
 	const counts = { translated: 0, kept: 0, "no pair": 0, "name not found": 0 };
 	const examples = [];
 	let tokens = new Map();
@@ -90,7 +121,7 @@ export function fillText(fileText, pairs, namesOf) {
 		if (rawValue !== "") { counts.kept++; return line; }
 		const key = decode(rawKey);
 		const english = key.replace(TOKEN, (all, tok) => mine.get(tok) ?? all);
-		const tr = pairs.get(english);
+		const tr = pairs.get(english) ?? fuzzy(key);
 		if (tr === undefined || tr === "") { counts["no pair"]++; examples.push({ step, what: "no pair", line: english }); return line; }
 		const done = putTokens(tr, key, mine, namesOf);
 		if (done.missing) { counts["name not found"]++; examples.push({ step, what: "name not found", line: english }); return line; }

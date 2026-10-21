@@ -96,3 +96,26 @@ test("what stays empty is listed with its step", () => {
 	const missing = fillText(file(KILL), pairs, names({ ...NAMES, "area:10": [] }));
 	assert.deepEqual(missing.examples, [{ step: 3, what: "name not found", line: "Kill Bob south of Testville" }]);
 });
+
+const KELDRIC = file(`\t-- {npc:1} Keldric Boucher\n\t["Talk to {npc:1} through the wall"] = "",\n`);
+
+test("short name in the guide", () => {
+	const p = new Map([["Talk to Keldric through the wall", "隔着墙与凯尔德里克对话"], ["Talk to Bob", "与鲍勃对话"]]);
+	const { text, counts } = fillText(KELDRIC, p, names({ "npc:1": ["凯尔德里克"] }));
+	assert.match(text, /= "隔着墙与\{npc:1\}对话",/);
+	assert.equal(counts.translated, 1);
+});
+
+test("two wildcard matches: no pair", () => {
+	const p = new Map([["Talk to Keldric through the wall", "隔着墙与凯尔德里克对话"], ["Talk to Keld through the wall", "隔着墙与凯尔德对话"]]);
+	const { text, counts } = fillText(KELDRIC, p, names({ "npc:1": ["凯尔德里克", "凯尔德"] }));
+	assert.equal(text, KELDRIC);
+	assert.equal(counts["no pair"], 1);
+});
+
+test("a token at the start matches as a wildcard too", () => {
+	const src = file(`\t-- {npc:1} Keldric Boucher\n\t["{npc:1} waits (here)"] = "",\n`);
+	const p = new Map([["Keldric waits (here)", "凯尔德里克在等"]]);
+	const { text } = fillText(src, p, names({ "npc:1": ["凯尔德里克"] }));
+	assert.match(text, /= "\{npc:1\}在等",/);
+});
