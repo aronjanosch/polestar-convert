@@ -24,7 +24,7 @@
 // }
 // Goal = { kind, only: "Warrior,Priest" | "", optional?, ...fields } with `kind` one of
 //   accept/turnin {quest, title?, at?, item? (accept: started from it)}   complete {quest, title?, at?}
-//   kill {npc, quest?, oi?} (no quest: `kill <npc>`)  talk {npc}  collect {item, itemName?, quest?, oi?, count?}
+//   kill {npc, quest?, oi?, text?} (no quest: `kill <npc>`)  talk {npc}  collect {item, itemName?, quest?, oi?, count?}
 //   interact {object, quest?, oi?}  learn {spell, name?}  rep {faction, standing}  money {copper}  buy {item, itemName?, count, npc?}  (no npc: nearest)
 //   vendor {npc?}  train {npc?|class|profession, comment?}  use {item}
 //   level {level, xp?}  skill {skill, n}  task {text}  note {text}
@@ -46,7 +46,7 @@ export function goalText(g) {
 		case "accept": case "turnin": case "complete":
 			return `${g.kind} ${g.quest}${g.title ? " " + q(g.title) : ""}${atText(g.at)}${g.item ? " item " + g.item : ""}`;
 		case "talk": return `talk ${g.npc}${atText(g.at)}`;
-		case "kill": return `kill ${g.npc}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${atText(g.at)}`;
+		case "kill": return `kill ${g.npc}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${g.text ? " " + q(g.text) : ""}${atText(g.at)}`;
 		case "interact": return `interact ${g.object}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${atText(g.at)}`;
 		case "learn": return `learn ${g.spell}${g.name ? " " + q(g.name) : ""}`;
 		case "rep": return `rep ${q(g.faction)} ${g.standing}`;
@@ -85,13 +85,4 @@ export class Report {
 	constructor() { this.counts = new Map(); this.items = []; }
 	count(key, n = 1) { this.counts.set(key, (this.counts.get(key) || 0) + n); }
 	note(guide, stepNo, what, line) { this.items.push({ guide, stepNo, what, line }); }
-}
-
-// Cut a text at the last space within n, so a translated and an English text
-// can be paired and nothing ends mid-word. Without a space it cuts at n.
-// The ellipsis may make the result n + 1 characters long; Polestar does not limit it.
-export function cut(text, n) {
-	if (text.length <= n) return text;
-	const space = text.lastIndexOf(" ", n);
-	return text.slice(0, space > 0 ? space : n) + "…";
 }

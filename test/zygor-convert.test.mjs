@@ -296,3 +296,107 @@ test("a buy of an item no vendor sells (the auction house) is a bag count at its
 	assert.match(r.text, /^  collect 402 x1 @53\.6,59\.7$/m);
 	assert.doesNotMatch(r.text, /buy 402/);
 });
+
+test("an |only that does not open its line is that line's: a hardcore tip drops the tip, not the step", () => {
+	const r = conv([
+		"step",
+		"  accept Invented Errand##101 |goto Invented Vale/0 30.2,71.7",
+		"step",
+		"  kill 8 Young Wolf##301 |q 101/1",
+		"  |tip Watch for respawns. |only if hardcore",
+		"step",
+		"  kill 8 Young Wolf##301 |q 101/1",
+		"  |only if hardcore",
+	].join("\n"));
+	assert.equal(r.stepsOut, 2);
+	assert.match(r.text, /^  kill 301 quest 101\.1$/m);
+	assert.doesNotMatch(r.text, /respawns/);
+});
+
+test("a |next on a goal line jumps once its quest is complete, never at once", () => {
+	const r = conv([
+		"step",
+		"  accept Invented Errand##101 |goto Invented Vale/0 30.2,71.7",
+		"step",
+		"  collect 3 Wolf Pelt##401 |q 101/2 |next \"done\" |or",
+		"step",
+		"  collect 3 Wolf Pelt##401 |q 101/2",
+		"step",
+		"  label \"done\"",
+		"  turnin Invented Errand##101 |goto Invented Vale/0 30.2,71.7",
+	].join("\n"));
+	assert.match(r.text, /^  skipto done when complete 101$/m);
+	assert.doesNotMatch(r.text, /level>=1/);
+});
+
+test("a goal's point on another map than the step's zone names its map", () => {
+	const d2 = { ...data, zones: { ...data.zones, 2: { name: "Other Fen" } }, frames: { ...data.frames, forever: { ...data.frames.forever, 2: { left: 100, right: 0, top: 100, bottom: 0 } } } };
+	const report = new Report();
+	const r = convertGuide({ name: "Leveling Guides\\Invented Vale (1-4)", header: {}, steps: parseBody([
+		"step",
+		"  Follow the path |goto Invented Vale 32.7,27.1 < 20",
+		"  Jump to Your Death |complete isdead |goto Other Fen 11.7,43.3",
+	].join("\n")) }, d2, { report, slug: "vale", packId: "mine", next: [], faction: "Horde" });
+	assert.match(r.text, /^  task "Jump to Your Death" @11\.7,43\.3 map 2$/m);
+});
+
+test("display lines read as Zygor shows them: verb named, no + marker, no map link, no name-as-id", () => {
+	const r = conv([
+		"step",
+		"  accept Invented Errand##101 |goto Invented Vale/0 30.2,71.7",
+		"  click Example Mushroom+",
+		"  use Old Rag##402",
+		"  talk Exampler##Exampler",
+		"  Buy a mount nearby at [Invented Vale/0 59.87,52.68]",
+	].join("\n"));
+	assert.match(r.text, /^  tip Click Example Mushroom$/m);
+	assert.match(r.text, /^  tip Use Old Rag$/m);
+	assert.match(r.text, /^  tip Exampler$/m);
+	assert.match(r.text, /^  tip Buy a mount nearby at Invented Vale 59\.87,52\.68$/m);
+});
+
+test("a class line that is a task is not also its note", () => {
+	const r = conv([
+		"step",
+		"  Train Staves |complete weaponskill(\"TH_STAFF\") > 0 |goto Invented Vale/0 57.1,57.7 |only if Priest",
+		"  Train Daggers |complete weaponskill(\"DAGGER\") > 0 |goto Invented Vale/0 57.1,57.7 |only if Mage",
+	].join("\n"));
+	assert.match(r.text, /^  task "Train Staves" @57\.1,57\.7 only Priest$/m);
+	assert.doesNotMatch(r.text, /note "Train/);
+});
+
+test("turninany turns in each quest; one the guide does not take waits for it in the log", () => {
+	const r = conv([
+		"step",
+		"  accept Invented Errand##101 |goto Invented Vale/0 30.2,71.7",
+		"step",
+		"  turninany Errands##101,102 |goto Invented Vale/0 30.2,71.7",
+	].join("\n"));
+	assert.match(r.text, /^  turnin 101 @30\.2,71\.7$/m);
+	assert.match(r.text, /when onquest 102\n(  .*\n)*  turnin 102/);
+	assert.doesNotMatch(r.text, /101,102/);
+});
+
+test("training a profession (|skillmax Prof,75) is Polestar's `train <Profession>`", () => {
+	const r = conv([
+		"step",
+		"  talk Giver Bob##201",
+		"  Train Apprentice Mining |skillmax Mining,75 |goto Invented Vale/0 50.1,50.2",
+		"step",
+		"  Learn First Aid |skillmax First Aid,75",
+	].join("\n"));
+	assert.match(r.text, /^  train Mining npc 201$/m); // the trainer the step talks to
+	assert.match(r.text, /^  train "First Aid"$/m);
+	assert.doesNotMatch(r.text, /talk 201|Train Apprentice/);
+});
+
+test("a turn-in of a quest accepted only under a condition waits for it in the log", () => {
+	const r = conv([
+		"step",
+		"  accept Invented Errand##101 |goto Invented Vale/0 30.2,71.7",
+		"  |only if itemcount(402) > 0",
+		"step",
+		"  turnin Invented Errand##101 |goto Invented Vale/0 30.2,71.7",
+	].join("\n"));
+	assert.match(r.text, /when onquest 101\n(  .*\n)*  turnin 101/);
+});
