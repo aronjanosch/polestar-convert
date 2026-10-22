@@ -825,7 +825,13 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		if (ask) { whens.push(`group ${q}`); formatNeeds = Math.max(formatNeeds, 5); report.count(".group, one quest -> when group"); }
 		else report.count(".group -> group, optional");
 	}
-	const allAlong = forceAlong || goals.length > 0 && goals.every((g) => ALONG_KINDS.has(g.kind) || ((g.kind === "use" || g.kind === "interact") && g.quest != null));
+	// A `use` without a quest beside countable goals of a step beside the route (kill, collect,
+	// complete) is the tool for them, not a goal that checks itself: the step stays along.
+	const alongOf = (gs) => {
+		const countable = completewith && gs.some((g) => ["kill", "collect", "complete"].includes(g.kind));
+		return forceAlong || gs.length > 0 && gs.every((g) => ALONG_KINDS.has(g.kind) || ((g.kind === "use" || g.kind === "interact") && g.quest != null) || (countable && g.kind === "use"));
+	};
+	const allAlong = alongOf(goals);
 	// The way here: the waypoints of the steps done along the way before this one.
 	// Of the way, a goal with a place of its own keeps the last point and those on
 	// other maps (leaving a city); one without keeps every point. Repeats go.
@@ -865,7 +871,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	const orphanGoals = goals.filter((g) => orphanOf(g));
 	const base = {
 		stepNo, title: title || tips[0] || notes[0] || null, only: cond.only, goals, tips: [...eliteTips, ...tips], notes, whens, maps: usedMaps, loop: isLoop ? placeable : [],
-		completesWith: completewith ? (completewith.args.trim() === "next" ? "next" : labelOf(completewith.args)) : null, sticky, label: labelDef, format: formatNeeds, allAlong, info: info && !whens.length,
+		completesWith: completewith ? (completewith.args.trim() === "next" ? "next" : ctx.labels && !ctx.labels.has(labelOf(completewith.args)) ? "open" : labelOf(completewith.args)) : null, sticky, label: labelDef, format: formatNeeds, allAlong, info: info && !whens.length,
 	};
 	if (!orphanGoals.length) return [base];
 	// A quest taken up in an earlier file (or left out of this one): its goals go
@@ -883,18 +889,27 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	const orphanTips = new Set(tipsOf(orphanGoals));
 	const orphanElite = new Set(eliteTipsOf(orphanGoals));
 	const loose = base.tips.filter((t) => !orphanTips.has(t) && !orphanElite.has(t));
+	// A part about goals done along the way stays along (and sticky) with its `when onquest`;
+	// the label is only on the step's last part: what waits for the step waits for all of it.
+	const partOf = (gs) => ({ completesWith: alongOf(gs) ? base.completesWith : null, allAlong: alongOf(gs) });
 	const orphanSteps = ids.map((id) => {
 		const own = orphanGoals.filter((g) => orphanOf(g) === id);
-		return { ...base, title: own.includes(titleGoal) ? base.title : titleOf(own), maps: [], goals: own, tips: [...eliteTipsOf(own), ...tipsOf(own)], notes: [], whens: [...new Set([...whens, `onquest ${id}`])], label: null, completesWith: null, loop: [] };
+		return { ...base, title: own.includes(titleGoal) ? base.title : titleOf(own), maps: [], goals: own, tips: [...eliteTipsOf(own), ...tipsOf(own)], notes: [], whens: [...new Set([...whens, `onquest ${id}`])], label: null, ...partOf(own), loop: [] };
 	});
 	// An accept written after the hand-in of its prerequisite must stay after it: the
 	// steps follow the source's order, and a way point goes with the goal it leads to.
 	const acceptAfterOrphan = goals.some((g, i) => g.kind === "accept" && !orphanOf(g) && goals.slice(0, i).some(orphanOf));
 	if (!acceptAfterOrphan) {
-		if (!rest.length) { orphanSteps[0] = { ...orphanSteps[0], tips: [...orphanSteps[0].tips, ...loose], notes }; return orphanSteps; }
+		if (!rest.length) {
+			orphanSteps[0] = { ...orphanSteps[0], tips: [...orphanSteps[0].tips, ...loose], notes };
+			orphanSteps[orphanSteps.length - 1].label = base.label;
+			return orphanSteps;
+		}
 		// In the source's order: a hand-in written before an accept comes first.
-		const restStep = { ...base, goals: rest, tips: loose, title: orphanGoals.includes(titleGoal) ? rest.map((g) => goalTitle.get(g)).find(Boolean) || loose[0] || null : base.title };
-		return goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, restStep] : [restStep, ...orphanSteps];
+		const restStep = { ...base, goals: rest, tips: loose, title: orphanGoals.includes(titleGoal) ? rest.map((g) => goalTitle.get(g)).find(Boolean) || loose[0] || null : base.title, ...partOf(rest), label: null };
+		const parts = goals.indexOf(orphanGoals[0]) < goals.indexOf(rest[0]) ? [...orphanSteps, restStep] : [restStep, ...orphanSteps];
+		parts[parts.length - 1].label = base.label;
+		return parts;
 	}
 	const keyOf = goals.map((g) => orphanOf(g));
 	for (let i = goals.length - 1; i >= 0; i--) if (goals[i].kind === "goto") keyOf[i] = i + 1 < goals.length ? keyOf[i + 1] : keyOf[i - 1] ?? null;
@@ -908,9 +923,9 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	const out = runs.map((r, i) => {
 		const title = r.goals.includes(titleGoal) ? base.title : titleOf(r.goals);
 		const tips = [...eliteTipsOf(r.goals), ...tipsOf(r.goals)];
-		if (r.key == null) return i === firstRest ? { ...base, title, goals: r.goals, tips: [...tips, ...loose], label: null } : { ...base, title, goals: r.goals, tips, notes: [], label: null, completesWith: null, loop: [] };
+		if (r.key == null) return i === firstRest ? { ...base, title, goals: r.goals, tips: [...tips, ...loose], label: null, ...partOf(r.goals) } : { ...base, title, goals: r.goals, tips, notes: [], label: null, ...partOf(r.goals), loop: [] };
 		// The first step keeps the zone its way points are in.
-		return { ...base, title, maps: i === 0 ? base.maps : [], goals: r.goals, tips, notes: [], whens: [...new Set([...whens, `onquest ${r.key}`])], label: null, completesWith: null, loop: [] };
+		return { ...base, title, maps: i === 0 ? base.maps : [], goals: r.goals, tips, notes: [], whens: [...new Set([...whens, `onquest ${r.key}`])], label: null, ...partOf(r.goals), loop: [] };
 	});
 	if (firstRest < 0) out[0] = { ...out[0], tips: [...out[0].tips, ...loose], notes };
 	// What waits for this step waits for all of it: the label sits on its last part.
@@ -982,10 +997,28 @@ export function convertGuide(parsed, data, opts) {
 	// What the guide is for: inside it a condition counts as exact when it is a product there.
 	const scope = { class: hc.class || null, race: races.length ? races : null, faction: hc.faction || null };
 	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, scope, classes: hc.class || [], loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
+	// A label no step of the guide defines: RXP never ends that step beside the route.
+	ctx.labels = new Set(parsed.steps.flatMap((s) => s.tags.filter((t) => t.name === "label").map((t) => labelOf(t.args))));
 	const steps = [];
+	// A label survives its step: one dropped (no goals, a condition nobody meets) moves to the
+	// next step emitted, so a `#completewith` step still finds its target. A target that
+	// has a label of its own is reached by that one.
+	let lost = [];
+	const alias = new Map();
 	parsed.steps.forEach((s, i) => {
-		for (const b of buildStep(s, i + 1, data, ctx) || []) steps.push(b);
+		const built = buildStep(s, i + 1, data, ctx) || [];
+		const own = s.tags.filter((t) => t.name === "label").map((t) => labelOf(t.args));
+		if (!built.length) { lost.push(...own); return; }
+		if (lost.length) {
+			const head = built.find((b) => b.label) || built[0];
+			if (!head.label) head.label = lost[0];
+			for (const l of lost) if (l !== head.label) alias.set(l, head.label);
+			report.count("label of a dropped step moved to the next step", lost.length);
+			lost = [];
+		}
+		steps.push(...built);
 	});
+	for (const s of steps) if (alias.has(s.completesWith)) s.completesWith = alias.get(s.completesWith);
 
 	// A step of text alone holds as a task of its own (merging it into later steps read badly).
 	for (const s of steps) if (s.info) s.completesWith = null;

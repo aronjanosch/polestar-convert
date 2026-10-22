@@ -216,3 +216,34 @@ test("an inn named by zone is one of the guide's own side, the bound one first",
 	assert.equal(innNamed(data, "Feralas", null, "Horde", "Camp Mojache").location, "Camp Mojache");
 	assert.equal(innNamed(data, "Booty Bay", null, "Horde").location, "Booty Bay");
 });
+
+const stepsOf = (body) => String(guideText(body).text || "");
+
+test("#completewith a label no step defines is a bare along; a label only earlier is an ordinary step", () => {
+	const none = stepsOf(["step", "    #completewith Nowhere", "    .collect 10,3 >> Collect things", "step", "    .goto 1,10,10"].join("\n"));
+	assert.match(none, /^  along$/m);
+	assert.doesNotMatch(none, /along until/);
+	const earlier = stepsOf(["step", "    #label Back", "    .goto 1,10,10", "step", "    #completewith Back", "    .collect 10,3 >> Collect things"].join("\n"));
+	assert.doesNotMatch(earlier, /^  along/m);
+});
+
+test("a label survives its dropped step: a #completewith step finds its target", () => {
+	const out = stepsOf(["step", "    #completewith Spot", "    .collect 10,3 >> Collect things", "step", "    #label Spot", "    #completewith Fin", "    .goto 1,10,10", "step", "    .accept 1 >> Accept A", "step", "    #label Fin", "    .accept 2 >> Accept B"].join("\n"));
+	assert.match(out, /along until \S+/);
+	const m = out.match(/along until (\S+)/)[1];
+	assert.match(out, new RegExp(`label ${m}\\b`));
+});
+
+test("a use without quest beside countable goals of a #completewith step stays along", () => {
+	const out = stepsOf(["step", "    #completewith next", "    .use 10 >> Use the thing", "    .collect 10,3 >> Collect things", "step", "    .accept 1 >> Accept A"].join("\n"));
+	assert.match(out, /^  along/m);
+	assert.match(out, /^  use /m);
+});
+
+test("a per-quest split keeps the along and the label sits on the last part", () => {
+	const out = stepsOf(["step", "    #completewith Done", "    #label Mid", "    .complete 901,1 >> Do A", "    .complete 902,1 >> Do B", "step", "    #label Done", "    .accept 1 >> Accept A", "step", "    .accept 2 >> Accept B"].join("\n"));
+	const parts = out.split(/^step/m).slice(1);
+	const onq = parts.filter((p) => /when onquest/.test(p));
+	assert.ok(onq.length >= 2, out);
+	assert.ok(onq.every((p) => /along until/.test(p)), out);
+});
