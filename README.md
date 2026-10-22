@@ -239,7 +239,9 @@ every class.
 - **Waypoints**: the `|goto` points of a fighting or farming line are dropped:
   Polestar finds the spots. A goal the data places nowhere takes its line's
   `goto` as its `@`; a line without a goal leaves its point as the way into the
-  next step (kept only when no step goal places itself). A point on another
+  next step (kept only when no step goal places itself). A way line alone
+  (`Leave the cave |goto … < 15`) is a `goto` that holds until arrival, as
+  Zygor passes it there, not a task to tick. A point on another
   map than the step's zone names its map.
 - **Conditions Polestar has no form for** are kept without the condition and
   gapped (`walking` N lines, `indoors`, `or` across kinds, `discountgold`, buffs, `equipped`, `skillmax`, `region`, `rep`). Each is in

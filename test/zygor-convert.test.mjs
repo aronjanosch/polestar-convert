@@ -400,3 +400,9 @@ test("a turn-in of a quest accepted only under a condition waits for it in the l
 	].join("\n"));
 	assert.match(r.text, /when onquest 101\n(  .*\n)*  turnin 101/);
 });
+
+test("a way line alone is a goto that holds until arrival, not a task to tick", () => {
+	const r = conv("step\n  Leave the cave |goto Invented Vale/0 47.5,46.4 < 15 |walk\n");
+	assert.match(r.text, /^  goto 47\.5,46\.4 "Leave the cave" map 1$/m);
+	assert.doesNotMatch(r.text, /task "Leave the cave"|optional/);
+});
