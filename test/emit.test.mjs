@@ -1,8 +1,8 @@
 // The renderer takes the intermediate form only: no RXP, no Polestar data.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { render } from "../src/emit.mjs";
-import { Report, cut, goalText, questOf } from "../src/ir.mjs";
+import { render, shorten } from "../src/emit.mjs";
+import { Report, goalText, questOf } from "../src/ir.mjs";
 
 const step = (o) => ({ stepNo: 1, only: {}, whens: [], goals: [], tips: [], notes: [], maps: [], loop: [], allAlong: false, format: 4, ...o });
 const guide = (steps) => ({ name: "Invented", title: "Invented Vale", faction: "Horde", classes: null, races: ["Undead"], levels: "1-4", zone: "Invented Vale", defaultMap: 1, sourceSteps: steps.length, steps });
@@ -83,7 +83,10 @@ test("skipto is written before the goals and its label is written", () => {
 	assert.match(r.text, /^  label c$/m);
 });
 
-test("cut keeps a short text", () => assert.equal(cut("Kill the boar", 40), "Kill the boar"));
-test("cut ends at the last space within n, with an ellipsis", () =>
-	assert.equal(cut("Kill the messenger. Loot him for his Mysterious Message", 40), "Kill the messenger. Loot him for his…"));
-test("cut without a space cuts at n", () => assert.equal(cut("击杀迪菲亚信使并拾取他身上的神秘信件然后交给哨兵岭的守卫", 10), "击杀迪菲亚信使并拾取…"));
+test("a long heading is cut at a word with an ellipsis, a short one is left alone", () => {
+	assert.equal(shorten("Kill the boars", 120), "Kill the boars");
+	const long = "Be careful as Scarred Crag Boars cast Charge, which only works at range and hits quite hard for a few seconds at a time, so keep moving";
+	const cut = shorten(long, 60);
+	assert.ok(cut.length <= 63 && cut.endsWith("...") && long.startsWith(cut.slice(0, -3)));
+	assert.equal(cut, "Be careful as Scarred Crag Boars cast Charge, which only...");
+});
