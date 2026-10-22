@@ -34,6 +34,17 @@ Polestar's compiler do the rest. Per source:
 | Journey | [journey/format.md](journey/format.md), [journey/ir-notes.md](journey/ir-notes.md) | [journey/polestar-gaps.md](journey/polestar-gaps.md) |
 | Zygor | [zygor.md](zygor.md) | [zygor/polestar-gaps.md](zygor/polestar-gaps.md) |
 
+## Checking a change
+
+Converts the same guides with a base ref and with the working tree (or
+`--head <ref>`), and prints what changed: line kinds, the converter's counts
+and lint findings before -> after, and the guides whose text changed. The
+packs, reports and `diff.patch` stay in `--out` to read.
+
+```sh
+node tools/compare.mjs master --list <RXPGuides/Guides/GuideList-forever.xml> [--out <dir>]
+```
+
 ## Checking a pack
 
 Polestar's `lint` checks the guides against the game's data; `playtest` plays
