@@ -216,3 +216,44 @@ test("an inn named by zone is one of the guide's own side, the bound one first",
 	assert.equal(innNamed(data, "Feralas", null, "Horde", "Camp Mojache").location, "Camp Mojache");
 	assert.equal(innNamed(data, "Booty Bay", null, "Horde").location, "Booty Bay");
 });
+
+// Carried gotos: a small map with a vendor, to see which points of a `#completewith` step reach the next one.
+const mapText = (body, extra = {}) => String(convertGuide(parseGuide("#name T\n" + body), { ...fakeData(), zones: { 1: { name: "Testville" } }, frames: { forever: {}, era: { 1: { left: 100, right: 0, top: 100, bottom: 0 } } }, ...extra }, { report: new Report(), slug: "t", packId: "chk" }).text);
+const gotosOf = (text) => text.split("\n").map((l) => l.trim()).filter((l) => /^goto\b/.test(l));
+const WALK = ["step", "    >>Walk to the mill", "    .goto 1,70,70"];
+
+test("a goto naming its map by number is a point on that map", () => {
+	assert.deepEqual(gotosOf(mapText(WALK.join("\n"))), ['goto 70,70 "Walk to the mill" era']);
+});
+
+test("a #completewith step with a goal of its own carries no points on", () => {
+	const text = mapText(["step", "    #completewith next", "    .goto 1,20,20", "    .goto 1,30,30", "    >>Buy water", "    .vendor 4", ...WALK].join("\n"));
+	assert.equal(gotosOf(text).some((l) => /^goto (20|30),/.test(l)), false);
+});
+
+test("a #completewith walk carries its points into the next step", () => {
+	const text = mapText(["step", "    #completewith next", "    .goto 1,20,20", "    >>Go east", ...WALK].join("\n"));
+	assert.equal(gotosOf(text).some((l) => /^goto 20,20/.test(l)), true);
+});
+
+test("a deathskip, hearth or teleport step carries no points and ends a way that waited", () => {
+	for (const line of ["    .deathskip >>Die and respawn", "    .hs >>Hearth to Testville", "    .cast 18960 >>Cast [Teleport: Moonglade]"]) {
+		const text = mapText(["step", "    #completewith next", "    .goto 1,20,20", "    >>Go east", "step", "    #completewith next", "    .goto 1,30,30", line, ...WALK].join("\n"));
+		assert.deepEqual(gotosOf(text).filter((l) => /^goto (20|30),/.test(l)), [], line);
+	}
+});
+
+test("a #completewith step that is no walk ends the way waiting before it", () => {
+	const text = mapText(["step", "    #completewith next", "    .goto 1,20,20", "    >>Go east", "step", "    #completewith next", "    .goto 1,40,40", "    .mob Boar", "    >>Kill boars", ...WALK].join("\n"));
+	assert.deepEqual(gotosOf(text).filter((l) => /^goto (20|40),/.test(l)), []);
+});
+
+test("a point for other classes is not the way into a step of another class", () => {
+	const text = mapText(["step", "    #completewith next", "    .goto 1,20,20 << Warrior", "    >>Go east", "step << Mage", "    >>Walk to the mill", "    .goto 1,70,70"].join("\n"));
+	assert.equal(gotosOf(text).some((l) => /^goto 20,20/.test(l)), false);
+});
+
+test("a goal's place is not the guide's last place on a dungeon detour", () => {
+	const body = ["step", "    >>Walk to the cave", "    .goto 1,70,70", "step", "    .dungeon WC", "    .complete 99,1 >>Kill Boss"].join("\n");
+	assert.equal(/complete 99[^\n]*@70,70/.test(mapText(body)), false);
+});
