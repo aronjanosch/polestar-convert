@@ -402,7 +402,9 @@ function finish(st, ctx) {
 	const texts = [...new Set(st.texts)].filter((t) => !(farms && (st.kills || []).includes(t)));
 	for (const g of goals) if (g._generic && texts.length) g.text = texts.shift();
 	if (!goals.length) {
-		if (texts.length) goals.push({ kind: "task", text: texts.shift(), only: "" });
+		// A way line alone ("Leave the cave |goto … < 15"): Zygor passes it on arrival, so does a goto.
+		if (texts.length && st.way) { const w = st.way; goals.push({ kind: "goto", x: w.x, y: w.y, live: true, map: w.uiMap, text: texts.shift(), only: "", _map: w.uiMap }); st.way = null; }
+		else if (texts.length) goals.push({ kind: "task", text: texts.shift(), only: "" });
 		else if (tips.length) goals.push({ kind: "task", text: tips.shift(), only: "" });
 	}
 	for (const t of texts) if (!tips.includes(t)) tips.push(t);

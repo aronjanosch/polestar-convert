@@ -188,7 +188,7 @@ per line.
 Zygor's guide text is the source; the player sees what Zygor shows. A step
 Zygor shows holds until it is done, ticked or skipped, and Polestar keeps
 that. The run of the Classic Leveling guides (both factions, 100 guides: 49
-Horde, 51 Alliance) took 7,238 Zygor steps to 7,809 Polestar steps, 621 of
+Horde, 51 Alliance) took 7,238 Zygor steps to 7,831 Polestar steps, 621 of
 them along copies (below). Lint passes and every guide plays through for
 every class (983 plays).
 
@@ -239,7 +239,9 @@ every class (983 plays).
 - **Waypoints**: the `|goto` points of a fighting or farming line are dropped:
   Polestar finds the spots. A goal the data places nowhere takes its line's
   `goto` as its `@`; a line without a goal leaves its point as the way into the
-  next step (kept only when no step goal places itself). A point on another
+  next step (kept only when no step goal places itself). A way line alone
+  (`Leave the cave |goto … < 15`) is a `goto` that holds until arrival, as
+  Zygor passes it there, not a task to tick. A point on another
   map than the step's zone names its map.
 - **Conditions Polestar has no form for** are kept without the condition and
   gapped (`walking` 528 lines, `indoors` 149, `or` across kinds 136, `discountgold`
