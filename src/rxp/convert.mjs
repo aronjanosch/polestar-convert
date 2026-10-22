@@ -574,6 +574,16 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			if (n === "trainer" && /\bmount\b/i.test(note)) { report.count(".trainer for a mount (ignored)"); continue; }
 			// RXP writes ".train <spell>" and ".trainer" together at one trainer: one goal is enough.
 			if (n === "trainer" && step.lines.some((x) => x.kind === "cmd" && x.name === "train" && condsMeet(x.cond, l.cond))) { report.count(".trainer beside .train (covered)"); continue; }
+			// ".trainer" for all, ".target Briarthorn << Warlock", ".target Brandur << Paladin": each class at its own trainer.
+			const targetConds = [...new Set(targets.filter((t) => t.cond).map((t) => t.cond))];
+			if (n === "trainer" && !l.cond && targetConds.length > 1) {
+				for (const tc of targetConds) {
+					const tn = npcFor("trainer", tc);
+					add(tn ? { kind: "train", npc: tn.id, comment: note || undefined } : { kind: "train", class: true, comment: note || undefined }, tc);
+				}
+				report.count(".trainer with a target per class -> one train per class");
+				continue;
+			}
 			const npc = (npcFor("trainer", l.cond, opt) || npcFor("trainer", l.cond, { ...opt, names: true }));
 			// A class guide's own class counts too: "train class" for a Mage guide is the Mage's.
 			const ownClasses = parseCondition(l.cond, ctx.scope).only.class || cond.only.class || null;
@@ -810,7 +820,8 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		const groupQuests = new Set(goals.filter((g) => GROUP_KINDS.has(g.kind)).map((g) => g.quest).filter((q) => q != null));
 		const [q] = groupQuests;
 		const ask = groupQuests.size === 1 && !groupForSome && data.quests[q];
-		for (const g of goals) if (GROUP_KINDS.has(g.kind)) { g.group = group; if (!ask) g.optional = true; }
+		// Taking and handing in hold, as in RXP: a quest the player never took drops its turn-in by itself.
+		for (const g of goals) if (GROUP_KINDS.has(g.kind)) { g.group = group; if (!ask && g.kind !== "accept" && g.kind !== "turnin") g.optional = true; }
 		if (ask) { whens.push(`group ${q}`); formatNeeds = Math.max(formatNeeds, 5); report.count(".group, one quest -> when group"); }
 		else report.count(".group -> group, optional");
 	}

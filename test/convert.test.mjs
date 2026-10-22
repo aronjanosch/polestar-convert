@@ -80,6 +80,17 @@ test(".trainer is a train goal at the step's trainer", () => {
 	assert.deepEqual(goalsOf(out), ["train 1 -- Train your class spells"]);
 });
 
+test(".trainer with one target per class: each class trains at its own trainer", () => {
+	const out = guideText(["step << Warlock/Paladin", "    .trainer >> Train your class spells", "    .target Bixi << Warlock", "    .target Buliwyf << Paladin"].join("\n"));
+	assert.deepEqual(goalsOf(out), ["train 1 only Warlock -- Train your class spells", "train 2 only Paladin -- Train your class spells"]);
+});
+
+test("a group step about several quests holds on its turn-ins; only the group work is optional", () => {
+	const out = String(guideText(["step", "    .group", "    .turnin 11 >> Turn in A", "    .accept 12 >> Accept B", "    .complete 12,1"].join("\n")).text || "");
+	const goals = out.split("\n").map((l) => l.trim()).filter((l) => /^(turnin|accept|complete)\b/.test(l));
+	assert.deepEqual(goals.map((l) => /\boptional\b/.test(l)), [false, false, true]);
+});
+
 test("a buy takes the vendor the text names by first name, and .vendor <id> with a buy text buys", () => {
 	const out = guideText(["step", ">>|cRXP_BUY_Talk to|r |cRXP_FRIENDLY_Oliver|r|cRXP_BUY_. Buy a|r [Stiletto]", "    .collect 10,1,5,1 --Stiletto (1)"].join("\n"));
 	assert.deepEqual(goalsOf(out), ["buy 10 x1 npc 4"]);
