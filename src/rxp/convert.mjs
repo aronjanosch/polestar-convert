@@ -87,8 +87,9 @@ function parseGoto(args, data, ctx) {
 		if (!z) { ctx.report.count("goto: map without frame"); return null; }
 		return { uiMap, x: z.x, y: z.y, live: z.live, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0" };
 	}
-	// Zone percentages on the map RXP names, in the Era frame RXP writes them in.
-	return { uiMap: zoneIdNamed(data, mapPart), x, y, live: false, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0", zoneText: mapPart };
+	// Zone percentages on the map RXP names (or numbers), in the Era frame RXP writes them in.
+	const numbered = /^\d+$/.test(mapPart) && data.zones[Number(mapPart)] ? Number(mapPart) : null;
+	return { uiMap: numbered ?? zoneIdNamed(data, mapPart), x, y, live: false, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0", zoneText: mapPart };
 }
 
 // `.abandon <quest>`, `.destroy <item>[,count]`, `.cast <spell>` and `.usespell <spell>`
