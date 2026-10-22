@@ -3,7 +3,7 @@
 // data does not know is quoted by name or the line becomes a `task`/`note`, and
 // the report says so.
 
-import { parseCondition, onlyText, condsMeet, onlyMeet, CLASSES } from "../cond.mjs";
+import { parseCondition, andOnly, onlyText, condsMeet, onlyMeet, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
 import { baseItemSoldBy, goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
 import { render, shorten } from "../emit.mjs";
@@ -87,8 +87,9 @@ function parseGoto(args, data, ctx) {
 		if (!z) { ctx.report.count("goto: map without frame"); return null; }
 		return { uiMap, x: z.x, y: z.y, live: z.live, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0" };
 	}
-	// Zone percentages on the map RXP names, in the Era frame RXP writes them in.
-	return { uiMap: zoneIdNamed(data, mapPart), x, y, live: false, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0", zoneText: mapPart };
+	// Zone percentages on the map RXP names (or numbers), in the Era frame RXP writes them in.
+	const numbered = /^\d+$/.test(mapPart) && data.zones[Number(mapPart)] ? Number(mapPart) : null;
+	return { uiMap: numbered ?? zoneIdNamed(data, mapPart), x, y, live: false, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0", zoneText: mapPart };
 }
 
 // `.abandon <quest>`, `.destroy <item>[,count]`, `.cast <spell>` and `.usespell <spell>`
@@ -257,6 +258,8 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	const mapId = (gotos.find((g) => g.uiMap) || {}).uiMap || null;
 	// The guide's last place before this step: where the player stands when nothing better is known.
 	const prevPlace = ctx.lastPlace;
+	const dungeonWork = step.lines.some((l) => l.kind === "cmd" && l.name === "dungeon" && !l.cond && !String(l.args).trim().startsWith("!"));
+	ctx.seq = (ctx.seq || 0) + 1;
 	ctx.lastPlace = [...gotos].reverse().find((g) => g.uiMap) || prevPlace;
 	// preAll: every one done; else pre: one of them. Only accepts written earlier
 	// in this guide count, and not optional ones: a player may start the guide
@@ -329,6 +332,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		// Last resort: the step's first place. A guess, so the report lists it.
 		const first = gotos.find((g) => g.uiMap);
 		if (first) report.note(ctx.name, stepNo, "place of an unknown quest taken from the step's first .goto (check)", step.lines[lineIdx].args);
+		if (dungeonWork) return first || null;
 		if (!first && prevPlace) report.note(ctx.name, stepNo, "place taken from the guide's last .goto before this step (check)", step.lines[lineIdx].args);
 		return first || prevPlace || null;
 	};
@@ -396,7 +400,8 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			report.count("accept whose prerequisite the guide never takes -> later goals wait for the quest");
 		}
 		// Where the data knows no place for it, the arrow points where RXP sends the player.
-		const here = firstPt && firstPt.uiMap ? firstPt : prevPlace;
+		// Not on a dungeon detour or a dungeon quest's goal: the last place is outside, the work is inside.
+		const here = firstPt && firstPt.uiMap ? firstPt : dungeonWork || (goal.quest != null && data.journal && data.journal.has(goal.quest)) ? null : prevPlace;
 		if (PLACE_KINDS.has(goal.kind) && !goal.at && !isLoop && here && !goalPlaced(data, goal)) {
 			goal = { ...goal, at: at(here) };
 			report.count(`${goal.kind} without a place in the data -> RXP's goto`);
@@ -777,11 +782,28 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			notes.length = 0;
 		}
 		const textOnly = goals.every((g) => g.kind === "note");
-		// A flight, a flight point or an inn has an arrow of its own to where it is done: the
-		// points before it are the walk there, not the way into the step after it.
-		const selfPlaced = goals.some((g) => ["fly", "getfp", "sethome"].includes(g.kind));
-		if (!farm && !fights && !selfPlaced) for (const g of way) ctx.path.push({ ...g, only });
-		else if (selfPlaced && way.length) report.count("waypoints of a flight/inn step (the goal's own arrow leads there; not carried on)", way.length);
+		// A step with a goal of its own (a vendor, a hand-in, a flight, an inn, a task) has an
+		// arrow of its own to where it is done: its points are the walk there, not the way
+		// into the step after it. Text alone is no goal.
+		const selfPlaced = goals.some((g) => g.kind !== "note");
+		// The player respawns or arrives elsewhere: the points before it lead nowhere.
+		const travel = step.lines.some((l) => l.kind === "cmd" && (["deathskip", "hs", "fly"].includes(l.name)
+			|| (l.name === "cast" && /teleport|portal/i.test(l.text || ""))
+			|| (l.name === "zone" && /boat|zeppelin|ship|portal|tram|ferry/i.test(l.text || ""))));
+		if (!farm && !fights && !selfPlaced && !travel) {
+			for (const g of way) {
+				// A point of one class line is that class's way.
+				const o = g.cond ? andOnly(cond.only, parseCondition(g.cond, ctx.scope).only) : cond.only;
+				if (Object.values(o).some((a) => !a.length)) continue;
+				ctx.path.push({ ...g, only: onlyText(o), onlyObj: o, seq: ctx.seq });
+			}
+		}
+		else {
+			if (selfPlaced && way.length) report.count("waypoints of a step with a goal of its own (the goal's own arrow leads there; not carried on)", way.length);
+			if (travel && way.length) report.count("waypoints of a deathskip/hearth/flight/teleport/boat step (not carried on)", way.length);
+			// A step that is more than a walk, passing, ends the way waiting: points never hop over it.
+			ctx.path = [];
+		}
 		if (goals.length && textOnly) {
 			if (farm) {
 				const placed = gotos.filter((g) => g.uiMap);
@@ -838,13 +860,21 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	if (!completewith && !isLoop && ctx.path.length) {
 		const seenAt = new Set();
 		let way = ctx.path.filter((p) => { const k = `${p.uiMap}:${p.x}:${p.y}`; return !seenAt.has(k) && seenAt.add(k); });
+		// A point for other characters is not this step's way.
+		const kept = way.filter((p) => !p.onlyObj || onlyMeet(p.onlyObj, cond.only));
+		if (kept.length < way.length) report.count("waypoint for other classes (not carried into this step)", way.length - kept.length);
+		way = kept;
 		const placedGoal = goals.some((g) => g.at || ["accept", "turnin", "vendor", "train", "buy", "complete", "kill", "collect", "interact"].includes(g.kind));
 		const here = mapId || (ctx.lastPlace || {}).uiMap;
 		if (placedGoal) way = way.filter((p, i) => i === way.length - 1 || (here && p.uiMap !== here));
+		// Leaving a city or zone: only the step right before leads out of it.
+		const near = way.filter((p) => !here || p.uiMap === here || p.seq === ctx.seq - 1);
+		if (near.length < way.length) report.count("waypoint on another map from further back (not carried on)", way.length - near.length);
+		way = near;
 		goals.unshift(...way.map((p) => ({ kind: "goto", x: p.x, y: p.y, live: p.live, map: p.uiMap, r: p.r > 0 ? p.r : undefined, only: p.only, optional: true })));
 		report.count("waypoints -> path into the next step", way.length);
 		ctx.path = [];
-	}
+	} else if (isLoop && !completewith) ctx.path = [];
 	if (!completewith && ctx.pendingNotes.length) {
 		goals.push(...ctx.pendingNotes);
 		ctx.pendingNotes = [];
