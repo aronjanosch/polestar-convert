@@ -35,7 +35,10 @@ export function render(guide, { report, slug, packId, next }) {
 	const waitsFor = steps.map((s, i) => {
 		if (s.alongUntil || !s.completesWith || !s.allAlong) return -1;
 		const target = s.completesWith === "next" ? (i + 1 < steps.length ? i + 1 : -1) : steps.findIndex((o, j) => j > i && o.label === s.completesWith);
-		if (target < 0) return -1;
+		if (target < 0) {
+			if (s.completesWith !== "open" && s.completesWith !== "next") report.count("along step whose target is only earlier in the guide (kept as an ordinary step)");
+			return -1;
+		}
 		if (target + 1 >= steps.length) return -2;
 		if (!labelName[target + 1]) labelName[target + 1] = `${labelName[target] || `step${target + 1}`}-end`;
 		return target + 1;
@@ -87,7 +90,7 @@ export function render(guide, { report, slug, packId, next }) {
 		else if (s.sticky && !s.completesWith && s.allAlong) { out.push("  along"); along = true; }
 		else if (s.completesWith && s.allAlong) {
 			if (waitsFor[i] >= 0) { out.push(`  along until ${labelName[waitsFor[i]]}`); along = true; format = Math.max(format, 4); }
-			else if (s.completesWith === "next" || waitsFor[i] === -2) { out.push("  along"); along = true; }
+			else if (s.completesWith === "next" || s.completesWith === "open" || waitsFor[i] === -2) { out.push("  along"); along = true; }
 		}
 		if (waited.has(i) || (s.label && named.has(s.label))) out.push(`  label ${labelName[i]}`);
 		for (const t of s.tips) if (t !== s.title || shorten(t, 120) !== t) out.push(`  tip ${free(t)}`);
