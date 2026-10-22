@@ -1,4 +1,4 @@
-// Journey conditions (Lua boolean expressions, JOURNEY-FORMAT.md "Conditions")
+// Journey conditions (Lua boolean expressions, docs/journey/format.md "Conditions")
 // for a Forever character: who they are for (Polestar `only`) and what must hold
 // in play (Polestar `when`).
 //
