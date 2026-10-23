@@ -1,6 +1,5 @@
-// The client tables a Polestar clone caches from wago.tools (data/sources/wago/<build>/*.csv).
-
-import { readFileSync, existsSync } from "node:fs";
+// The client tables a Polestar clone caches from wago.tools (data/sources/wago/<build>/*.csv),
+// as text: the caller reads the file.
 
 // Minimal CSV: quoted fields with "" escapes, no newlines inside fields.
 function csvRows(text) {
@@ -29,11 +28,11 @@ function csvRows(text) {
 	return rows;
 }
 
-// id -> the row's `cols` as an object; empty when the file is missing.
-export function readTable(file, idCol, cols) {
+// id -> the row's `cols` as an object; empty when there is no text (the file is missing).
+export function readTable(text, idCol, cols) {
 	const map = new Map();
-	if (!existsSync(file)) return map;
-	const rows = csvRows(readFileSync(file, "utf8").replace(/\r/g, ""));
+	if (text == null) return map;
+	const rows = csvRows(text.replace(/\r/g, ""));
 	const head = rows.shift();
 	const id = head.indexOf(idCol);
 	const at = cols.map((c) => head.indexOf(c));
@@ -42,8 +41,8 @@ export function readTable(file, idCol, cols) {
 }
 
 // id -> one column's value.
-export function table(file, idCol, nameCol) {
+export function table(text, idCol, nameCol) {
 	const map = new Map();
-	for (const [id, row] of readTable(file, idCol, [nameCol])) map.set(id, row[nameCol]);
+	for (const [id, row] of readTable(text, idCol, [nameCol])) map.set(id, row[nameCol]);
 	return map;
 }
