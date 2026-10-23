@@ -52,6 +52,7 @@ button, .button { display: inline-flex; align-items: center; gap: 8px; padding: 
 button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.routes { margin-left: 26px; }
 .found { margin: 10px 0 0; padding: 0; list-style: none; }
 .found li { padding: 3px 0; }
 .found li::before { content: "✓ "; color: var(--ok); font-weight: 700; }
@@ -93,14 +94,18 @@ a { color: var(--accent); }
 </section>
 
 <section id="step-routes" aria-disabled="true">
-	<h2><span class="n">2</span> RestedXP routes</h2>
-	<p>RestedXP holds four routes side by side. Most players run one; pick the ones you want in the pack.</p>
-	<div id="routes">
-		<label class="check"><input type="checkbox" name="route" value="main" checked> <span>Main<small>the main 1-60 route</small></span></label>
-		<label class="check"><input type="checkbox" name="route" value="dungeon" checked> <span>Dungeon<small>the same zones with dungeon quests woven in, and the dungeon quest guides</small></span></label>
-		<label class="check"><input type="checkbox" name="route" value="survival" checked> <span>Survival<small>1-20, careful</small></span></label>
-		<label class="check"><input type="checkbox" name="route" value="mage" checked> <span>class<small>for mages who pull big</small></span></label>
+	<h2><span class="n">2</span> What to convert</h2>
+	<p>Every guide addon found in the folder. RestedXP holds four routes side by side; most players run one, so pick
+	the ones you want. Journey and Zygor each have one route and come whole.</p>
+	<label class="check"><input type="checkbox" name="source" value="rxp" checked disabled> <span>RestedXP<small id="src-rxp">pick a folder first</small></span></label>
+	<div id="routes" class="routes">
+		<label class="check"><input type="checkbox" name="route" value="main" checked disabled> <span>Main<small>the main 1-60 route</small></span></label>
+		<label class="check"><input type="checkbox" name="route" value="dungeon" checked disabled> <span>Dungeon<small>the same zones with dungeon quests woven in, and the dungeon quest guides</small></span></label>
+		<label class="check"><input type="checkbox" name="route" value="survival" checked disabled> <span>Survival<small>1-20, careful</small></span></label>
+		<label class="check"><input type="checkbox" name="route" value="mage" checked disabled> <span>class<small>for mages who pull big</small></span></label>
 	</div>
+	<label class="check"><input type="checkbox" name="source" value="journey" checked disabled> <span>Journey<small id="src-journey">pick a folder first</small></span></label>
+	<label class="check"><input type="checkbox" name="source" value="zygor" checked disabled> <span>Zygor<small id="src-zygor">pick a folder first</small></span></label>
 </section>
 
 <section id="step-pack" aria-disabled="true">
