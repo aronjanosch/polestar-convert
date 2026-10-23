@@ -75,7 +75,16 @@ Read as RXP's own `applies()` (GuideLoader.lua) reads them:
   2 seconds; longer thresholds (`<600`) have no Polestar form and stay out.
 - `.zone Ironforge` in a travel step is `enter "Ironforge"` at RXP's last point:
   done on entering the zone, as in RXP. Beside the route (`#completewith`) it
-  stays a way into the next step.
+  stays a way into the next step. `.subzone 254` names the area by its
+  AreaTable id (the Forever client's table that `data build` caches) and is
+  `enter "Blackrock Mountain"` the same way; its flags 1 (done once out of it)
+  and 2 (dungeons only) have no Polestar form.
+- `.subzoneskip 254` (RXP passes the step while the player is there) is
+  `when !subzone "Blackrock Mountain"`, flag 1 `when subzone`; an area that is
+  a zone reads as `when !zone`. A top area Polestar knows no zone for (Deeprun
+  Tram) and flag 2 stay out.
+- `.stable`, `.equip`, `.deathskip` and the bank commands have no Polestar goal:
+  tasks to tick, with RXP's text.
 
 ### Quests the guide may not hold
 
@@ -153,7 +162,9 @@ comes from a catalog of all 847 text-only steps and 45 read by hand:
   them required, since Polestar passes such a step at once. Polestar's lint
   suggests `when group <quest>` for elite work instead. Skip it to leave it.
   An optional turn-in stays optional, and a step of optional waypoints alone
-  still passes.
+  still passes. An `#optional` turn-in that waits for its quest to be complete
+  (`.isQuestComplete`) holds: `when complete` already says "if you finished
+  it", and passing it would leave the quest to the guide's later `.abandon`.
 - **The play style is fixed:** not self-found (`#ah` kept, `#ssf` dropped),
   softcore, 1× XP, Season 0, phase 6. Group steps are kept: the player
   chooses them in Polestar (`when group`).
@@ -166,7 +177,6 @@ comes from a catalog of all 847 text-only steps and 45 read by hand:
   step gets one point, not a circle.
 - A step with no title shows its first goal as the heading, so a one-task step
   reads twice. RXP has no titles to give it.
-- `.subzoneskip` area ids have no name table: about 600 lines.
 - `#include`s that name guides outside the list are left out.
 - `.cast` of a spell no RXP line names stays a task (`.cast 6477`, clicking an
   object).
@@ -179,9 +189,13 @@ comes from a catalog of all 847 text-only steps and 45 read by hand:
 - `.bankdeposit`/`.bankwithdraw` stay tasks: RXP checks the bank, which
   Polestar cannot see. `.isQuestAvailable a,b` (any of them) is left out:
   Polestar's `when available` takes one quest.
-- Escort and elite quests stop Polestar's `playtest` in a few guides
-  (a summoned enemy, an escort quest, Arnak): the simulator cannot play them, the guides
-  are as in RXP.
+- After a `.abandon`, Polestar 0.3.0 sends the route back to that quest's work
+  done before it: an escort quest in the class Darkshore route, the
+  cultists' ears on a starting zone. Skip the step. Fixed in Polestar by
+  "Abandon: the quest work before it stays done" (proposed upstream).
+- a summoned enemy stops Polestar's `playtest` in the Barrens guides: the simulator
+  does not put the hide in the bags, so RXP's "abandon it if you have no hide"
+  step fires. In the game the hide is there and the step passes.
 
 ## Checking a change
 

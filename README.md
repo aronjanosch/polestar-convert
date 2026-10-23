@@ -52,10 +52,11 @@ install it into the game from the clone.
 
 ```sh
 git clone -b next https://github.com/fitzforge/polestar
-git clone https://github.com/aronjanosch/polestar-convert
+git clone -b v0.1.0 https://github.com/aronjanosch/polestar-convert
 cd polestar
-node tools/polestar.js data build    # add --questie "<WoW>/Interface/AddOns" if it does not find QuestieDB
-node tools/polestar.js install       # puts this Polestar into the game
+node tools/polestar.js data build        # add --questie "<WoW>/Interface/AddOns" if it does not find QuestieDB
+node tools/polestar.js profession build  # profession ranks and recipes, for the training steps
+node tools/polestar.js install           # puts this Polestar into the game
 cd ..
 ```
 
@@ -85,6 +86,14 @@ node ../polestar/tools/polestar.js install    # builds the pack and puts it into
 
 Restart the game completely. Your guides show in Polestar's hub
 (`/polestar guides`) under Community guides.
+
+Lint and playtest report warnings (an elite to group up for, a target with no
+known spawn); those are expected. Only errors stop `install`.
+
+**No game at hand?** `node ../polestar/tools/polestar.js play` (inside the
+pack) opens Polestar in your browser: the real addon with your pack loaded,
+against a simulated world. Pick a guide in the hub and click through its steps
+as you would in game.
 
 > [!TIP]
 > `--only "<guide name>"` converts a single guide, which is much faster while
@@ -135,6 +144,11 @@ carries their text into the pack (`--locales all`, the default, or
 - **A step with no title** shows its first goal as its heading, so a one-task
   step reads twice.
 - **Riding** is no profession in Polestar and is ignored.
+- **After a guide abandons a quest you already worked on** (RestedXP drops
+  an escort quest in the class route), Polestar 0.3.0 can send you back
+  to that quest's earlier step. Skip it. A fix is proposed to Polestar.
+- **Elite quests** stay in the route as RestedXP and Zygor show them, with a
+  tip to group up. Skip the step to leave one.
 
 The full lists: [RestedXP](docs/rxp.md#known-gaps),
 [Journey](docs/journey/polestar-gaps.md), [Zygor](docs/zygor/polestar-gaps.md).
