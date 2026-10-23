@@ -15,7 +15,9 @@ const IGNORED = new Set([
 	"skipgossip", "skipgossipid", "disablecheckbox", "is", "item", "addquestitem",
 	"itemStat", "zone", "link", "line", "solo", "enabledungeon",
 ]);
-const TASKS = new Set(["hs", "home", "fp", "fly", "deathskip", "abandon", "destroy", "cast", "equip", "bankdeposit", "bankwithdraw"]);
+const TASKS = new Set(["hs", "home", "fp", "fly", "deathskip", "abandon", "destroy", "cast", "equip", "bankdeposit", "bankwithdraw", "stable"]);
+// What RXP shows for a task command written without text.
+const TASK_TEXT = { stable: "Stable your pet" };
 // A label as Polestar takes it: letters, digits, `-` and `_`.
 const labelOf = (text) => String(text || "").trim().replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || null;
 // RXP's quest conditions on a step -> Polestar's `when` predicate and its `!`.
@@ -725,7 +727,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		} else if (n === "usespell") {
 			report.count(".usespell without a spell name (dropped: a button in RXP)");
 		} else if (TASKS.has(n)) {
-			const t = plain(l.text) || n;
+			const t = plain(l.text) || TASK_TEXT[n] || n;
 			if (n === "destroy") { const id = Number(l.args.split(",")[0]); if (data.items[id] && !l.cond) whens.push(`has ${id}`); }
 			add({ kind: "task", text: t }, l.cond);
 			formatNeeds = 5;

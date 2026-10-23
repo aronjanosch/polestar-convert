@@ -197,6 +197,11 @@ test("RXP's subzone by AreaTable id: .subzone is an enter, .subzoneskip a when o
 	assert.deepEqual(skip("2257"), ["train 1 -- Train Thrown"]);
 });
 
+test(".stable is a task to tick, with RXP's text or its default", () => {
+	assert.deepEqual(goalsOf(guideText("step << Hunter\n    .stable >> Withdraw your pet\n")), ['task "Withdraw your pet"']);
+	assert.deepEqual(goalsOf(guideText("step << Hunter\n    .stable\n")), ['task "Stable your pet"']);
+});
+
 test("a negative quest id on an optional hand-in is read as the quest", () => {
 	assert.equal(goalText({ kind: "turnin", quest: 214 }), "turnin 214");
 });
