@@ -85,6 +85,16 @@ function evaluate(text) {
 
 const keyOf = (p) => p.join("|");
 
+// The characters an RXP condition holds for, as "class|race|faction" keys.
+export function playersOf(text) {
+	return evaluate(text).players.map(keyOf);
+}
+
+// An RXP condition that holds exactly for these keys (from playersOf).
+export function condFor(keys) {
+	return keys.map((k) => { const [c, r, f] = k.split("|"); return `${f} ${r} ${c}`; }).join("/");
+}
+
 // The smallest `only` that holds exactly for `set` among `universe`, or null when
 // the set is no product of class x race x faction there. `named` kinds stay
 // spelled out when they are a proper subset (a guide's `<< Alliance Human`).

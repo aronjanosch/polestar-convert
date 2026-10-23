@@ -28,7 +28,9 @@ Read as RXP's own `applies()` (GuideLoader.lua) reads them:
   under such a word is left out, as RXP leaves it out; `!sod` holds. Unknown
   words are listed in the report.
 - `--` starts a comment, cut before anything is read. On a tag line
-  (`#completewith X << Rogue`) the `<<` limits only that tag, not the step.
+  (`#completewith X << Rogue`) the `<<` limits only that tag, not the step:
+  the step splits into the characters the tag holds for (beside the route) and
+  the rest (an ordinary step). So do `#label` and `#optional` with a `<<`.
 - In Polestar, names of one kind OR together and the kinds AND, so negations
   cannot be chained: RXP's `!Warlock !Mage` becomes the list of the other
   classes. A condition that mixes kinds (`Rogue/Warrior Dwarf`) splits the
@@ -184,8 +186,9 @@ comes from a catalog of all N text-only steps and some read by hand:
 - `#requires X` is not carried over: RXP holds the step while X is
   still shown beside the route; Polestar's `when done X` would pass it by
   instead, and drop it whenever X was skipped.
-- `#completewith X << Class` (the tag for some classes only) is read as the
-  tag for every class.
+- A tag with its own condition on a step that also carries an unconditioned
+  `#label` is read for every character, so the label is not written
+  twice.
 - `.bankdeposit`/`.bankwithdraw` stay tasks: RXP checks the bank, which
   Polestar cannot see. `.isQuestAvailable a,b` (any of them) is left out:
   Polestar's `when available` takes one quest.
