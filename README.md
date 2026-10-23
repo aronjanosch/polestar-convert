@@ -26,10 +26,14 @@
 > **It ships no guide content.** It reads the guide addon *you* have installed
 > and writes the result into a pack on *your* machine. The guides are their
 > authors' work: keep the converted pack to yourself.
+>
+> **Convert only guides you have the right to use:** free guides, or guides
+> whose licence allows it. The tool cannot tell; what you convert is your
+> responsibility.
 
 ---
 
-You like the route of a guide addon you bought or installed, but you want to
+You like the route of a guide addon you have installed, but you want to
 play it with Polestar's arrow, quest automation, travel planner and hub.
 polestar-convert reads that addon's guide files, writes every step in
 Polestar's `.guide` format with ids, names and coordinates from Polestar's own
@@ -83,8 +87,8 @@ Run it in the folder that holds the `polestar` clone, or name the clone with
 `--polestar <folder>`.
 
 It finds RestedXP, Journey and Zygor, asks which RestedXP routes you want
-(Main, Dungeon, Survival, class; `--routes main` skips the
-question), makes the pack `polestar-guides`, converts every guide with
+(`--routes main,dungeon,survival` skips the question; routes your guides do
+not have are left out), makes the pack `polestar-guides`, converts every guide with
 RestedXP's translations, lints and installs it. Leave out `--install` to look
 first.
 
@@ -186,8 +190,7 @@ default, or `--locales zhCN,deDE`); the browser page leaves them out. Journey's 
 - **A step with no title** shows its first goal as its heading, so a one-task
   step reads twice.
 - **Riding** is no profession in Polestar and is ignored.
-- **After a guide abandons a quest you already worked on** (RestedXP drops
-  an escort quest in the class route), Polestar 0.3.0 can send you back
+- **After a guide abandons a quest you already worked on**, Polestar 0.3.0 can send you back
   to that quest's earlier step. Skip it. A fix is proposed to Polestar.
 - **Elite quests** stay in the route as RestedXP and Zygor show them, with a
   tip to group up. Skip the step to leave one.
@@ -202,9 +205,9 @@ No. It is a community tool, not made or supported by RestedXP, Journey, Zygor
 or Polestar.
 
 **Can I share the converted pack?**
-Only where the guide's licence allows it. The guides are their authors' work,
-guides included: this tool exists so you can play what you already own
-with Polestar.
+Only where the guide's licence allows it. The guides are their authors' work:
+this tool exists so you can play guides you have the right to use with
+Polestar.
 
 **Does it send anything anywhere?**
 No guide content leaves your machine, on the command line or in the browser:

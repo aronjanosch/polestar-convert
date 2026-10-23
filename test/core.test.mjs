@@ -122,7 +122,7 @@ test("convertJourney: slot files from read, guides out", async () => {
 
 const RXP_A = `RXPGuides.RegisterGuide([[
 #group RestedXP Forever Guide (H)
-#subgroup Guide1-22
+#subgroup Guide 1-22
 #name 1-4 Testville
 #next 4-6 Testville Survival
 << Horde
@@ -142,10 +142,8 @@ step
 ]])`;
 
 test("rxpRoute: the route a guide belongs to, by its group", () => {
-	assert.equal(rxpRoute({ group: "RestedXP Forever Guide (A)", subgroup: "Guide1-20" }), "main");
-	assert.equal(rxpRoute({ group: "RestedXP Forever Guide (A)", subgroup: "GuideMage" }), "mage");
-	assert.equal(rxpRoute({ group: "RestedXP Horde class guide" }), "mage");
-	assert.equal(rxpRoute({ group: "RestedXP Alliance class guide" }), "mage");
+	assert.equal(rxpRoute({ group: "RestedXP Forever Guide (A)", subgroup: "Guide 1-20" }), "main");
+	assert.equal(rxpRoute({ group: "RestedXP Class Guide", subgroup: "Guide Mage" }), "main");
 	assert.equal(rxpRoute({ group: "RestedXP Forever Dungeon Guide (H) << Horde", subgroup: "Dungeon Guide 1-22 << Horde" }), "dungeon");
 	assert.equal(rxpRoute({ group: "RXP Dungeon Quest Guides (A)", subgroup: "15-30" }), "dungeon");
 	assert.equal(rxpRoute({ group: "RestedXP Survival Guide (A)", subgroup: "RXP Survival Guide 1-20" }), "survival");

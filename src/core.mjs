@@ -8,7 +8,7 @@ import { convertZygor, ZYGOR_FILES } from "./zygor/run.mjs";
 import { newPack } from "./pack.mjs";
 import { zip } from "./zip.mjs";
 
-export { ROUTES, rxpRoute } from "./rxp/run.mjs";
+export { ROUTES, ROUTE_ALIASES, rxpRoute } from "./rxp/run.mjs";
 export const SOURCES = ["rxp", "journey", "zygor"];
 
 const RXP_LIST = "RXPGuides/Guides/GuideList-forever.xml";

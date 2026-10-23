@@ -33,9 +33,11 @@ test("addonsDirOf: of several clients with guide addons, _forever_ first, then _
 });
 
 test("listArg: a comma list of known names; unknown ones are an error", () => {
-	const ROUTES = ["main", "dungeon", "survival", "mage"];
-	assert.deepEqual(listArg("main, Mage", ROUTES, "--routes"), ["main", "mage"]);
+	const ROUTES = ["main", "dungeon", "survival"];
+	assert.deepEqual(listArg("main, Survival", ROUTES, "--routes"), ["main", "survival"]);
 	assert.equal(listArg(undefined, ROUTES, "--routes"), null);
 	assert.deepEqual(listArg("all", ROUTES, "--routes"), ROUTES);
-	assert.throws(() => listArg("main,foo", ROUTES, "--routes"), /--routes: unknown "foo" \(main, dungeon, survival, mage\)/);
+	assert.throws(() => listArg("main,other", ROUTES, "--routes"), /--routes: unknown "other" \(main, dungeon, survival\)/);
+	// Names of 0.2.0 still work, without being listed.
+	assert.deepEqual(listArg("main,mage,dungeon", ROUTES, "--routes", { main: "main", mage: "main" }), ["main", "dungeon"]);
 });

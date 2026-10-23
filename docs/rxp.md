@@ -193,12 +193,11 @@ comes from a catalog of all N text-only steps and some read by hand:
   Polestar cannot see. `.isQuestAvailable a,b` (any of them) is left out:
   Polestar's `when available` takes one quest.
 - After a `.abandon`, Polestar 0.3.0 sends the route back to that quest's work
-  done before it: an escort quest in the class Darkshore route, the
-  cultists' ears on a starting zone. Skip the step. Fixed in Polestar by
+  done before it. Skip the step. Fixed in Polestar by
   "Abandon: the quest work before it stays done" (proposed upstream).
-- a summoned enemy stops Polestar's `playtest` in the Barrens guides: the simulator
-  does not put the hide in the bags, so RXP's "abandon it if you have no hide"
-  step fires. In the game the hide is there and the step passes.
+- A collect of an item a summoned enemy drops can stop Polestar's `playtest`:
+  the simulator does not put the item in the bags, so RXP's "abandon it if you
+  do not have it" step fires. In the game the item is there and the step passes.
 
 ## Checking a change
 
