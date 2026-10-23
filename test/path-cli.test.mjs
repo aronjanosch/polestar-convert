@@ -38,6 +38,4 @@ test("listArg: a comma list of known names; unknown ones are an error", () => {
 	assert.equal(listArg(undefined, ROUTES, "--routes"), null);
 	assert.deepEqual(listArg("all", ROUTES, "--routes"), ROUTES);
 	assert.throws(() => listArg("main,other", ROUTES, "--routes"), /--routes: unknown "other" \(main, dungeon, survival\)/);
-	// Names of 0.2.0 still work, without being listed.
-	assert.deepEqual(listArg("main,mage,dungeon", ROUTES, "--routes", { main: "main", mage: "main" }), ["main", "dungeon"]);
 });
