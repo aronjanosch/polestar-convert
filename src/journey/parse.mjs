@@ -7,7 +7,8 @@
 export function decodeSlot(html) {
 	const m = String(html).match(/<p>([\s\S]*?)<\/p>/i);
 	if (!m) return null;
-	return Buffer.from(m[1].replace(/\s+/g, ""), "base64").toString("utf8").replace(/\r/g, "");
+	const bytes = Uint8Array.from(atob(m[1].replace(/\s+/g, "")), (c) => c.charCodeAt(0));
+	return new TextDecoder().decode(bytes).replace(/\r/g, "");
 }
 
 // A Lua table becomes `{ arr: [...], kv: {...} }`: its array part in order and its
