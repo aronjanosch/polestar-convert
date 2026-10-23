@@ -186,6 +186,7 @@ Not yet. A one-command CLI and a browser version are planned.
 | [docs/journey/](docs/journey/format.md) | Journey's format, the converter's workarounds, what Polestar lacks |
 | [docs/translations.md](docs/translations.md) | RestedXP's translated guides in the pack |
 | [docs/development.md](docs/development.md) | Code layout, tests, checking a pack, adding a source |
+| [CHANGELOG.md](CHANGELOG.md) | What each release brings |
 
 ## Licence
 
