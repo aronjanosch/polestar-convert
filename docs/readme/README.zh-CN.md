@@ -47,10 +47,11 @@ ID、名称和坐标都来自 Polestar 自己的游戏数据。最后得到一�
 
 ```sh
 git clone -b next https://github.com/fitzforge/polestar
-git clone https://github.com/aronjanosch/polestar-convert
+git clone -b v0.1.0 https://github.com/aronjanosch/polestar-convert
 cd polestar
-node tools/polestar.js data build    # 找不到 QuestieDB 时加上 --questie "<WoW>/Interface/AddOns"
-node tools/polestar.js install       # 把这个 Polestar 安装到游戏里
+node tools/polestar.js data build        # 找不到 QuestieDB 时加上 --questie "<WoW>/Interface/AddOns"
+node tools/polestar.js profession build  # 专业技能等级和配方,供训练步骤使用
+node tools/polestar.js install           # 把这个 Polestar 安装到游戏里
 cd ..
 ```
 
@@ -82,6 +83,13 @@ node ../polestar/tools/polestar.js install    # 编译攻略包并安装到游�
 ```
 
 完全重启游戏。你的攻略会出现在 Polestar 攻略中心(`/polestar guides`)的“社区攻略”里。
+
+lint 和 playtest 会报告一些警告(需要组队的精英、没有已知刷新点的目标),这是正常的。
+只有错误才会阻止 `install`。
+
+**手边没有游戏?** 在攻略包目录里运行 `node ../polestar/tools/polestar.js play`,
+会在浏览器里打开 Polestar:真正的插件加载了你的攻略包,运行在模拟的世界中。
+在攻略中心选一个攻略,像在游戏里一样逐步点击。
 
 > [!TIP]
 > `--only "<攻略名称>"` 只转换一个攻略,试用时快得多。每次运行都会打印一份报告:
@@ -132,6 +140,10 @@ RestedXP 还提供翻译过的攻略(德语、西班牙语、法语、巴西葡�
   RestedXP 的 `#requires`、银行里的物品)。步骤会保留但不带该条件,报告里会列出。
 - **没有标题的步骤**会把第一个目标当作标题,所以只有一个任务的步骤会显示两次。
 - **骑术**在 Polestar 里不算专业技能,会被忽略。
+- **攻略放弃了一个你已经做过部分目标的任务时**(RestedXP 的法师 class 路线会放弃
+  an escort quest 的护送),Polestar 0.3.0 可能把你送回该任务之前的步骤。跳过它即可。
+  已向 Polestar 提交修复建议。
+- **精英任务**会像 RestedXP 和 Zygor 里一样留在路线中,并提示组队。不想做就跳过该步骤。
 
 完整列表(英文):[RestedXP](../rxp.md#known-gaps)、
 [Journey](../journey/polestar-gaps.md)、[Zygor](../zygor/polestar-gaps.md)。
