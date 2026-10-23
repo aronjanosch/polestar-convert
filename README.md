@@ -124,6 +124,25 @@ npx polestar-convert zygor --dir "<WoW>/_forever_/Interface/AddOns/ZygorGuidesVi
 > a task or a note, and what needs a human look.
 
 
+## Coverage
+
+How much of each original carries over, measured on 2026-10-23 against
+Polestar `next` 772b2065:
+
+| Source | Version | Guides | Original steps | Carried without a recorded loss |
+|---|---|---|---|---|
+| RestedXP | 4.11.26 | 271 | 32,914 | **97 %** |
+| Zygor | 8.1 | 100 | 7,238 | **88 %** |
+| Journey | 4.00.02 | 37 | 2,945 | **71 %** |
+
+A step counts when the run's reports note nothing for it (steps the original
+shows nobody aside). Most notes are softenings, not losses: a condition
+Polestar cannot express (Zygor's `indoors`), one of Journey's per-step variants
+read as the normal case, a goal to tick by hand. The reports differ in detail
+(Journey and Zygor list every softening per step, RestedXP less), so the
+numbers are a first measure, not a ranking; a hand audit of 24 RestedXP guides
+found about 95 % of steps right. Every lint passes with 0 errors.
+
 ## How it differs from the original
 
 The route, the quests and the text are the original's; how a step runs is

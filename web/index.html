@@ -65,6 +65,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 pre.cmd { margin: 10px 0 0; padding: 10px 12px; overflow-x: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: 0.88rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 footer { margin-top: 28px; color: var(--muted); font-size: 0.85rem; }
 a { color: var(--accent); }
+@media (max-width: 480px) { .wide { display: none; } th, td { padding: 6px 4px; } }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
 </head>
@@ -132,6 +133,20 @@ a { color: var(--accent); }
 	guides. Lint warnings are expected; only errors stop <code>install</code>. <code>reports/</code> in the pack lists
 	what each addon's steps could not carry. No game at hand? <code>node ../polestar/tools/polestar.js play</code> in the
 	pack opens Polestar in your browser.</p>
+</section>
+
+<section id="coverage">
+	<h2>How well it converts</h2>
+	<p>Measured on 2026-10-23 against Polestar <code>next</code> 772b2065: the share of each original's steps carried
+	without a recorded loss.</p>
+	<table><thead><tr><th>Source</th><th class="wide">Version</th><th class="num">Guides</th><th class="num">Steps</th><th class="num">Carried</th></tr></thead><tbody>
+		<tr><td>RestedXP</td><td class="wide">4.11.26</td><td class="num">271</td><td class="num">32,914</td><td class="num"><strong>97 %</strong></td></tr>
+		<tr><td>Zygor</td><td class="wide">8.1</td><td class="num">100</td><td class="num">7,238</td><td class="num"><strong>88 %</strong></td></tr>
+		<tr><td>Journey</td><td class="wide">4.00.02</td><td class="num">37</td><td class="num">2,945</td><td class="num"><strong>71 %</strong></td></tr>
+	</tbody></table>
+	<p style="margin-top:12px">Most notes are softenings, not losses: a condition Polestar cannot express, a goal to tick
+	by hand. The reports differ in detail, so this is a first measure, not a ranking.
+	<a href="https://github.com/aronjanosch/polestar-convert#coverage">How it is measured</a>.</p>
 </section>
 
 <footer>
