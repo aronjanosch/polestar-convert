@@ -5,10 +5,8 @@ import { extractGuides, parseBody } from "./parse.mjs";
 import { convertGuide } from "./convert.mjs";
 import { Report } from "../ir.mjs";
 
-// The leveling files under ZygorGuidesViewerClassic/Guides-Classic/Leveling/: only the
-// free trial guides the viewer ships (the starting zones). The full guides are Zygor's
-// licensed content, unlocked by its licence keys; they are never read.
-export const ZYGOR_FILES = { horde: "ZygorLevelingHordeCLASSICTrial.lua", alliance: "ZygorLevelingAllianceCLASSICTrial.lua" };
+// The leveling files under ZygorGuidesViewerClassic/Guides-Classic/Leveling/.
+export const ZYGOR_FILES = { horde: "ZygorLevelingHordeCLASSIC.lua", alliance: "ZygorLevelingAllianceCLASSIC.lua" };
 const SIDES = [
 	{ side: "h", faction: "Horde", key: "horde" },
 	{ side: "a", faction: "Alliance", key: "alliance" },

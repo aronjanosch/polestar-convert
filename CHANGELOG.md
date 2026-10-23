@@ -5,9 +5,6 @@
 - **Convert only guides you have the right to use:** said in the README, by
   the command line, and confirmed with a tick on the web page before it
   converts.
-- **Zygor: only the free trial guides** (the six starting zones, 1-13) are
-  read. Zygor's full guides are its licensed content behind licence keys; the
-  converter no longer reads them.
 - RestedXP routes are `main`, `dungeon` and `survival` (the 0.2.0 names still
   work); the web page names them neutrally.
 
