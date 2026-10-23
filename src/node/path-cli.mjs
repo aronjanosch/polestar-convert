@@ -13,7 +13,7 @@ import { createRequire } from "node:module";
 import { createInterface } from "node:readline/promises";
 import { loadData } from "../data.mjs";
 import { loadNames } from "../journey/names.mjs";
-import { findSources, convertAddons, packFiles, SOURCES, ROUTES } from "../core.mjs";
+import { findSources, convertAddons, packFiles, runReport, SOURCES, ROUTES } from "../core.mjs";
 import { folderReader, levelXpOf, resolveLoose } from "./read.mjs";
 import { translateRxp } from "./translate.mjs";
 
@@ -93,15 +93,6 @@ async function askRoutes() {
 }
 
 const polestar = (clone, args, opts = {}) => spawnSync(process.execPath, [join(clone, "tools", "polestar.js"), ...args], { encoding: "utf8", ...opts });
-
-// A run's counts and the lines that need a look, as the single commands print them.
-function runReport(run) {
-	const out = ["== counts"];
-	for (const [k, v] of [...run.report.counts].sort((x, y) => y[1] - x[1])) if (v) out.push(`${String(v).padStart(7)} ${k}`);
-	out.push("", "== needs a look");
-	for (const it of run.report.items) out.push(`${it.guide ? it.guide + " " : ""}step ${it.stepNo}: ${it.what}${it.line ? "  [" + String(it.line).slice(0, 90) + "]" : ""}`);
-	return out.join("\n") + "\n";
-}
 
 export async function run(a) {
 	const clone = resolve(typeof a.polestar === "string" ? a.polestar : process.env.POLESTAR || "polestar");
