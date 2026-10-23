@@ -171,6 +171,15 @@ test("a kill objective on a friendly NPC reads as talking, not killing", () => {
 	assert.equal(friendlyKillText({ id: 3, count: 1 }, q("Speak."), "Alliance", line(null, null), data), undefined);
 });
 
+test("an #optional hand-in that waits for its quest to be complete holds; one that only waits for the quest stays optional", () => {
+	const d = fakeData();
+	d.quests[11] = { id: 11, title: "A", start: { npc: [4] }, end: { npc: [4] }, objectives: [{ type: "item", id: 10, count: 1 }] };
+	const text = (body) => String(convertGuide(parseGuide("#name T\nstep\n    .accept 11\n" + body), d, { report: new Report(), slug: "t", packId: "chk" }).text);
+	const turnin = (t) => t.split("\n").map((l) => l.trim()).find((l) => l.startsWith("turnin 11"));
+	assert.equal(turnin(text("step\n    #optional\n    .turnin 11 >> Turn in A\n    .isQuestComplete 11\n")), "turnin 11");
+	assert.match(turnin(text("step\n    #optional\n    .turnin 11 >> Turn in A\n    .isOnQuest 11\n")), /\boptional\b/);
+});
+
 test("a negative quest id on an optional hand-in is read as the quest", () => {
 	assert.equal(goalText({ kind: "turnin", quest: 214 }), "turnin 214");
 });

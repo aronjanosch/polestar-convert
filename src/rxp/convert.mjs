@@ -879,6 +879,16 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		goals.push(...ctx.pendingNotes);
 		ctx.pendingNotes = [];
 	}
+	// An #optional step's hand-in under `.isQuestComplete` is RXP's "turn it in if you
+	// finished it": `when complete` already says so, and an optional turn-in the
+	// player passes leaves the quest for a later abandon, which sends Polestar's
+	// route back to the quest's goals.
+	if (optionalStep) for (const g of goals) {
+		if (g.kind === "turnin" && g.optional && !negGoals.has(g) && !ownElite.has(g) && whens.includes(`complete ${g.quest}`)) {
+			delete g.optional;
+			report.count("#optional turn-in of a complete quest -> required");
+		}
+	}
 	// A goal the data places (giver, vendor, trainer) sits where RXP's own .goto points.
 	if (!usedMaps.length && mapId && goals.some((g) => ["accept", "turnin", "vendor", "train", "buy", "complete"].includes(g.kind))) usedMaps.push(mapId);
 	// Accepts in a step with `when` may not happen: their quests' later goals wait
