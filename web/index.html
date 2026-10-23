@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>polestar-convert</title>
+<meta name="description" content="Convert the RestedXP, Journey and Zygor guides you own into a Polestar guide pack, in your browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 1l3.2 11.8L31 16l-11.8 3.2L16 31l-3.2-11.8L1 16l11.8-3.2z' fill='%23e6ba66'/%3E%3C/svg%3E">
+<style>
+:root {
+	--bg: #f6f3ec; --panel: #fffdf8; --ink: #1f2433; --muted: #5c6274; --line: #ddd6c6;
+	--accent: #b0812a; --accent-ink: #fff; --ok: #2f7d4f; --warn: #a1561b; --focus: #3d6fd6;
+	color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #1b2030; --panel: #232a3f; --ink: #ece7dc; --muted: #a9adbd; --line: #3a4361;
+		--accent: #e6ba66; --accent-ink: #1b2030; --ok: #7fd3a0; --warn: #f0a868; --focus: #94c9ff;
+		color-scheme: dark;
+	}
+}
+:root[data-theme="dark"] {
+	--bg: #1b2030; --panel: #232a3f; --ink: #ece7dc; --muted: #a9adbd; --line: #3a4361;
+	--accent: #e6ba66; --accent-ink: #1b2030; --ok: #7fd3a0; --warn: #f0a868; --focus: #94c9ff;
+	color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+header h1 { margin: 0; font-size: 2rem; letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; }
+header h1 svg { width: 28px; height: 28px; flex: none; }
+header p { margin: 6px 0 0; color: var(--muted); }
+.note { margin: 20px 0; padding: 12px 14px; border-left: 3px solid var(--accent); background: var(--panel); border-radius: 6px; font-size: 0.95rem; }
+.note.warn { border-color: var(--warn); }
+.note strong { color: var(--ink); }
+section { margin-top: 20px; padding: 18px 18px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+section h2 { margin: 0 0 4px; font-size: 1.1rem; display: flex; gap: 10px; align-items: baseline; }
+section h2 .n { color: var(--accent); font-variant-numeric: tabular-nums; }
+section > p { margin: 4px 0 12px; color: var(--muted); font-size: 0.95rem; }
+section[aria-disabled="true"] { opacity: 0.55; }
+label.check { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
+label.check input { margin-top: 5px; }
+label.check small { display: block; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.field label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+input[type=text][aria-invalid="true"] { border-color: var(--warn); }
+.err { color: var(--warn); font-size: 0.85rem; min-height: 1.2em; margin-top: 4px; }
+button, .button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-family: inherit; font-size: 1rem; font-weight: 600; line-height: 1.2; cursor: pointer; text-decoration: none; }
+button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.found { margin: 10px 0 0; padding: 0; list-style: none; }
+.found li { padding: 3px 0; }
+.found li::before { content: "✓ "; color: var(--ok); font-weight: 700; }
+.found li.none::before { content: "– "; color: var(--muted); }
+#log { margin: 12px 0 0; font: 0.9rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); white-space: pre-wrap; }
+table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.95rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+pre.cmd { margin: 10px 0 0; padding: 10px 12px; overflow-x: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: 0.88rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+footer { margin-top: 28px; color: var(--muted); font-size: 0.85rem; }
+a { color: var(--accent); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<main>
+<header>
+	<h1><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 1l3.2 11.8L31 16l-11.8 3.2L16 31l-3.2-11.8L1 16l11.8-3.2z" fill="currentColor" style="color: var(--accent)"/></svg>polestar-convert</h1>
+	<p>Your RestedXP, Journey and Zygor guides as a <a href="https://github.com/fitzforge/polestar">Polestar</a> guide pack, converted in your browser.</p>
+</header>
+
+<div class="note">
+	<strong>Nothing leaves your computer.</strong> This page reads the guide addons in the folder you pick, right here in
+	your browser, and hands you the pack as a ZIP. Your browser may ask whether to “upload” the files: that is its
+	word for letting this page read them; nothing is sent anywhere. The page only downloads Polestar's game data
+	from this site. It ships no guide content: the guides are their authors' work, so keep the pack to yourself.
+</div>
+<div class="note warn" id="data-warning" hidden></div>
+
+<form id="form" novalidate>
+<section id="step-folder">
+	<h2><span class="n">1</span> Pick your AddOns folder</h2>
+	<p>Your client's <code>Interface/AddOns</code> folder, for example
+	<code>World of Warcraft/_forever_/Interface/AddOns</code>. The World of Warcraft folder works too.</p>
+	<input type="file" id="folder" webkitdirectory directory multiple class="visually-hidden">
+	<button type="button" class="secondary" id="pick">Choose folder …</button>
+	<ul class="found" id="found" aria-live="polite"></ul>
+</section>
+
+<section id="step-routes" aria-disabled="true">
+	<h2><span class="n">2</span> RestedXP routes</h2>
+	<p>RestedXP holds four routes side by side. Most players run one; pick the ones you want in the pack.</p>
+	<div id="routes">
+		<label class="check"><input type="checkbox" name="route" value="main" checked> <span>Main<small>the main 1-60 route</small></span></label>
+		<label class="check"><input type="checkbox" name="route" value="dungeon" checked> <span>Dungeon<small>the same zones with dungeon quests woven in, and the dungeon quest guides</small></span></label>
+		<label class="check"><input type="checkbox" name="route" value="survival" checked> <span>Survival<small>1-20, careful</small></span></label>
+		<label class="check"><input type="checkbox" name="route" value="mage" checked> <span>class<small>for mages who pull big</small></span></label>
+	</div>
+</section>
+
+<section id="step-pack" aria-disabled="true">
+	<h2><span class="n">3</span> Your pack</h2>
+	<p>The id names the pack's folder and its guides in Polestar.</p>
+	<div class="grid">
+		<div class="field"><label for="pack-id">Pack id</label><input type="text" id="pack-id" value="my-guides" autocomplete="off" spellcheck="false" aria-describedby="pack-id-err"><div class="err" id="pack-id-err"></div></div>
+		<div class="field"><label for="pack-title">Title</label><input type="text" id="pack-title" value="My Guides" maxlength="64"></div>
+		<div class="field"><label for="pack-author">Author</label><input type="text" id="pack-author" value="Me" maxlength="64"></div>
+	</div>
+	<p style="margin-top:14px"><button type="submit" id="convert" disabled>Convert and download ZIP</button></p>
+	<div id="log" aria-live="polite"></div>
+</section>
+</form>
+
+<section id="step-done" hidden>
+	<h2><span class="n">4</span> Install it</h2>
+	<table id="summary"><thead><tr><th>Source</th><th class="num">Guides</th><th class="num">Steps</th><th class="num">To look at</th></tr></thead><tbody></tbody></table>
+	<p style="margin-top:14px"><a class="button" id="download" download>Download again</a></p>
+	<p>Unzip it next to your Polestar clone (Polestar <code>next</code> installs from the clone until 0.3.0 is out),
+	then check it and put it into the game:</p>
+	<pre class="cmd" id="cmds"></pre>
+	<p>Restart the game completely. Your guides show in Polestar's hub (<code>/polestar guides</code>) under Community
+	guides. Lint warnings are expected; only errors stop <code>install</code>. <code>reports/</code> in the pack lists
+	what each addon's steps could not carry. No game at hand? <code>node ../polestar/tools/polestar.js play</code> in the
+	pack opens Polestar in your browser.</p>
+</section>
+
+<footer>
+	<p id="data-info">Loading data info …</p>
+	<p>Unofficial: not made, endorsed or supported by RestedXP, Journey, Zygor or Polestar. Converter code
+	<a href="https://github.com/aronjanosch/polestar-convert">on GitHub</a> (MIT); translations and single guides on the
+	command line: <code>npx polestar-convert --path &lt;WoW folder&gt;</code>. Game data under GPLv3:
+	<a href="polestar-data/NOTICE.md">notice</a>, <a href="polestar-data/LICENSE">licence</a>.</p>
+</footer>
+</main>
+<script type="module" src="app.mjs"></script>
+</body>
+</html>
