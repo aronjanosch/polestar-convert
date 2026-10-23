@@ -4,6 +4,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { readTable } from "./csv.mjs";
 
 export function loadData(polestarDir) {
 	const dir = join(polestarDir, "data", "forever");
@@ -40,7 +41,16 @@ export function loadData(polestarDir) {
 	const inns = travel ? travel.inns || [] : [];
 	const flights = travel && travel.taxi ? travel.taxi.nodes || [] : [];
 	const hasProfessions = existsSync(join(dir, "professions.json"));
-	return { quests, npcs, zones, frames, items, races, objects, journal, inns, flights, hasProfessions, npcByName };
+	// Areas (zones and subzones) by AreaTable id, from the Forever client's table
+	// `data build` caches: RXP names subzones by id.
+	const build = travel && travel.foreverBuild;
+	const areas = new Map();
+	if (build) {
+		for (const [id, r] of readTable(join(polestarDir, "data", "sources", "wago", build, "AreaTable.csv"), "ID", ["AreaName_lang", "ParentAreaID"])) {
+			areas.set(id, { name: r.AreaName_lang, parent: Number(r.ParentAreaID) || 0 });
+		}
+	}
+	return { quests, npcs, zones, frames, items, races, objects, journal, inns, flights, hasProfessions, npcByName, areas };
 }
 
 // The elite a goal needs, by name, or null: a `kill` of an elite (rank 1-3:
@@ -187,6 +197,11 @@ export function zoneIdNamed(data, name) {
 export function zoneName(data, uiMap) {
 	const z = data.zones[uiMap];
 	return z ? z.name : null;
+}
+
+// An AreaTable area by id: { name, parent } (parent 0: a zone), or null.
+export function areaOf(data, id) {
+	return (data.areas && data.areas.get(Number(id))) || null;
 }
 
 // The NPC named `name` whose spawn lies closest to (uiMap, x, y); null when
