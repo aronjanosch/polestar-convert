@@ -72,8 +72,10 @@ node ../polestar/tools/polestar.js install   # 编译攻略包并安装到游戏
 `C:\Program Files (x86)\World of Warcraft`(其中的 `_forever_` 文件夹或它的 `Interface/AddOns` 也可以)。
 
 ```sh
-npx polestar-convert --path "<WoW>" --polestar polestar --locales zhCN --install
+npx polestar-convert --path "<WoW>" --locales zhCN --install
 ```
+
+在包含 `polestar` 克隆目录的文件夹里运行,或者用 `--polestar <文件夹>` 指定克隆目录。
 
 它会找到 RestedXP、Journey 和 Zygor,询问你要哪些 RestedXP 路线(Main、Dungeon、Survival、
 class;用 `--routes main` 可跳过询问),新建攻略包 `polestar-guides`,转换全部攻略并写入中文译文,

@@ -76,8 +76,11 @@ node ../polestar/tools/polestar.js install   # builds the pack and puts it into 
 `Interface/AddOns` work too).
 
 ```sh
-npx polestar-convert --path "<WoW>" --polestar polestar --install
+npx polestar-convert --path "<WoW>" --install
 ```
+
+Run it in the folder that holds the `polestar` clone, or name the clone with
+`--polestar <folder>`.
 
 It finds RestedXP, Journey and Zygor, asks which RestedXP routes you want
 (Main, Dungeon, Survival, class; `--routes main` skips the
