@@ -14,7 +14,7 @@
 
 No clone of the converter any more: one command, or a page in the browser.
 
-- **`npx polestar-convert --path <WoW>`** finds RestedXP, Journey and Zygor in
+- **`npx github:aronjanosch/polestar-convert --path <WoW>`** finds RestedXP, Journey and Zygor in
   the client's `Interface/AddOns`, makes the pack, converts every guide (with
   RestedXP's translations), lints and, with `--install`, installs it.
 - **RestedXP routes:** `--routes` (asked when unset) keeps the routes you

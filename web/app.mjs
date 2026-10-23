@@ -20,7 +20,7 @@ async function dataInfo() {
 		if (!m.questie) {
 			const w = $("data-warning");
 			w.hidden = false;
-			w.textContent = "This page's game data is built without QuestieDB: quests, NPCs and items only Forever has are missing, so many converted steps lose their target. For full guides use the command line with your own Polestar data build: npx polestar-convert --path <WoW folder>.";
+			w.textContent = "This page's game data is built without QuestieDB: quests, NPCs and items only Forever has are missing, so many converted steps lose their target. For full guides use the command line with your own Polestar data build: npx github:aronjanosch/polestar-convert --path <WoW folder>.";
 		}
 	} catch {
 		$("data-info").textContent = "The game data could not be loaded; converting will fail.";
@@ -42,7 +42,7 @@ function show(sources, count) {
 		const on = sources.includes(box.value);
 		box.disabled = !on;
 		box.checked = on;
-		$(`src-${box.value}`).textContent = on ? (box.value === "rxp" ? "found: the routes you tick below" : "found: its whole route") : "not in this folder";
+		$(`src-${box.value}`).textContent = on ? (box.value === "rxp" ? "found: the routes you tick below" : (box.value === "zygor" ? "found: its leveling guides, or its free trial guides" : "found: its whole route")) : "not in this folder";
 	}
 	routesEnabled();
 	$("step-pack").setAttribute("aria-disabled", String(!sources.length));

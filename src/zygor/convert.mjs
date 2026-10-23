@@ -31,7 +31,7 @@ export function clean(text) {
 	return String(text || "")
 		.replace(/##\d+\+?/g, "")
 		.replace(/##[A-Za-z][^\s|]*/g, "") // a name in place of the id: "Exampler##Exampler"
-		.replace(/(\w)\+(?=[\s.,]|$)/g, "$1") // Zygor's "several of these": "Example Mushroom+"
+		.replace(/(\w)\+(?=[\s.,]|$)/g, "$1") // Zygor's "several of these": "Example Item+"
 		.replace(/\[([^\]\/]+)\/\d+ ([\d.]+),([\d.]+)\]/g, "$1 $2,$3") // a map link: "[Tirisfal Glades/0 59.87,52.68]"
 		.replace(/"/g, "'")
 		.replace(/\{[a-z]?\}/gi, "")

@@ -127,7 +127,7 @@ RXP shows a `#completewith X` step beside the steps after it and closes it
 when X is done. Polestar's `along` is passed over at once, lists only goals
 (never notes) under *Along the way*, and `along until X` ends when the route
 *reaches* X. So the converter sorts RXP's step by what it holds. The rule
-comes from a catalog of all 847 text-only steps and 45 read by hand:
+comes from a catalog of RXP's text-only steps, some read by hand:
 
 | RXP step holds | Polestar | Example |
 |---|---|---|
@@ -167,8 +167,9 @@ comes from a catalog of all 847 text-only steps and 45 read by hand:
   still passes. An `#optional` turn-in that waits for its quest to be complete
   (`.isQuestComplete`) holds: `when complete` already says "if you finished
   it", and passing it would leave the quest to the guide's later `.abandon`.
-- **The play style is fixed:** not self-found (`#ah` kept, `#ssf` dropped),
-  softcore, 1× XP, Season 0, phase 6. Group steps are kept: the player
+- **Play style:** not self-found by default (`#ah` kept, `#ssf` dropped;
+  `--self-found yes` keeps `#ssf` and drops `#ah`); softcore, 1× XP, Season 0
+  and phase 6 are fixed. Group steps are kept: the player
   chooses them in Polestar (`when group`).
 
 ## Known gaps
@@ -183,7 +184,7 @@ comes from a catalog of all 847 text-only steps and 45 read by hand:
 - `.cast` of a spell no RXP line names stays a task (`.cast 6477`, clicking an
   object).
 - Riding (`.skill riding`) is no profession in Polestar: ignored.
-- `#requires X` (about 590) is not carried over: RXP holds the step while X is
+- `#requires X` is not carried over: RXP holds the step while X is
   still shown beside the route; Polestar's `when done X` would pass it by
   instead, and drop it whenever X was skipped.
 - A tag with its own condition on a step that also carries an unconditioned

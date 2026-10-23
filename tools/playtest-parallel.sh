@@ -8,7 +8,7 @@
 set -euo pipefail
 
 pack=""
-polestar="${POLESTAR:-$HOME/Work/polestar-next}"
+polestar="${POLESTAR:-./polestar}"
 jobs=$(( $(nproc) * 5 / 8 ))
 while [ $# -gt 0 ]; do
 	case "$1" in

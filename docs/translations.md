@@ -5,8 +5,7 @@ client's own language for every source. RestedXP also ships translated
 guides, and the `rxp` run carries their text into the pack's translations.
 
 The `rxp` run fills the pack's translations. `--locales <all|none|zhCN,deDE,...>`
-(default `all`): for each language RXP ships translated guides for (deDE, esES,
-frFR, ptBR, zhCN; found as `RXPGuides/lang/Guides-<locale>/GuideList-forever.xml`)
+(default `all`): for each language RXP ships translated guides for (found as `RXPGuides/lang/Guides-<locale>/GuideList-forever.xml`)
 the run fills the pack's `locales/<locale>/` files through Polestar's
 `i18n guides sync`, then runs `i18n guides check`. `none` turns it off (no sync,
 no download).
