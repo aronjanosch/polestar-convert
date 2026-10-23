@@ -1,27 +1,31 @@
 // Polestar's reference data (data/forever in a Polestar clone, built with
 // `polestar data build`). The converter reads it to turn names into ids and
 // RXP world coordinates into zone percentages; it never writes it.
+//
+// `read(path)` gives a file's text by its path in the clone ("data/forever/quests.json"),
+// or null when it is not there: a clone on disk, or the same files from a web page.
 
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
 import { readTable } from "./csv.mjs";
 
-export function loadData(polestarDir) {
-	const dir = join(polestarDir, "data", "forever");
-	const read = (f) => JSON.parse(readFileSync(join(dir, f), "utf8"));
-	const quests = read("quests.json");
-	const npcs = read("npcs.json");
-	const zones = read("zones.json");
-	const frames = read("map-frames.json");
-	const items = read("items.json");
-	const races = read("races.json");
-	const objects = read("objects.json");
+export async function loadData(read) {
+	const json = async (f, need = true) => {
+		const text = await read(`data/forever/${f}`);
+		if (text == null && need) throw new Error(`data/forever/${f}: not found (run \`polestar data build\`)`);
+		return text == null ? null : JSON.parse(text);
+	};
+	const quests = await json("quests.json");
+	const npcs = await json("npcs.json");
+	const zones = await json("zones.json");
+	const frames = await json("map-frames.json");
+	const items = await json("items.json");
+	const races = await json("races.json");
+	const objects = await json("objects.json");
 	// Dungeon quests from the codex build: where each starts and ends, and the
 	// dungeon's entrance for a giver inside it.
 	const journal = new Map();
-	const jf = join(dir, "codex", "journal.json");
-	if (existsSync(jf)) {
-		const dungeons = JSON.parse(readFileSync(jf, "utf8")).dungeons || [];
+	const codex = await json("codex/journal.json", false);
+	if (codex) {
+		const dungeons = codex.dungeons || [];
 		for (const d of Array.isArray(dungeons) ? dungeons : Object.values(dungeons)) {
 			for (const q of [...(d.quests || []), ...Object.values(d.chain || {})]) {
 				if (!journal.has(q.id)) journal.set(q.id, { start: q.start, finish: q.finish, entrance: d.entrance });
@@ -36,17 +40,16 @@ export function loadData(polestarDir) {
 		npcByName.get(key).push(npc);
 	}
 	// Inns and flight points (`polestar travel build`), when built.
-	const tf = join(dir, "travel.json");
-	const travel = existsSync(tf) ? JSON.parse(readFileSync(tf, "utf8")) : null;
+	const travel = await json("travel.json", false);
 	const inns = travel ? travel.inns || [] : [];
 	const flights = travel && travel.taxi ? travel.taxi.nodes || [] : [];
-	const hasProfessions = existsSync(join(dir, "professions.json"));
+	const hasProfessions = (await read("data/forever/professions.json")) != null;
 	// Areas (zones and subzones) by AreaTable id, from the Forever client's table
 	// `data build` caches: RXP names subzones by id.
 	const build = travel && travel.foreverBuild;
 	const areas = new Map();
 	if (build) {
-		for (const [id, r] of readTable(join(polestarDir, "data", "sources", "wago", build, "AreaTable.csv"), "ID", ["AreaName_lang", "ParentAreaID"])) {
+		for (const [id, r] of readTable(await read(`data/sources/wago/${build}/AreaTable.csv`), "ID", ["AreaName_lang", "ParentAreaID"])) {
 			areas.set(id, { name: r.AreaName_lang, parent: Number(r.ParentAreaID) || 0 });
 		}
 	}

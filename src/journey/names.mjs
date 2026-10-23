@@ -1,28 +1,23 @@
 // Names Journey refers to by id that `src/data.mjs` does not load: areas
 // (AreaTable), spells (SpellName) and buildings (WMOAreaTable), from the client tables a Polestar
 // clone caches in data/sources/wago/<build>/ (the build travel.json names), plus
-// lookups by id into Polestar's inns and flight points. Read only.
+// lookups by id into Polestar's inns and flight points. `read` as for loadData;
+// `levelXp`: XP from one level to the next, as Polestar counts it
+// (tools/lib/game/xp.js LEVEL_XP), or null.
 
-import { readFileSync, existsSync } from "node:fs";
 import { table } from "../csv.mjs";
-import { join } from "node:path";
-import { createRequire } from "node:module";
 
-export function loadNames(polestarDir, data) {
-	const tf = join(polestarDir, "data", "forever", "travel.json");
-	const travel = existsSync(tf) ? JSON.parse(readFileSync(tf, "utf8")) : {};
+export async function loadNames(read, data, levelXp = null) {
+	const tf = await read("data/forever/travel.json");
+	const travel = tf != null ? JSON.parse(tf) : {};
 	const build = travel.foreverBuild || null;
-	const dir = build ? join(polestarDir, "data", "sources", "wago", build) : null;
-	const areas = dir ? table(join(dir, "AreaTable.csv"), "ID", "AreaName_lang") : new Map();
-	const spells = dir ? table(join(dir, "SpellName.csv"), "ID", "Name_lang") : new Map();
+	const csv = (b, name) => (b ? read(`data/sources/wago/${b}/${name}.csv`) : null);
+	const areas = table(await csv(build, "AreaTable"), "ID", "AreaName_lang");
+	const spells = table(await csv(build, "SpellName"), "ID", "Name_lang");
 	// Buildings: Journey numbers them as the Era client does (WMOAreaTable of the
 	// Era build travel.json names; cache it with Polestar's wago cachedTable).
-	const eraDir = travel.build ? join(polestarDir, "data", "sources", "wago", travel.build) : null;
-	const wmos = eraDir ? table(join(eraDir, "WMOAreaTable.csv"), "ID", "AreaName_lang") : new Map();
+	const wmos = table(await csv(travel.build, "WMOAreaTable"), "ID", "AreaName_lang");
 	const nodeById = new Map((data.flights || []).map((n) => [n.id, n]));
-	// XP from one level to the next, as Polestar counts it (tools/lib/game/xp.js).
-	const xpLib = join(polestarDir, "tools", "lib", "game", "xp.js");
-	const levelXp = existsSync(xpLib) ? createRequire(import.meta.url)(xpLib).LEVEL_XP : null;
 	return {
 		area: (id) => areas.get(Number(id)) || null,
 		spell: (id) => spells.get(Number(id)) || null,
