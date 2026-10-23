@@ -36,23 +36,21 @@ Polestar's `.guide` format with ids, names and coordinates from Polestar's own
 game data, and leaves you a community pack that Polestar's tools check, play
 through in a simulator and install into the game.
 
-Nothing leaves your machine. The converter runs locally with Node, has no
-dependencies, and reports everything it dropped, softened or could not place,
+Nothing leaves your machine. The converter runs locally, with Node or in
+your browser, has no dependencies, and reports everything it dropped, softened or could not place,
 so you know what to look at.
 
 ## Quick start
 
-You need **Node 24+**, **Git**, World of Warcraft: Forever, and at least one
-of the [supported guide addons](#quick-start) in its `Interface/AddOns`
-folder.
+You need World of Warcraft: Forever and at least one of the
+[supported guide addons](#quick-start) in its `Interface/AddOns` folder.
+Converted packs need Polestar 0.3.0: until it is released, play Polestar's
+`next` branch, installed from a clone (needs **Node 24+** and **Git**).
 
-**1. Get Polestar with its game data, and this converter.** Converted packs
-need Polestar 0.3.0: until it is released, take Polestar's `next` branch and
-install it into the game from the clone.
+**1. Polestar with its game data (once).**
 
 ```sh
 git clone -b next https://github.com/fitzforge/polestar
-git clone -b v0.1.0 https://github.com/aronjanosch/polestar-convert
 cd polestar
 node tools/polestar.js data build        # add --questie "<WoW>/Interface/AddOns" if it does not find QuestieDB
 node tools/polestar.js profession build  # profession ranks and recipes, for the training steps
@@ -60,40 +58,62 @@ node tools/polestar.js install           # puts this Polestar into the game
 cd ..
 ```
 
-**2. Make a pack and convert your guides into it.** `<WoW>` is your client
-folder, such as `C:\Program Files (x86)\World of Warcraft\_forever_`. Run the
-line for the addon you have, or several into the same pack:
+**2. Convert your guides.** Either way gives the same pack.
+
+*In your browser:* open **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
+pick your `Interface/AddOns` folder, tick the RestedXP routes you want and
+download the pack as a ZIP. The page reads your guide files in the browser;
+nothing is uploaded. Unzip the pack next to the `polestar` folder, then:
 
 ```sh
-node polestar/tools/polestar.js new my-pack --id my-pack --yes
-
-# RestedXP: every guide of the install
-node polestar-convert/bin/polestar-convert.mjs rxp --list "<WoW>/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack
-# Journey
-node polestar-convert/bin/polestar-convert.mjs journey --dir "<WoW>/Interface/AddOns/Journey" --polestar polestar --pack my-pack
-# Zygor
-node polestar-convert/bin/polestar-convert.mjs zygor --dir "<WoW>/Interface/AddOns/ZygorGuidesViewerClassic" --polestar polestar --pack my-pack
+cd my-guides
+node ../polestar/tools/polestar.js lint      # checks every guide against the game's data
+node ../polestar/tools/polestar.js install   # builds the pack and puts it into the game
 ```
 
-**3. Check it and install it.**
+*Or with one command:* `<WoW>` is your World of Warcraft folder, such as
+`C:\Program Files (x86)\World of Warcraft` (the `_forever_` folder in it or its
+`Interface/AddOns` work too).
 
 ```sh
-cd my-pack
-node ../polestar/tools/polestar.js lint       # checks every guide against the game's data
-node ../polestar/tools/polestar.js playtest   # plays every guide to the end (optional, slow)
-node ../polestar/tools/polestar.js install    # builds the pack and puts it into the game
+npx polestar-convert --path "<WoW>" --polestar polestar --install
 ```
+
+It finds RestedXP, Journey and Zygor, asks which RestedXP routes you want
+(Main, Dungeon, Survival, class; `--routes main` skips the
+question), makes the pack `polestar-guides`, converts every guide with
+RestedXP's translations, lints and installs it. Leave out `--install` to look
+first.
 
 Restart the game completely. Your guides show in Polestar's hub
 (`/polestar guides`) under Community guides.
 
-Lint and playtest report warnings (an elite to group up for, a target with no
-known spawn); those are expected. Only errors stop `install`.
+Lint reports warnings (an elite to group up for, a target with no known
+spawn); those are expected. Only errors stop `install`.
 
 **No game at hand?** `node ../polestar/tools/polestar.js play` (inside the
 pack) opens Polestar in your browser: the real addon with your pack loaded,
 against a simulated world. Pick a guide in the hub and click through its steps
 as you would in game.
+
+| | Browser | `npx polestar-convert --path` |
+|---|---|---|
+| Needs | a browser | Node 24+ |
+| Game data | Polestar's, hosted with the page ([GPLv3](#licence)) | your own clone's `data build` |
+| RestedXP translations | no (English texts, names in your client's language) | yes |
+| Lint and install | you run them | done for you |
+
+### One addon at a time
+
+The single commands convert one addon into a pack you made with
+`node polestar/tools/polestar.js new my-pack --id my-pack --yes`, with more
+options (below):
+
+```sh
+npx polestar-convert rxp --list "<WoW>/_forever_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack
+npx polestar-convert journey --dir "<WoW>/_forever_/Interface/AddOns/Journey" --polestar polestar --pack my-pack
+npx polestar-convert zygor --dir "<WoW>/_forever_/Interface/AddOns/ZygorGuidesViewerClassic" --polestar polestar --pack my-pack
+```
 
 > [!TIP]
 > `--only "<guide name>"` converts a single guide, which is much faster while
@@ -130,8 +150,8 @@ The details per source: [RestedXP](docs/rxp.md), [Zygor](docs/zygor.md),
 Polestar shows game names (NPCs, quests, items, places, spells) in your
 client's language for every source. RestedXP also ships translated guides
 (German, Spanish, French, Brazilian Portuguese, Chinese), and the `rxp` run
-carries their text into the pack (`--locales all`, the default, or
-`--locales zhCN,deDE`). Journey's and Zygor's own words stay English. More in
+carries their text into the pack on the command line (`--locales all`, the
+default, or `--locales zhCN,deDE`); the browser page leaves them out. Journey's and Zygor's own words stay English. More in
 [docs/translations.md](docs/translations.md).
 
 ## Known gaps
@@ -165,8 +185,11 @@ guides included: this tool exists so you can play what you already own
 with Polestar.
 
 **Does it send anything anywhere?**
-No guide content leaves your machine. With translations on, the first run per
-language downloads the client's public place and spell names from wago.tools.
+No guide content leaves your machine, on the command line or in the browser:
+the page reads the folder you pick inside the browser and only downloads
+Polestar's game data from its own site. With translations on, the first
+command-line run per language downloads the client's public place and spell
+names from wago.tools.
 
 **A step is skipped, doubled or missing. Is that a bug?**
 Look at the run's report and the pack's `reports/` first: many differences are
@@ -175,7 +198,9 @@ deliberate (above). If it is still wrong, open an
 guide's name, the step and what the original does.
 
 **Is there a version without Node and Git?**
-Not yet. A one-command CLI and a browser version are planned.
+Converting, yes: the [browser page](https://aronjanosch.github.io/polestar-convert/).
+Installing the pack still runs Polestar's tools from its clone until Polestar
+0.3.0 is released.
 
 ## Documentation
 
@@ -185,12 +210,15 @@ Not yet. A one-command CLI and a browser version are planned.
 | [docs/zygor.md](docs/zygor.md) | How Zygor's steps become Polestar steps |
 | [docs/journey/](docs/journey/format.md) | Journey's format, the converter's workarounds, what Polestar lacks |
 | [docs/translations.md](docs/translations.md) | RestedXP's translated guides in the pack |
+| [docs/web.md](docs/web.md) | The browser page: how it works, its game data, publishing it |
 | [docs/development.md](docs/development.md) | Code layout, tests, checking a pack, adding a source |
 | [CHANGELOG.md](CHANGELOG.md) | What each release brings |
 
 ## Licence
 
 The converter is [MIT](LICENSE). It contains no guide content and no Polestar
-code; the guides you convert keep their own licence. RestedXP, Journey, Zygor
+code; the guides you convert keep their own licence. The game data the browser
+page loads is a copy of Polestar's data build, published separately under
+GPLv3 because it holds QuestieDB facts ([notice](https://aronjanosch.github.io/polestar-convert/polestar-data/NOTICE.md)). RestedXP, Journey, Zygor
 and Polestar are named to say what the tool reads and writes; no trademark
 rights are claimed.
