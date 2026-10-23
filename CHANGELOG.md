@@ -5,6 +5,8 @@
 - **Convert only guides you have the right to use:** said in the README, by
   the command line, and confirmed with a tick on the web page before it
   converts.
+- **Zygor's free trial guides** (the starting zones the viewer ships) are
+  converted for a faction whose full leveling guides are not installed.
 - RestedXP routes are `main`, `dungeon` and `survival` (the 0.2.0 names still
   work); the web page names them neutrally.
 

@@ -6,10 +6,10 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { convertZygor, ZYGOR_FILES } from "./run.mjs";
+import { convertZygor, ZYGOR_FILES, ZYGOR_TRIAL_FILES } from "./run.mjs";
+import { folderReader } from "../node/read.mjs";
 import { loadData } from "../data.mjs";
 import { gapReport } from "../core.mjs";
-import { folderReader } from "../node/read.mjs";
 
 const USAGE = 'usage: polestar-convert zygor --dir <ZygorGuidesViewerClassic folder> --polestar <clone> --pack <pack dir> [--only "<guide name or slug>"]';
 
@@ -21,7 +21,8 @@ export async function run(a) {
 	if (!existsSync(guidesDir)) mkdirSync(guidesDir, { recursive: true });
 
 	const lua = {};
-	for (const [side, file] of Object.entries(ZYGOR_FILES)) lua[side] = readFileSync(join(a.dir, "Guides-Classic", "Leveling", file), "utf8");
+	const leveling = folderReader(join(a.dir, "Guides-Classic", "Leveling"));
+	for (const [side, file] of Object.entries(ZYGOR_FILES)) lua[side] = (await leveling(file)) ?? (await leveling(ZYGOR_TRIAL_FILES[side])) ?? "";
 	const r = convertZygor(lua, data, { packId, only: a.only });
 	if (!r.guides.length) { console.error("no guide matches"); process.exit(1); }
 	for (const g of r.guides) {

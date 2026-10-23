@@ -174,6 +174,22 @@ const ADDONS = {
 	"ZygorGuidesViewerClassic/Guides-Classic/Leveling/ZygorLevelingHordeCLASSIC.lua": ZYGOR_H,
 };
 
+test("Zygor: the full leveling file of a side, else its free trial file", async () => {
+	const data = await loadData(reader(FULL));
+	const names = await loadNames(reader(FULL), data);
+	const dir = "ZygorGuidesViewerClassic/Guides-Classic/Leveling/";
+	const trialOnly = { [`${dir}ZygorLevelingHordeCLASSICTrial.lua`]: ZYGOR_H };
+	assert.deepEqual(await findSources(reader(trialOnly)), ["zygor"]);
+	const t = await convertAddons(reader(trialOnly), data, names, { packId: "mine" });
+	assert.deepEqual(t.zygor.guides.map((g) => g.slug), ["h-testville-1-4", "h-testville-two-4-6"]);
+	// Both there: the full file only, so no guide comes twice.
+	const asked = [];
+	const both = { [`${dir}ZygorLevelingHordeCLASSIC.lua`]: ZYGOR_H, [`${dir}ZygorLevelingHordeCLASSICTrial.lua`]: "broken" };
+	const b = await convertAddons(async (p) => { asked.push(p); return both[p] ?? null; }, data, names, { packId: "mine", sources: ["zygor"] });
+	assert.equal(b.zygor.guides.length, 2);
+	assert.ok(!asked.includes(`${dir}ZygorLevelingHordeCLASSICTrial.lua`) || b.zygor.guides.every((g) => g.text.includes("accept 1")));
+});
+
 test("findSources: which guide addons the AddOns folder holds", async () => {
 	assert.deepEqual(await findSources(reader(ADDONS)), ["rxp", "journey", "zygor"]);
 	assert.deepEqual(await findSources(reader({ "Journey/data/Guides/guides.html": "x" })), ["journey"]);
