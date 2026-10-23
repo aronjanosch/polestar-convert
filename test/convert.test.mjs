@@ -202,6 +202,19 @@ test(".stable is a task to tick, with RXP's text or its default", () => {
 	assert.deepEqual(goalsOf(guideText("step << Hunter\n    .stable\n")), ['task "Stable your pet"']);
 });
 
+test("a tag with its own condition holds only for those characters: the step splits", () => {
+	const d = fakeData();
+	d.quests[11] = { id: 11, title: "A", start: { npc: [4] }, end: { npc: [4] }, objectives: [{ type: "kill", id: 4, count: 3, text: "Oliver Dwor" }] };
+	const out = String(convertGuide(parseGuide("#name T\nstep\n    .accept 11\nstep\n    #completewith next << Warrior\n    .complete 11,1\nstep\n    .turnin 11\n"), d, { report: new Report(), slug: "t", packId: "chk" }).text);
+	const steps = out.split(/\n(?=step)/).filter((s) => /quest 11\.1/.test(s));
+	assert.equal(steps.length, 2);
+	const warrior = steps.find((s) => /only Warrior\b/.test(s));
+	const others = steps.find((s) => s !== warrior);
+	assert.match(warrior, /\balong\b/);
+	assert.doesNotMatch(others, /\balong\b/);
+	assert.doesNotMatch(others, /only Warrior\b/);
+});
+
 test("a negative quest id on an optional hand-in is read as the quest", () => {
 	assert.equal(goalText({ kind: "turnin", quest: 214 }), "turnin 214");
 });

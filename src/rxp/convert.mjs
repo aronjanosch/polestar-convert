@@ -3,7 +3,7 @@
 // data does not know is quoted by name or the line becomes a `task`/`note`, and
 // the report says so.
 
-import { parseCondition, andOnly, onlyText, condsMeet, onlyMeet, CLASSES } from "../cond.mjs";
+import { parseCondition, andOnly, onlyText, condsMeet, onlyMeet, CLASSES, playersOf, condFor } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
 import { baseItemSoldBy, goalPlaced, worldToZone, zoneName, areaOf, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
 import { render, shorten } from "../emit.mjs";
@@ -186,8 +186,32 @@ export function friendlyKillText(obj, quest, faction, l, data) {
 	return `${/^find\b/i.test(quest.objectiveText || "") ? "Find" : "Talk to"} ${npc.name}`;
 }
 
+// Tags RXP reads per character when they carry their own `<<`.
+const COND_TAGS = new Set(["completewith", "label", "optional"]);
+
 function buildStep(step, stepNo, data, ctx) {
 	const { report } = ctx;
+	// `#completewith X << Warrior`: the tag holds for Warriors only. The step splits
+	// by which of its conditioned tags hold, unless an unconditioned label would be
+	// written twice.
+	const condTags = step.tags.filter((t) => t.cond && COND_TAGS.has(t.name));
+	if (condTags.length) {
+		const plain = step.tags.filter((t) => !condTags.includes(t));
+		if (plain.some((t) => t.name === "label")) report.count("conditioned tag on a labelled step (read for everyone)");
+		else {
+			const tagSets = condTags.map((t) => new Set(playersOf(t.cond)));
+			const parts = new Map();
+			for (const p of playersOf(step.cond)) {
+				const mask = tagSets.map((set) => (set.has(p) ? 1 : 0)).join("");
+				parts.set(mask, [...(parts.get(mask) || []), p]);
+			}
+			report.count("step: conditioned tag split", parts.size);
+			return [...parts].flatMap(([mask, players]) => {
+				const tags = [...plain, ...condTags.filter((_, i) => mask[i] === "1").map((t) => ({ ...t, cond: null }))];
+				return buildStep({ ...step, cond: condFor(players), tags }, stepNo, data, ctx) || [];
+			});
+		}
+	}
 	const cond = parseCondition(step.cond, ctx.scope);
 	cond.unknown.forEach((u) => report.note(ctx.name, stepNo, `unknown condition word "${u}"`, step.cond));
 	if (cond.never) {
