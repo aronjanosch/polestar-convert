@@ -5,6 +5,8 @@
 import { convertRxp, guideList } from "./rxp/run.mjs";
 import { convertJourney } from "./journey/run.mjs";
 import { convertZygor, ZYGOR_FILES } from "./zygor/run.mjs";
+import { newPack } from "./pack.mjs";
+import { zip } from "./zip.mjs";
 
 export { ROUTES, rxpRoute } from "./rxp/run.mjs";
 export const SOURCES = ["rxp", "journey", "zygor"];
@@ -13,6 +15,30 @@ const RXP_LIST = "RXPGuides/Guides/GuideList-forever.xml";
 const JOURNEY_DIR = "Journey/data/Guides/";
 const ZYGOR_DIR = "ZygorGuidesViewerClassic/Guides-Classic/Leveling/";
 const REPORT_SOURCE = { journey: "Journey (local install)", zygor: "Zygor Guide Viewer Classic (local install)" };
+
+const GUIDE_ADDONS = ["rxpguides", "journey", "zygorguidesviewerclassic"];
+// Client folders by preference: the live client, then the beta Forever ran as.
+const CLIENTS = ["_forever_", "_classic_beta_"];
+
+// The files of a picked folder (paths as the browser gives them, the picked folder's
+// name first) -> Map(path under Interface/AddOns, lowercased -> index in `paths`).
+// The folder may be the World of Warcraft folder (its Forever client is taken), a
+// client folder, its Interface folder, the AddOns folder or one addon's folder. Files
+// elsewhere are left out.
+export function addonsPaths(paths) {
+	const lower = paths.map((p) => "/" + p.replace(/\\/g, "/").toLowerCase());
+	const marker = "/interface/addons/";
+	const prefixes = [...new Set(lower.filter((p) => p.includes(marker)).map((p) => p.slice(0, p.indexOf(marker) + marker.length)))];
+	const rank = (prefix) => {
+		const client = prefix.split("/").slice(-4, -3)[0];
+		return CLIENTS.indexOf(client) + 1 || 99;
+	};
+	const first = (lower[0] || "/").split("/")[1];
+	const prefix = prefixes.sort((a, b) => rank(a) - rank(b))[0] ?? (GUIDE_ADDONS.includes(first) ? "/" : `/${first}/`);
+	const out = new Map();
+	lower.forEach((p, i) => { if (p.startsWith(prefix) && p.length > prefix.length) out.set(p.slice(prefix.length), i); });
+	return out;
+}
 
 // The guide addons the folder holds, of SOURCES, in that order.
 export async function findSources(read) {
@@ -24,13 +50,14 @@ export async function findSources(read) {
 }
 
 // opts: { packId, sources (default: every one found), routes (RXP), selfFound (RXP),
-// ah, groups (Journey) }. -> { rxp?, journey?, zygor? }: each source's run; an RXP run
+// ah, groups (Journey), progress (called with each source before it runs) }. -> { rxp?, journey?, zygor? }: each source's run; an RXP run
 // also lists the files its guide list names but the folder lacks (`missing`).
 export async function convertAddons(read, data, names, opts) {
 	const want = opts.sources && opts.sources.length ? opts.sources : SOURCES;
 	const found = await findSources(read);
 	const runs = {};
 	for (const source of SOURCES.filter((s) => want.includes(s) && found.includes(s))) {
+		if (opts.progress) await opts.progress(source);
 		if (source === "rxp") {
 			const files = [], missing = [];
 			for (const path of guideList(await read(RXP_LIST))) {
@@ -64,4 +91,21 @@ export function packFiles(runs) {
 		if (run.gaps && run.guides.length) files[`reports/${source}-gaps.json`] = gapReport(source, run);
 	}
 	return files;
+}
+
+// A run's counts and the lines that need a look, as the single commands print them.
+export function runReport(run) {
+	const out = ["== counts"];
+	for (const [k, v] of [...run.report.counts].sort((x, y) => y[1] - x[1])) if (v) out.push(`${String(v).padStart(7)} ${k}`);
+	out.push("", "== needs a look");
+	for (const it of run.report.items) out.push(`${it.guide ? it.guide + " " : ""}step ${it.stepNo}: ${it.what}${it.line ? "  [" + String(it.line).slice(0, 90) + "]" : ""}`);
+	return out.join("\n") + "\n";
+}
+
+// A new pack holding the runs, as a ZIP with one folder named by the pack's id.
+// pack: { id, title, author }.
+export function packZip(runs, pack) {
+	const files = { ...newPack(pack), ...packFiles(runs) };
+	for (const [source, run] of Object.entries(runs)) files[`reports/${source}-run.txt`] = runReport(run);
+	return zip(Object.fromEntries(Object.entries(files).map(([path, text]) => [`${pack.id}/${path}`, text])));
 }

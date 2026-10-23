@@ -7,6 +7,14 @@
 
 import { readTable } from "./csv.mjs";
 
+// Every file loadData and Journey's loadNames read, by its path in the clone, for the
+// builds `travel` (data/forever/travel.json) names: what a hosted copy of the data holds.
+export function dataFiles(travel) {
+	const forever = ["quests", "npcs", "zones", "map-frames", "items", "races", "objects", "codex/journal", "travel", "professions"].map((f) => `data/forever/${f}.json`);
+	const wago = (build, table) => (build ? [`data/sources/wago/${build}/${table}.csv`] : []);
+	return [...forever, ...wago(travel.foreverBuild, "AreaTable"), ...wago(travel.foreverBuild, "SpellName"), ...wago(travel.build, "WMOAreaTable")];
+}
+
 export async function loadData(read) {
 	const json = async (f, need = true) => {
 		const text = await read(`data/forever/${f}`);
