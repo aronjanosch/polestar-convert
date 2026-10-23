@@ -215,6 +215,13 @@ test("a tag with its own condition holds only for those characters: the step spl
 	assert.doesNotMatch(others, /only Warrior\b/);
 });
 
+test("a header naming races of one side only is that side's guide", () => {
+	const header = (cond) => String(guideText(`<< ${cond}\nstep\n    .train 1,1 >> Train Thrown\n    .target Bixi\n`).text).split("\n").filter((l) => /^(faction|race|class) /.test(l));
+	assert.deepEqual(header("Gnome Mage"), ["faction Alliance", "class Mage", "race Gnome"]);
+	assert.deepEqual(header("Orc/Troll"), ["faction Horde", "race Orc, Troll"]);
+	assert.deepEqual(header("Skyborne"), ["race Skyborne"]);
+});
+
 test("a negative quest id on an optional hand-in is read as the quest", () => {
 	assert.equal(goalText({ kind: "turnin", quest: 214 }), "turnin 214");
 });
