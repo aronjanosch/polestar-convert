@@ -9,6 +9,20 @@
   converted for a faction whose full leveling guides are not installed.
 - RestedXP routes are `main`, `dungeon` and `survival`; the web page names
   them neutrally.
+- **Zygor: every guide family.** Dungeon, profession, reputation and event
+  guides and the end-game chains are converted beside the leveling guides,
+  each in its Polestar category and folder (733 guides instead of 100).
+- **Zygor: more of each step carries over.** `walking`, `indoors` beside a
+  subzone, `discountgold`, `completedallq` and ORs of conditions (a copy of
+  the step per alternative); a way line for some places is a `goto` step of
+  its own; goal lines under different conditions are a step each; `|or` with
+  a skill check is `when !skill`; menus are a step per option; jumps without
+  a condition use `when done`; professions train their rank, learn at the
+  trainer (one per race), reach their skill and gather along `loop` routes;
+  dungeons are entered with `enter`; `abandon`, `cast`, `use` and standings.
+- **Zygor: `'` lines** are goals of their own, as in Zygor's parser, not
+  continuations of the line above; jumps on a check Polestar cannot ask are
+  dropped instead of taken.
 
 ## 0.2.0 (2026-10-23)
 

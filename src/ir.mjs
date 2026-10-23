@@ -25,8 +25,8 @@
 // Goal = { kind, only: "Warrior,Priest" | "", optional?, ...fields } with `kind` one of
 //   accept/turnin {quest, title?, at?, item? (accept: started from it)}   complete {quest, title?, at?}
 //   kill {npc, quest?, oi?, text?} (no quest: `kill <npc>`)  talk {npc}  collect {item, itemName?, quest?, oi?, count?}
-//   interact {object, quest?, oi?}  learn {spell, name?}  rep {faction, standing}  money {copper}  buy {item, itemName?, count, npc?}  (no npc: nearest)
-//   vendor {npc?}  train {npc?|class|profession, comment?}  use {item}
+//   interact {object, quest?, oi?}  learn {spell, name?, npc?}  rep {faction, standing}  money {copper}  buy {item, itemName?, count, npc?}  (no npc: nearest)
+//   vendor {npc?}  train {npc?|class|profession, rank?, comment?}  use {item}
 //   level {level, xp?}  skill {skill, n}  task {text}  note {text}
 //   abandon {quest}  destroy {item}  cast {spell, name}  enter {place, at?}  goto {x, y, live, map?, r?, text?}
 //   sethome {location?} (none: the nearest inn)  hearth {location}  getfp {location}  fly {location}
@@ -48,7 +48,7 @@ export function goalText(g) {
 		case "talk": return `talk ${g.npc}${atText(g.at)}`;
 		case "kill": return `kill ${g.npc}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${g.text ? " " + q(g.text) : ""}${atText(g.at)}`;
 		case "interact": return `interact ${g.object}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${atText(g.at)}`;
-		case "learn": return `learn ${g.spell}${g.name ? " " + q(g.name) : ""}`;
+		case "learn": return `learn ${g.spell}${g.name ? " " + q(g.name) : ""}${g.npc ? " npc " + g.npc : ""}`;
 		case "rep": return `rep ${q(g.faction)} ${g.standing}`;
 		case "money": return `money ${g.copper}`;
 		case "collect":
@@ -57,7 +57,8 @@ export function goalText(g) {
 		case "buy": return `buy ${g.item}${nameText(g)} x${g.count || 1} ${g.npc ? "npc " + g.npc : "nearest"}`;
 		case "vendor": return g.npc ? `vendor ${g.npc}` : "vendor nearest";
 		case "train":
-			if (g.profession) return `train ${g.profession.includes(" ") ? q(g.profession) : g.profession}${g.npc ? " npc " + g.npc : ""}`;
+			// With a rank Polestar reads the words up to the first modifier as profession and rank: no quotes.
+			if (g.profession) return `train ${g.profession.includes(" ") && !g.rank ? q(g.profession) : g.profession}${g.rank ? " " + g.rank : ""}${g.npc ? " npc " + g.npc : ""}`;
 			if (g.class) return "train class";
 			return `train ${g.npc}`;
 		case "use": return `use ${g.item}${atText(g.at)}`;

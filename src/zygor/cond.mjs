@@ -19,8 +19,6 @@ const UNIVERSE = { class: CLASSES, race: RACES, faction: FACTIONS };
 const KINDS = ["class", "race", "faction"];
 const STANDINGS = ["Neutral", "Friendly", "Honored", "Revered", "Exalted"];
 const SKILLS = ["Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Herbalism", "Leatherworking", "Mining", "Skinning", "Tailoring", "Cooking", "Fishing", "First Aid"];
-// Assumed to hold while the route is walked: the step stays, the condition is reported.
-const ASSUMED = new Set(["walking", "indoors"]);
 const FALSE_NAMES = new Set(["hardcore", "selfmade"]);
 
 // ---- parsing ---------------------------------------------------------------
@@ -151,10 +149,17 @@ function nameOf(e) {
 	return e.op === "name" ? e.name : e.op === "call" ? e.name : e.op === "cmp" ? nameOf(e.a) : e.op;
 }
 
-function evalName(name) {
+function evalName(name, read) {
 	const low = name.toLowerCase();
 	if (FALSE_NAMES.has(low)) return bool(false);
-	if (ASSUMED.has(low)) return drop(low);
+	// Zygor's `walking` is "not on a flight" (Parser.lua: not IsFlying()); Classic has no
+	// flying mount, so it holds whenever the player can act on a step.
+	if (low === "walking") { read.push("walking"); return bool(true); }
+	if (low === "indoors") return drop(low);
+	// The Season of Discovery and of Mastery are other clients than Classic Era's.
+	if (low === "zgv.isclassicsod" || low === "zgv.isclassicsom") { read.push("season"); return bool(false); }
+	// `default`: the trainer for everyone no `dist(...)` line picked; Polestar picks the nearest.
+	if (low === "default") { read.push("nearest"); return bool(true); }
 	const c = canon(name);
 	if (c) return { t: "only", kind: kindOf(c), list: [c] };
 	if (low === "level") return drop("level");
@@ -193,7 +198,7 @@ function itemWhen(id, cmp, n) {
 	return has ? when(w, "!" + w) : when("!" + w, w);
 }
 
-function evalCall(e) {
+function evalCall(e, read) {
 	const name = e.name.toLowerCase();
 	const ids = e.args.map((a) => (a.op === "num" ? a.v : null));
 	const allIds = ids.length > 0 && ids.every((v) => v !== null);
@@ -204,6 +209,10 @@ function evalCall(e) {
 			if (!allIds) return drop(name);
 			const w = `onquest ${ids.join(",")}`;
 			return when(w, "!" + w);
+		}
+		case "completedallq": {
+			if (!allIds) return drop(name);
+			return { t: "and", items: ids.map((id) => when(`turnedin ${id}`, `!turnedin ${id}`)) };
 		}
 		case "completedq": {
 			if (!allIds) return drop(name);
@@ -220,6 +229,14 @@ function evalCall(e) {
 			if (e.args.length !== 1 || !z) return drop(name);
 			return when(`${name} "${z}"`, `!${name} "${z}"`);
 		}
+		case "discountgold": {
+			// "Can afford N copper" (Parser.lua: with a 10% discount from Honored with the faction;
+			// Polestar has no reputation predicate, so the full price).
+			const n = e.args[1]?.op === "num" ? e.args[1].v : null;
+			if (e.args.length !== 2 || n === null) return drop(name);
+			read.push("discountgold");
+			return when(`money>=${n}`, `money<${n}`);
+		}
 		case "guideflag": {
 			const d = GUIDEFLAGS[strArg(e.args[0])];
 			return d ? when(`dungeon "${d}"`, `!dungeon "${d}"`) : drop(name);
@@ -228,8 +245,10 @@ function evalCall(e) {
 	}
 }
 
-function evalCmp(e) {
+function evalCmp(e, read) {
 	const { cmp, a, b } = e;
+	// `dist("Zone x,y") < N`: the nearest of several trainers, which Polestar picks itself.
+	if (a.op === "call" && a.name.toLowerCase() === "dist") { read.push("nearest"); return bool(true); }
 	if (b.op !== "num") return drop(nameOf(a));
 	const n = b.v;
 	if (a.op === "name" && a.name.toLowerCase() === "level" || a.op === "call" && a.name.toLowerCase() === "level" && !a.args.length) {
@@ -244,14 +263,25 @@ function evalCmp(e) {
 	return drop(nameOf(a));
 }
 
-function evaluate(e) {
+const isCall = (e, name) => e.op === "call" && e.name.toLowerCase() === name;
+
+function evaluate(e, read) {
+	const ev = (x) => evaluate(x, read);
 	switch (e.op) {
-		case "or": return { t: "or", items: e.items.map(evaluate) };
-		case "and": return { t: "and", items: e.items.map(evaluate) };
-		case "not": return negate(evaluate(e.a));
-		case "name": return evalName(e.name);
-		case "call": return evalCall(e);
-		case "cmp": return evalCmp(e);
+		case "or": return { t: "or", items: e.items.map(ev) };
+		case "and": {
+			// `subzone("X") and indoors()`: in the cave or building that is X. Polestar sees the
+			// subzone; the steps that ask it are the ways into and out of that place.
+			if (e.items.some((i) => isCall(i, "indoors")) && e.items.some((i) => isCall(i, "subzone"))) {
+				read.push("indoors");
+				return { t: "and", items: e.items.filter((i) => !isCall(i, "indoors")).map(ev) };
+			}
+			return { t: "and", items: e.items.map(ev) };
+		}
+		case "not": return negate(ev(e.a));
+		case "name": return evalName(e.name, read);
+		case "call": return evalCall(e, read);
+		case "cmp": return evalCmp(e, read);
 		default: return drop(e.op);
 	}
 }
@@ -311,16 +341,108 @@ function flatten(f, st) {
 			if (items.every((i) => i.t === "when" && /^onquest [\d,]+$/.test(i.pos))) {
 				return flatten({ t: "when", pos: `onquest ${items.map((i) => i.pos.slice(8)).join(",")}` }, st);
 			}
+			// An OR of predicates: one alternative per way it can hold, none overlapping (see exclusive).
+			if (items.every(pureWhen)) { st.alts.push(exclusive(items.flatMap(dnf))); return; }
 			st.dropped.push("or");
 		}
 	}
 }
 
-// -> { only: {class?, race?, faction?}, whens: string[], never: bool, dropped: string[] }
+// ---- alternatives -------------------------------------------------------------
+// Polestar's `when` lines are an AND. An OR becomes several copies of the step, one per
+// alternative, each a list of `when`s; no two can hold at once, so the player meets one.
+
+const pureWhen = (f) => f.t === "when" || ((f.t === "and" || f.t === "or") && f.items.every(pureWhen));
+
+// A formula of `when`s -> its alternatives: [[pred, ...], ...].
+function dnf(f) {
+	if (f.t === "when") return [[f.pos]];
+	if (f.t === "or") return f.items.flatMap(dnf);
+	return f.items.map(dnf).reduce((acc, alts) => acc.flatMap((a) => alts.map((b) => [...a, ...b])), [[]]);
+}
+
+// The opposite of one predicate.
+export function negWhen(p) {
+	const m = /^(level|money)(<=|>=|<|>)(.+)$/.exec(p);
+	if (m) return `${m[1]}${flip[m[2]]}${m[3]}`;
+	return p.startsWith("!") ? p.slice(1) : "!" + p;
+}
+
+// What one predicate says about a quest's others: handed in is not in the log, ready is in it.
+function implied(p) {
+	let m = /^turnedin (\d+)$/.exec(p);
+	if (m) return [`!onquest ${m[1]}`, `!complete ${m[1]}`];
+	if ((m = /^complete (\d+)$/.exec(p))) return [`onquest ${m[1]}`, `!turnedin ${m[1]}`];
+	if ((m = /^onquest (\d+)$/.exec(p))) return [`!turnedin ${m[1]}`];
+	if ((m = /^!onquest (\d+)$/.exec(p))) return [`!complete ${m[1]}`];
+	return [];
+}
+
+function closure(alt) {
+	const out = new Set(alt);
+	for (let grew = true; grew;) {
+		grew = false;
+		for (const p of [...out]) for (const q of implied(p)) if (!out.has(q)) { out.add(q); grew = true; }
+	}
+	return out;
+}
+
+// p cannot hold beside the predicates in `all`: its opposite is there, or another place
+// (the player is in one zone and one subzone at a time).
+function clash(p, all) {
+	if (all.has(negWhen(p))) return true;
+	const m = /^(zone|subzone) (.+)$/.exec(p);
+	return !!m && [...all].some((q) => q !== p && q.startsWith(m[1] + " ") && !q.startsWith("!"));
+}
+
+// An alternative without what follows from the rest of it; null when it cannot hold.
+export function tidy(alt) {
+	const all = closure(alt);
+	if ([...all].some((p) => clash(p, all))) return null;
+	const kept = [...new Set(alt)];
+	return kept.filter((p) => !kept.some((q) => q !== p && closure([q]).has(p)));
+}
+
+// Alternatives that may overlap -> ones that cannot: each takes the opposite of those before it.
+export function exclusive(alts) {
+	const out = [], before = [];
+	for (const a of alts) {
+		let pieces = [tidy(a)].filter(Boolean);
+		for (const c of before) {
+			pieces = pieces.flatMap((p) => {
+				const all = closure(p);
+				if (c.some((l) => clash(l, all))) return [p]; // never both
+				if (c.every((l) => all.has(l))) return []; // c holds whenever p does
+				const rest = [], pre = [];
+				for (const l of c) {
+					if (!all.has(l)) { const t = tidy([...p, ...pre, negWhen(l)]); if (t) rest.push(t); }
+					pre.push(l);
+				}
+				return rest;
+			});
+		}
+		out.push(...pieces);
+		before.push(a);
+	}
+	return out;
+}
+
+// Two lists of alternatives, both to hold: every pair (each list is exclusive, so is this).
+export function crossAlts(a, b) {
+	if (!a.length) return b;
+	if (!b.length) return a;
+	return a.flatMap((x) => b.map((y) => tidy([...x, ...y])).filter(Boolean));
+}
+
+// -> { only: {class?, race?, faction?}, whens: string[], alts: string[][], never: bool,
+//      dropped: string[], read: string[] }
+// `alts`: the ways an OR can hold (see exclusive), [] without one; `read`: conditions
+// read as something Polestar has (walking, indoors, discountgold).
 export function translate(expr, ctx = {}) {
-	const st = { allowed: {}, whens: [], never: false, dropped: [] };
+	const st = { allowed: {}, whens: [], alts: [], never: false, dropped: [] };
+	const read = [];
 	const ast = parse(String(expr || "").replace(/^\s*if\b/, ""));
-	if (ast) flatten(evaluate(ast), st);
+	if (ast) flatten(evaluate(ast, read), st);
 	const only = {};
 	for (const kind of KINDS) {
 		const list = st.allowed[kind];
@@ -328,7 +450,9 @@ export function translate(expr, ctx = {}) {
 		if (!list.length) st.never = true;
 		else if (list.length < UNIVERSE[kind].length) only[kind] = UNIVERSE[kind].filter((n) => list.includes(n));
 	}
-	return { only, whens: [...new Set(st.whens)], never: st.never, dropped: [...new Set(st.dropped)] };
+	const alts = st.alts.reduce(crossAlts, []);
+	if (st.alts.length && !alts.length) st.never = true;
+	return { only, whens: [...new Set(st.whens)], alts, never: st.never, dropped: [...new Set(st.dropped)], read: [...new Set(read)] };
 }
 
 // ---- |complete ---------------------------------------------------------------
@@ -349,15 +473,16 @@ export function completeGoal(expr) {
 		}
 		return null;
 	}
-	if (ast.op !== "cmp" || ast.cmp !== ">=" || ast.a.op !== "call") return null;
+	if (ast.op !== "cmp" || ast.a.op !== "call") return null;
 	const a = ast.a;
 	const name = a.name.toLowerCase();
 	const rhs = ast.b;
-	if (name === "rep" && a.args.length === 1 && strArg(a.args[0]) && rhs.op === "name") {
+	// A standing to reach: `rep("X") >= Friendly`, or Zygor's `== Friendly` once reached.
+	if (name === "rep" && (ast.cmp === ">=" || ast.cmp === "==") && a.args.length === 1 && strArg(a.args[0]) && rhs.op === "name") {
 		const standing = STANDINGS.find((s) => s.toLowerCase() === rhs.name.toLowerCase());
 		return standing ? { kind: "rep", faction: strArg(a.args[0]), standing } : null;
 	}
-	if (rhs.op !== "num") return null;
+	if (ast.cmp !== ">=" || rhs.op !== "num") return null;
 	if (name === "skill" && a.args.length === 1 && strArg(a.args[0])) {
 		const skill = SKILLS.find((k) => k.toLowerCase() === strArg(a.args[0]).toLowerCase());
 		return skill ? { kind: "skill", skill, n: rhs.v } : null;

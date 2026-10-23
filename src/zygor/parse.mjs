@@ -108,10 +108,14 @@ function modsOf(chunks) {
 }
 
 function parseLine(raw) {
-	const flat = raw.replace(/\t/g, " ");
+	// `'|accept Example##100 |or`: Zygor's goal without text of its own (Parser.lua makes every
+	// line a goal); a verb in its first chunk is the line's verb, `'|complete …` stays mods only.
+	const hidden = raw.startsWith("'");
+	const flat = (hidden ? raw.slice(1) : raw).replace(/\t/g, " ");
 	const chunks = flat.split(/ *\|/);
 	// A line starting with `|` has an empty first chunk, so the split gives "" first.
-	const first = chunks.shift().trim();
+	let first = chunks.shift().trim();
+	if (hidden && !first && chunks.length && VERBS.has(chunks[0].trim().split(/\s/)[0]) && chunks[0].trim().split(/\s/)[0] !== "confirm") first = chunks.shift().trim();
 	const mods = modsOf(chunks);
 	const m = /^(\S+)(?:\s+([\s\S]*))?$/.exec(first);
 	if (m && VERBS.has(m[1])) return { verb: m[1], text: (m[2] || "").trim(), mods, raw };
@@ -152,13 +156,16 @@ export function parseBody(body) {
 		if ((m = /^stickystart\s+"([^"]*)"/.exec(line))) { pendStarts.push(m[1]); continue; }
 		if ((m = /^stickystop\s+"([^"]*)"/.exec(line))) { pendStops.push(m[1]); continue; }
 		if ((m = /^label\s+"([^"]*)"/.exec(line))) { cur.label = m[1]; continue; }
-		if (line.startsWith("'") && cur.lines.length) {
-			const prev = cur.lines[cur.lines.length - 1];
-			prev.mods.push(...modsOf(line.slice(1).replace(/\t/g, " ").split(/ *\|/)));
+		const parsed = parseLine(line);
+		// `'|goto x,y` under a line without a point of its own places that line (its giver walks).
+		const prev = cur.lines[cur.lines.length - 1];
+		if (line.startsWith("'") && parsed.verb === null && !parsed.text && parsed.mods[0]?.name === "goto" && !parsed.mods.some((m) => m.name === "noway")
+			&& prev && (prev.verb || prev.text) && !prev.mods.some((m) => m.name === "goto")) {
+			prev.mods.push(...parsed.mods);
 			prev.raw += "\n" + line;
 			continue;
 		}
-		cur.lines.push(parseLine(line));
+		cur.lines.push(parsed);
 	}
 	finish();
 	return steps;
@@ -168,7 +175,8 @@ export function parseBody(body) {
 // or count are not part of the name.
 export function refs(text) {
 	const out = [];
-	const re = /([^,|#]+?)##(\d+)\+?/g;
+	// `Name###id` (a typo for `##`) names the same id.
+	const re = /([^,|#]+?)#{2,3}(\d+)\+?/g;
 	let m;
 	while ((m = re.exec(String(text)))) {
 		let name = m[1].trim();

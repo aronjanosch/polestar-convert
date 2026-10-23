@@ -1,13 +1,14 @@
 // polestar-convert zygor --dir <ZygorGuidesViewerClassic> --polestar <clone> --pack <pack dir> [--only "<guide name or slug>"]
 //
-// Reads the Classic leveling guides of your own Zygor install (for a faction
-// without its full file, the free trial guides the viewer ships) and writes `.guide`
+// Reads the Classic guides of your own Zygor install (leveling, dungeons, professions,
+// reputations, events; for a faction without a full file, the free trial guides the
+// viewer ships) and writes `.guide`
 // files into a local Polestar pack. Guide text stays in memory; nothing of it is
 // written anywhere but the pack.
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { convertZygor, ZYGOR_FILES, ZYGOR_TRIAL_FILES } from "./run.mjs";
+import { convertZygor, readZygor } from "./run.mjs";
 import { folderReader } from "../node/read.mjs";
 import { loadData } from "../data.mjs";
 import { gapReport } from "../core.mjs";
@@ -21,9 +22,7 @@ export async function run(a) {
 	const guidesDir = join(a.pack, "guides");
 	if (!existsSync(guidesDir)) mkdirSync(guidesDir, { recursive: true });
 
-	const lua = {};
-	const leveling = folderReader(join(a.dir, "Guides-Classic", "Leveling"));
-	for (const [side, file] of Object.entries(ZYGOR_FILES)) lua[side] = (await leveling(file)) ?? (await leveling(ZYGOR_TRIAL_FILES[side])) ?? "";
+	const lua = await readZygor(folderReader(join(a.dir, "Guides-Classic")));
 	const r = convertZygor(lua, data, { packId, only: a.only });
 	if (!r.guides.length) { console.error("no guide matches"); process.exit(1); }
 	for (const g of r.guides) {
