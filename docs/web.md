@@ -54,8 +54,10 @@ node tools/pages.mjs --polestar <clone>          # writes out/pages
 cd out/pages && python3 -m http.server 8765      # try it at http://127.0.0.1:8765/
 ```
 
-The clone needs `data build`, `travel build`, `profession build` and
-`codex build`. Publishing puts `out/pages` on the `gh-pages` branch as one
+The clone needs `data build --no-web-xp --no-wowhead` (values taken from
+web pages stay local, as in Polestar's own releases), then `travel build`,
+`profession build` and `codex build`. Converted guides are the same as with a
+full local build (checked 2026-10-23: 0 guides changed for all three sources). Publishing puts `out/pages` on the `gh-pages` branch as one
 commit (the data stays out of `main`'s history):
 
 ```sh
