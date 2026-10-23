@@ -1,4 +1,4 @@
-// polestar-convert --path <WoW folder> [--polestar <clone>] [--pack <dir>] [--routes main,dungeon,survival,mage]
+// polestar-convert --path <WoW folder> [--polestar <clone>] [--pack <dir>] [--routes main,dungeon,survival]
 //   [--sources rxp,journey,zygor] [--locales all|none|zhCN,deDE] [--install] [--yes]
 //
 // One command from a game install to a checked pack: finds the guide addons in the
@@ -13,12 +13,12 @@ import { createRequire } from "node:module";
 import { createInterface } from "node:readline/promises";
 import { loadData } from "../data.mjs";
 import { loadNames } from "../journey/names.mjs";
-import { findSources, convertAddons, packFiles, runReport, SOURCES, ROUTES } from "../core.mjs";
+import { findSources, convertAddons, packFiles, runReport, SOURCES, ROUTES, ROUTE_ALIASES } from "../core.mjs";
 import { folderReader, levelXpOf, resolveLoose } from "./read.mjs";
 import { translateRxp } from "./translate.mjs";
 
 export const PATH_USAGE = `usage: polestar-convert --path <WoW folder> [--polestar <clone>] [--pack <dir>]
-         [--routes main,dungeon,survival,mage] [--sources rxp,journey,zygor]
+         [--routes main,dungeon,survival] [--sources rxp,journey,zygor]
          [--locales all|none|zhCN,deDE] [--install] [--yes]
 
   --path      the World of Warcraft folder, the Forever client folder in it, or its
@@ -26,6 +26,9 @@ export const PATH_USAGE = `usage: polestar-convert --path <WoW folder> [--polest
   --polestar  your Polestar clone with its data built (default: $POLESTAR, else ./polestar)
   --pack      the pack to write into; made when missing (default: ./polestar-guides)
   --routes    RestedXP routes to convert (default: asked, or all with --yes)
+
+Convert only guides you have the right to use: free guides, or guides whose
+licence allows it. What you convert is your responsibility.
   --sources   guide addons to convert (default: every one found)
   --install   install the pack into the game after a clean lint
   --yes       ask nothing`;
@@ -53,13 +56,14 @@ export function addonsDirOf(path) {
 	return clients.find(hasGuides) || null;
 }
 
-// "main, Mage" -> ["main", "mage"]; "all" -> every allowed; unset -> null.
-export function listArg(text, allowed, flag) {
+// "main, Survival" -> ["main", "survival"]; "all" -> every allowed; unset -> null.
+// `aliases`: older names taken for an allowed one.
+export function listArg(text, allowed, flag, aliases = {}) {
 	if (text == null || text === true) return null;
 	if (String(text).trim().toLowerCase() === "all") return [...allowed];
-	const list = String(text).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+	const list = String(text).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean).map((s) => aliases[s] || s);
 	for (const it of list) if (!allowed.includes(it)) throw new Error(`${flag}: unknown "${it}" (${allowed.join(", ")})`);
-	return list;
+	return [...new Set(list)];
 }
 
 function fail(message) {
@@ -104,8 +108,9 @@ export async function run(a) {
 	let sources, routes;
 	try {
 		sources = listArg(a.sources, SOURCES, "--sources") || SOURCES;
-		routes = listArg(a.routes, ROUTES, "--routes");
+		routes = listArg(a.routes, ROUTES, "--routes", ROUTE_ALIASES);
 	} catch (e) { fail(e.message); }
+	console.log("Convert only guides you have the right to use; what you convert is your responsibility.");
 	const read = folderReader(addons);
 	const found = (await findSources(read)).filter((s) => sources.includes(s));
 	if (!found.length) fail(`no guide addon (${GUIDE_ADDONS.join(", ")}) in ${addons}`);

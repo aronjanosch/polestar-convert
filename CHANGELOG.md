@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 (unreleased)
+
+- **Convert only guides you have the right to use:** said in the README, by
+  the command line, and confirmed with a tick on the web page before it
+  converts.
+- RestedXP routes are `main`, `dungeon` and `survival` (the 0.2.0 names still
+  work); the web page names them neutrally.
+
 ## 0.2.0 (2026-10-23)
 
 No clone of the converter any more: one command, or a page in the browser.
@@ -7,9 +15,8 @@ No clone of the converter any more: one command, or a page in the browser.
 - **`npx polestar-convert --path <WoW>`** finds RestedXP, Journey and Zygor in
   the client's `Interface/AddOns`, makes the pack, converts every guide (with
   RestedXP's translations), lints and, with `--install`, installs it.
-- **RestedXP routes:** `--routes main,dungeon,survival,mage` (asked when
-  unset) keeps the routes you play; the dungeon route takes the dungeon quest
-  guides with it.
+- **RestedXP routes:** `--routes` (asked when unset) keeps the routes you
+  play; the dungeon route takes the dungeon quest guides with it.
 - **Browser page** at https://aronjanosch.github.io/polestar-convert/: pick the
   AddOns folder, tick the routes, download the pack as a ZIP. The guide files
   are read in the browser and never uploaded; the page loads Polestar's game

@@ -67,7 +67,7 @@ function check() {
 	const problem = packIdProblem(id);
 	$("pack-id").setAttribute("aria-invalid", String(!!problem));
 	$("pack-id-err").textContent = problem ? `Pack id: ${problem}.` : "";
-	$("convert").disabled = !picked || !chosen().sources.length || !!problem;
+	$("convert").disabled = !picked || !chosen().sources.length || !!problem || !$("rights").checked;
 }
 
 $("pick").addEventListener("click", () => $("folder").click());
@@ -80,7 +80,7 @@ $("folder").addEventListener("change", async () => {
 	picked = { files, sources };
 	show(sources, all.length);
 });
-for (const el of document.querySelectorAll("#pack-id, input[name=route], input[name=source]")) el.addEventListener("input", () => { routesEnabled(); check(); });
+for (const el of document.querySelectorAll("#pack-id, #rights, input[name=route], input[name=source]")) el.addEventListener("input", () => { routesEnabled(); check(); });
 
 $("form").addEventListener("submit", (ev) => {
 	ev.preventDefault();

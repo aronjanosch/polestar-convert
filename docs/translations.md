@@ -23,9 +23,8 @@ no download).
   source, since Polestar shows the client's own names; for RXP also the guide
   words where RXP's translated guide has them. Left English: Journey's and
   Zygor's own words (a sentence they share word for word with RXP may come
-  translated), RXP texts that did not pair, the guides of
-  `a guide file` (levels 30-60 and the dungeon guides; RXP ships no
-  translated copy), and texts RXP marks "NOT TRANSLATED".
+  translated), RXP texts that did not pair, guide files RXP ships no
+  translated copy of, and texts RXP marks "NOT TRANSLATED".
 - A new Forever NPC whose name the game has not shown yet appears in English
   inside a translated sentence until the player has seen or targeted it once.
 - `reports/rxp-locales.json` in the pack: per language, the texts, how many are

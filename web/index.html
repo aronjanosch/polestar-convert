@@ -80,7 +80,8 @@ a { color: var(--accent); }
 	<strong>Nothing leaves your computer.</strong> This page reads the guide addons in the folder you pick, right here in
 	your browser, and hands you the pack as a ZIP. Your browser may ask whether to “upload” the files: that is its
 	word for letting this page read them; nothing is sent anywhere. The page only downloads Polestar's game data
-	from this site. It ships no guide content: the guides are their authors' work, so keep the pack to yourself.
+	from this site. It ships no guide content: the guides are their authors' work. Convert only guides you have the right
+	to use, and keep the pack to yourself.
 </div>
 <div class="note warn" id="data-warning" hidden></div>
 
@@ -96,14 +97,13 @@ a { color: var(--accent); }
 
 <section id="step-routes" aria-disabled="true">
 	<h2><span class="n">2</span> What to convert</h2>
-	<p>Every guide addon found in the folder. RestedXP holds four routes side by side; most players run one, so pick
-	the ones you want. Journey and Zygor each have one route and come whole.</p>
+	<p>Every guide addon found in the folder. RestedXP holds several routes side by side; most players run one, so pick
+	the ones you want. Routes your folder does not have are simply left out. Journey and Zygor each have one route and come whole.</p>
 	<label class="check"><input type="checkbox" name="source" value="rxp" checked disabled> <span>RestedXP<small id="src-rxp">pick a folder first</small></span></label>
 	<div id="routes" class="routes">
-		<label class="check"><input type="checkbox" name="route" value="main" checked disabled> <span>Main<small>the main 1-60 route</small></span></label>
-		<label class="check"><input type="checkbox" name="route" value="dungeon" checked disabled> <span>Dungeon<small>the same zones with dungeon quests woven in, and the dungeon quest guides</small></span></label>
-		<label class="check"><input type="checkbox" name="route" value="survival" checked disabled> <span>Survival<small>1-20, careful</small></span></label>
-		<label class="check"><input type="checkbox" name="route" value="mage" checked disabled> <span>class<small>for mages who pull big</small></span></label>
+		<label class="check"><input type="checkbox" name="route" value="main" checked disabled> <span>Main route<small>the leveling route</small></span></label>
+		<label class="check"><input type="checkbox" name="route" value="dungeon" checked disabled> <span>Dungeon route<small>the zones with dungeon quests woven in, and the dungeon quest guides</small></span></label>
+		<label class="check"><input type="checkbox" name="route" value="survival" checked disabled> <span>Survival route<small>a careful route</small></span></label>
 	</div>
 	<label class="check"><input type="checkbox" name="source" value="journey" checked disabled> <span>Journey<small id="src-journey">pick a folder first</small></span></label>
 	<label class="check"><input type="checkbox" name="source" value="zygor" checked disabled> <span>Zygor<small id="src-zygor">pick a folder first</small></span></label>
@@ -117,6 +117,7 @@ a { color: var(--accent); }
 		<div class="field"><label for="pack-title">Title</label><input type="text" id="pack-title" value="My Guides" maxlength="64"></div>
 		<div class="field"><label for="pack-author">Author</label><input type="text" id="pack-author" value="Me" maxlength="64"></div>
 	</div>
+	<label class="check" style="margin-top:10px"><input type="checkbox" id="rights"> <span>I convert only guides I have the right to use<small>free guides, or guides whose licence allows it. What you convert is your responsibility.</small></span></label>
 	<p style="margin-top:14px"><button type="submit" id="convert" disabled>Convert and download ZIP</button></p>
 	<div id="log" aria-live="polite"></div>
 </section>
