@@ -4,45 +4,9 @@
 // lookups by id into Polestar's inns and flight points. Read only.
 
 import { readFileSync, existsSync } from "node:fs";
+import { table } from "../csv.mjs";
 import { join } from "node:path";
 import { createRequire } from "node:module";
-
-// Minimal CSV: quoted fields with "" escapes, no newlines inside fields.
-function csvRows(text) {
-	const rows = [];
-	for (const line of text.split("\n")) {
-		if (!line) continue;
-		const out = [];
-		let i = 0;
-		while (i <= line.length) {
-			if (line[i] === '"') {
-				let v = "";
-				i++;
-				while (i < line.length) {
-					if (line[i] === '"' && line[i + 1] === '"') { v += '"'; i += 2; } else if (line[i] === '"') { i++; break; } else v += line[i++];
-				}
-				out.push(v);
-				i++; // comma
-			} else {
-				const e = line.indexOf(",", i);
-				out.push(line.slice(i, e < 0 ? line.length : e));
-				i = e < 0 ? line.length + 1 : e + 1;
-			}
-		}
-		rows.push(out);
-	}
-	return rows;
-}
-
-function table(file, idCol, nameCol) {
-	const map = new Map();
-	if (!existsSync(file)) return map;
-	const rows = csvRows(readFileSync(file, "utf8").replace(/\r/g, ""));
-	const head = rows.shift();
-	const id = head.indexOf(idCol), name = head.indexOf(nameCol);
-	for (const r of rows) map.set(Number(r[id]), r[name]);
-	return map;
-}
 
 export function loadNames(polestarDir, data) {
 	const tf = join(polestarDir, "data", "forever", "travel.json");

@@ -180,6 +180,23 @@ test("an #optional hand-in that waits for its quest to be complete holds; one th
 	assert.match(turnin(text("step\n    #optional\n    .turnin 11 >> Turn in A\n    .isOnQuest 11\n")), /\boptional\b/);
 });
 
+test("RXP's subzone by AreaTable id: .subzone is an enter, .subzoneskip a when on the subzone or, for a zone, the zone", () => {
+	const d = fakeData();
+	d.areas = new Map([[254, { name: "Blackrock Mountain", parent: 46 }], [1, { name: "Dun Morogh", parent: 0 }], [2257, { name: "Deeprun Tram", parent: 0 }]]);
+	d.zones = { 1426: { name: "Dun Morogh" } };
+	const lines = (body) => String(convertGuide(parseGuide("#name T\nstep\n" + body), d, { report: new Report(), slug: "t", packId: "chk" }).text)
+		.split("\n").map((l) => l.trim()).filter((l) => /^(enter|when|train)\b/.test(l));
+	assert.deepEqual(lines("    .subzone 254 >>Travel to Blackrock Mountain\n"), ['enter "Blackrock Mountain"']);
+	assert.deepEqual(lines("    .subzone 254,1 >>Leave Blackrock Mountain\n    .train 1,1 >> Train Thrown\n    .target Bixi\n"), ["train 1 -- Train Thrown"]);
+	const skip = (args) => lines(`    .subzoneskip ${args}\n    .train 1,1 >> Train Thrown\n    .target Bixi\n`);
+	assert.deepEqual(skip("254"), ['when !subzone "Blackrock Mountain"', "train 1 -- Train Thrown"]);
+	assert.deepEqual(skip("254,1"), ['when subzone "Blackrock Mountain"', "train 1 -- Train Thrown"]);
+	assert.deepEqual(skip("1"), ['when !zone "Dun Morogh"', "train 1 -- Train Thrown"]);
+	assert.deepEqual(skip("254,2"), ["train 1 -- Train Thrown"]);
+	assert.deepEqual(skip("999"), ["train 1 -- Train Thrown"]);
+	assert.deepEqual(skip("2257"), ["train 1 -- Train Thrown"]);
+});
+
 test("a negative quest id on an optional hand-in is read as the quest", () => {
 	assert.equal(goalText({ kind: "turnin", quest: 214 }), "turnin 214");
 });

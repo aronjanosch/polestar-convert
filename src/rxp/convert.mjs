@@ -5,14 +5,14 @@
 
 import { parseCondition, andOnly, onlyText, condsMeet, onlyMeet, CLASSES } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
-import { baseItemSoldBy, goalPlaced, worldToZone, zoneName, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
+import { baseItemSoldBy, goalPlaced, worldToZone, zoneName, areaOf, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
 import { render, shorten } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 import { resolveObjective } from "../objective.mjs";
 
 const IGNORED = new Set([
 	"target", "mob", "unitscan", "itemcount", "macro", "timer",
-	"skipgossip", "skipgossipid", "subzone", "disablecheckbox", "is", "item", "addquestitem",
+	"skipgossip", "skipgossipid", "disablecheckbox", "is", "item", "addquestitem",
 	"itemStat", "zone", "link", "line", "solo", "enabledungeon",
 ]);
 const TASKS = new Set(["hs", "home", "fp", "fly", "deathskip", "abandon", "destroy", "cast", "equip", "bankdeposit", "bankwithdraw"]);
@@ -656,11 +656,16 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			else { whens.push(`${arg.startsWith("!") ? "!" : ""}dungeon ${JSON.stringify(name)}`); formatNeeds = Math.max(formatNeeds, 5); report.count(".dungeon -> when dungeon"); }
 		} else if (n === "zoneskip" || n === "subzoneskip") {
 			// Skipped while in that zone (flag 1: while not in it).
+			// A subzone by AreaTable id; one that is a zone (no parent) is read as the zone.
+			// Flag 2 (only where the map is unavailable, in dungeons) has no Polestar form.
 			const [zones, flags] = String(l.args || "").split(",").map((x) => x.trim());
-			const names = (zones || "").split(/[+/]/).map((z) => (/^\d+$/.test(z) ? (n === "zoneskip" ? zoneName(data, Number(z)) : null) : z)).filter(Boolean);
-			const kind = n === "zoneskip" ? "zone" : "subzone";
+			// A top area Polestar knows no zone for (Deeprun Tram) is never the zone text it compares.
+			const known = (a) => (a && a.parent === 0 && !Object.values(data.zones).some((z) => z.name === a.name) ? null : a);
+			const areas = (zones || "").split(/[+/]/).map((z) => (!/^\d+$/.test(z) ? z : n === "zoneskip" ? zoneName(data, Number(z)) : known(areaOf(data, z))));
+			const names = areas.filter(Boolean).map((a) => (typeof a === "string" ? a : a.name));
+			const kind = n === "zoneskip" || (areas.length === 1 && areas[0] && areas[0].parent === 0) ? "zone" : "subzone";
 			const reverse = (Number(flags) || 0) & 1;
-			if (!names.length || l.cond || (reverse && names.length > 1)) report.count(`.${n} not expressible (ignored)`);
+			if (!names.length || names.length < areas.length || l.cond || (Number(flags) || 0) & 2 || (reverse && names.length > 1)) report.count(`.${n} not expressible (ignored)`);
 			else { for (const z of names) whens.push(`${reverse ? "" : "!"}${kind} ${JSON.stringify(z)}`); report.count(`.${n} -> when ${reverse ? "" : "!"}${kind}`); }
 		} else if (n === "itemcount") {
 			// Shown while the bags hold that many (RXP: >= N by default, <N, >N, =N).
@@ -732,6 +737,13 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			const name = /^\d+$/.test(arg) ? zoneName(data, Number(arg)) : arg;
 			if (name) { enterZone = name; report.count(".zone -> enter"); }
 			else report.count(".zone unknown map (ignored)");
+		} else if (n === "subzone") {
+			// Done once the zone or subzone text reads the area's name (flag 0); flag 1
+			// (done once out of it) and flag 2 (dungeons) have no Polestar form.
+			const [id, flags] = String(l.args || "").split(",").map((x) => x.trim());
+			const area = /^\d+$/.test(id || "") ? areaOf(data, id) : null;
+			if (area && !completewith && !l.cond && !Number(flags)) { enterZone = enterZone || area.name; report.count(".subzone -> enter"); }
+			else report.count(".subzone (ignored)");
 		} else if (n === "goto" || n === "waypoint") {
 			// handled below
 		} else if (IGNORED.has(n)) {
