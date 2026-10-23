@@ -1068,7 +1068,10 @@ export function convertGuide(parsed, data, opts) {
 		if (l.kind === "cmd" && l.name === "accept") accepted.add(Number((l.args.match(/^-?(\d+)/) || [])[1]));
 	}
 	const hc = parseCondition(parsed.header.faction).only;
-	const faction = hc.faction ? hc.faction[0] : null;
+	// A header naming races of one side only (`<< Gnome Mage`) is that side's guide.
+	const sideOf = (r) => Object.keys(SIDE_RACES).filter((f) => SIDE_RACES[f].includes(r));
+	const sides = [...new Set((hc.race || []).flatMap((r) => (sideOf(r).length === 1 ? sideOf(r) : ["both"])))];
+	const faction = hc.faction ? hc.faction[0] : sides.length === 1 && sides[0] !== "both" ? sides[0] : null;
 	// Only a `<<` line of the header limits the guide; `#defaultfor` just picks which guide
 	// RXP offers first, every character may still run the others.
 	const races = headerRaces(hc.race, faction);
