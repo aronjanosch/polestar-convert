@@ -1,6 +1,7 @@
 // polestar-convert zygor --dir <ZygorGuidesViewerClassic> --polestar <clone> --pack <pack dir> [--only "<guide name or slug>"]
 //
-// Reads the Classic leveling guides of your own Zygor install and writes `.guide`
+// Reads the Classic leveling guides of your own Zygor install (for a faction
+// without its full file, the free trial guides the viewer ships) and writes `.guide`
 // files into a local Polestar pack. Guide text stays in memory; nothing of it is
 // written anywhere but the pack.
 

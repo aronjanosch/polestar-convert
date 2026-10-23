@@ -79,7 +79,7 @@ npx github:aronjanosch/polestar-convert --path "<WoW>" --locales zhCN --install
 
 在包含 `polestar` 克隆目录的文件夹里运行,或者用 `--polestar <文件夹>` 指定克隆目录。
 
-它会找到 RestedXP、Journey 和 Zygor,询问你要哪些 RestedXP 路线(用 `--routes main,dungeon,survival` 可跳过询问;
+它会找到 RestedXP、Journey 和 Zygor(某个阵营没有安装 Zygor 完整攻略时,读取查看器自带的免费试用攻略),询问你要哪些 RestedXP 路线(用 `--routes main,dungeon,survival` 可跳过询问;
 你的攻略里没有的路线会被略过),新建攻略包 `polestar-guides`,转换全部攻略并写入中文译文,
 检查后安装。去掉 `--install` 可以先看一看。
 
@@ -92,10 +92,17 @@ lint 会报告一些警告(需要组队的精英、没有已知刷新点的目�
 会在浏览器里打开 Polestar:真正的插件加载了你的攻略包,运行在模拟的世界中。
 在攻略中心选一个攻略,像在游戏里一样逐步点击。
 
+| | 浏览器 | `npx github:aronjanosch/polestar-convert --path` |
+|---|---|---|
+| 需要 | 浏览器 | Node 24+ |
+| 游戏数据 | Polestar 的数据,随网页托管([GPLv3](#许可证)) | 你自己克隆目录里的 `data build` |
+| RestedXP 译文 | 否(英文文本,名称按客户端语言) | 是 |
+| lint 与安装 | 由你运行 | 自动完成 |
+
 ### 一次转换一个插件
 
 单独的命令把一个插件转换进你用 `node polestar/tools/polestar.js new my-pack --id my-pack --yes`
-新建的攻略包,选项更多(见下表):
+新建的攻略包,选项更多(例如 `--only "<攻略名称>"`):
 
 ```sh
 npx github:aronjanosch/polestar-convert rxp --list "<WoW>/_forever_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack --locales zhCN
@@ -106,7 +113,6 @@ npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/A
 > [!TIP]
 > `--only "<攻略名称>"` 只转换一个攻略,试用时快得多。每次运行都会打印一份报告:
 > 哪些被删掉,哪些变成了任务或备注,哪些需要人工查看。
-
 
 ## 覆盖率
 
@@ -204,6 +210,7 @@ RestedXP 还提供翻译过的攻略(德语、西班牙语、法语、巴西葡�
 | [docs/translations.md](../translations.md) | RestedXP 翻译攻略在攻略包里的处理 |
 | [docs/web.md](../web.md) | 浏览器版:工作方式、游戏数据、发布 |
 | [docs/development.md](../development.md) | 代码结构、测试、检查攻略包、添加新来源 |
+| [CHANGELOG.md](../../CHANGELOG.md) | 每个版本带来什么 |
 
 文档均为英文。
 

@@ -34,7 +34,7 @@ if (!base || !(a.list || a.file || a.journey || a.zygor)) {
 	process.exit(2);
 }
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const polestar = resolve(a.polestar || process.env.POLESTAR || join(process.env.HOME, "Work/polestar-next"));
+const polestar = resolve(a.polestar || process.env.POLESTAR || "polestar");
 const polestarAfter = a["polestar-after"] ? resolve(a["polestar-after"]) : polestar;
 const out = resolve(a.out || mkdtempSync(join(tmpdir(), "polestar-compare-")));
 mkdirSync(out, { recursive: true });

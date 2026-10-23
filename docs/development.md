@@ -19,6 +19,9 @@ web/                 the browser page; tools/pages.mjs builds it with the data (
 src/ir.mjs           the intermediate form and goal text; no source format in it
 src/emit.mjs         intermediate guide -> Polestar .guide text
 src/data.mjs         Polestar's reference data (ids, names, coordinates)
+src/csv.mjs          the client tables (CSV text)
+src/cond.mjs         class, race and faction conditions shared by the adapters
+src/rxp/locale.mjs   RXP's translated guides paired with the English ones
 src/objective.mjs    a source's quest objective matched to Polestar's (RXP, Zygor)
 src/rxp/parse.mjs    RXP Lua -> steps and lines
 src/rxp/convert.mjs  RXP adapter: steps -> intermediate guide

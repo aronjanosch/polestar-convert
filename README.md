@@ -46,8 +46,8 @@ so you know what to look at.
 
 ## Quick start
 
-You need World of Warcraft: Forever and at least one of the
-[supported guide addons](#quick-start) in its `Interface/AddOns` folder.
+You need World of Warcraft: Forever and at least one guide addon (RestedXP,
+Journey or Zygor) in its `Interface/AddOns` folder.
 Converted packs need Polestar 0.3.0: until it is released, play Polestar's
 `next` branch, installed from a clone (needs **Node 24+** and **Git**).
 
@@ -62,11 +62,13 @@ node tools/polestar.js install           # puts this Polestar into the game
 cd ..
 ```
 
-**2. Convert your guides.** Either way gives the same pack.
+**2. Convert your guides.** Both ways write the same guides; only the
+command line adds RestedXP's translations.
 
 *In your browser:* open **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
-pick your `Interface/AddOns` folder, tick the RestedXP routes you want and
-download the pack as a ZIP. The page reads your guide files in the browser;
+pick your `Interface/AddOns` folder, choose the guide addons and RestedXP
+routes you want, confirm that you convert only guides you have the right to
+use, and download the pack as a ZIP. The page reads your guide files in the browser;
 nothing is uploaded. Unzip the pack next to the `polestar` folder, then:
 
 ```sh
@@ -86,7 +88,8 @@ npx github:aronjanosch/polestar-convert --path "<WoW>" --install
 Run it in the folder that holds the `polestar` clone, or name the clone with
 `--polestar <folder>`.
 
-It finds RestedXP, Journey and Zygor, asks which RestedXP routes you want
+It finds RestedXP, Journey and Zygor (for a Zygor faction whose full guides
+are not installed, the free trial guides the viewer ships), asks which RestedXP routes you want
 (`--routes main,dungeon,survival` skips the question; routes your guides do
 not have are left out), makes the pack `polestar-guides`, converts every guide with
 RestedXP's translations, lints and installs it. Leave out `--install` to look
@@ -114,7 +117,7 @@ as you would in game.
 
 The single commands convert one addon into a pack you made with
 `node polestar/tools/polestar.js new my-pack --id my-pack --yes`, with more
-options (below):
+options such as `--only "<guide name>"`:
 
 ```sh
 npx github:aronjanosch/polestar-convert rxp --list "<WoW>/_forever_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack
@@ -126,7 +129,6 @@ npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/A
 > `--only "<guide name>"` converts a single guide, which is much faster while
 > you try things out. Each run prints a report: what was dropped, what became
 > a task or a note, and what needs a human look.
-
 
 ## Coverage
 
@@ -140,7 +142,7 @@ Polestar `next` 772b2065:
 | Journey | 4.00.02 | **71 %** |
 
 A step counts when the run's reports note nothing for it (steps the original
-shows nobody aside). Most notes are softenings, not losses: a condition
+shows to no one aside). Most notes are softenings, not losses: a condition
 Polestar cannot express (Zygor's `indoors`), one of Journey's per-step variants
 read as the normal case, a goal to tick by hand. The reports differ in detail
 (Journey and Zygor list every softening per step, RestedXP less), so the
@@ -243,7 +245,7 @@ Installing the pack still runs Polestar's tools from its clone until Polestar
 
 The converter is [MIT](LICENSE). It contains no guide content and no Polestar
 code; the guides you convert keep their own licence. The game data the browser
-page loads is a copy of Polestar's data build, published separately under
-GPLv3 because it holds QuestieDB facts ([notice](https://aronjanosch.github.io/polestar-convert/polestar-data/NOTICE.md)). RestedXP, Journey, Zygor
+page loads is a copy of Polestar's data build without values taken from websites,
+published separately under GPLv3 because it holds QuestieDB facts ([notice](https://aronjanosch.github.io/polestar-convert/polestar-data/NOTICE.md)). RestedXP, Journey, Zygor
 and Polestar are named to say what the tool reads and writes; no trademark
 rights are claimed.

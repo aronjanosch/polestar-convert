@@ -6,7 +6,7 @@
 //
 // Usage: node tools/pages.mjs --polestar <clone> [--out <dir>] [--commit <sha>]   (default out/pages;
 // --commit names Polestar's commit when the clone is a copy without git)
-// For a data set without QuestieDB (the fallback should its contributors object),
+// For a data set without QuestieDB (if QuestieDB's licence does not allow it),
 // build the clone's data with `data build --no-questie` and run this on that clone:
 // the page then says the Forever-only quests are missing.
 
@@ -81,8 +81,8 @@ on ${meta.builtAt}.
 
 **Licence.** This data set is distributed under the GNU General Public License,
 version 3 (see LICENSE in this folder), because it is derived from
-${questie ? "QuestieDB and Questie, whose maintainers licence their work under GPLv3 since 2026-10-21 (\"alright with others forking the repository or copying code from it under the GPLv3 terms\"; name and logo excluded), and from " : ""}Polestar (GPLv3). polestar-convert's own code is MIT; this folder is not part of it.
-${questie ? "\nShould QuestieDB's contributors object, the set is rebuilt without QuestieDB\n(`polestar data build --no-questie`); the page then says so.\n" : "\n**Built without QuestieDB** (`data build --no-questie`): quests, NPCs and\nitems only Forever has are missing, and converted guides lose them.\n"}
+${questie ? "QuestieDB and Questie, whose licence since 2026-10-21 names GPLv3 as the target licence (their maintainers are fine with copying under GPLv3, name and logo excluded; they cannot confirm it for every past contributor), and from " : ""}Polestar (GPLv3). polestar-convert's own code is MIT; this folder is not part of it.
+${questie ? "\nIf QuestieDB's licence does not allow it, the set is rebuilt without QuestieDB\n(`polestar data build --no-questie`); the page then says so.\n" : "\n**Built without QuestieDB** (`data build --no-questie`): quests, NPCs and\nitems only Forever has are missing, and converted guides lose them.\n"}
 **Sources** (from the data build's meta.json; details in sources.json):
 
 ${sources.map((s) => `- ${s.name}${s.url ? ` (${s.url})` : ""}${s.license ? `: ${s.license.split("\n")[0].slice(0, 300)}` : ""}`).join("\n")}
