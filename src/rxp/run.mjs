@@ -8,8 +8,6 @@ import { Report } from "../ir.mjs";
 
 // RXP's guide list holds parallel routes; a player runs one.
 export const ROUTES = ["main", "dungeon", "survival"];
-// Route names of 0.2.0, still taken.
-export const ROUTE_ALIASES = { main: "main", mage: "main" };
 
 // The route a guide belongs to, by its `#group`: the dungeon route with the dungeon
 // quest guides, the survival route, and the main route for the rest.
@@ -51,7 +49,7 @@ export function convertRxp(files, data, opts) {
 		const lo = Number(String(r.levels || "").split("-")[0]);
 		return lo > 0 && lo <= Number(opts.maxStart);
 	};
-	const routes = opts.routes && opts.routes.length ? new Set(opts.routes.map((r) => ROUTE_ALIASES[r] || r)) : null;
+	const routes = opts.routes && opts.routes.length ? new Set(opts.routes) : null;
 	const chosen = parsed.filter((g) => !plan.hidden.has(g) && (!opts.only || (g.header.name || "") === opts.only) && (!routes || routes.has(rxpRoute(g.header))) && keep(g));
 	const kept = new Set(chosen);
 

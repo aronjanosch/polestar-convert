@@ -13,7 +13,7 @@ import { createRequire } from "node:module";
 import { createInterface } from "node:readline/promises";
 import { loadData } from "../data.mjs";
 import { loadNames } from "../journey/names.mjs";
-import { findSources, convertAddons, packFiles, runReport, SOURCES, ROUTES, ROUTE_ALIASES } from "../core.mjs";
+import { findSources, convertAddons, packFiles, runReport, SOURCES, ROUTES } from "../core.mjs";
 import { folderReader, levelXpOf, resolveLoose } from "./read.mjs";
 import { translateRxp } from "./translate.mjs";
 
@@ -108,7 +108,7 @@ export async function run(a) {
 	let sources, routes;
 	try {
 		sources = listArg(a.sources, SOURCES, "--sources") || SOURCES;
-		routes = listArg(a.routes, ROUTES, "--routes", ROUTE_ALIASES);
+		routes = listArg(a.routes, ROUTES, "--routes");
 	} catch (e) { fail(e.message); }
 	console.log("Convert only guides you have the right to use; what you convert is your responsibility.");
 	const read = folderReader(addons);
