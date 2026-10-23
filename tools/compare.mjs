@@ -3,11 +3,14 @@
 // line kinds, the converter's own counts and lint findings before -> after, and
 // the guides whose text changed. The check for any converter fix.
 //
-// Usage: node tools/compare.mjs <base ref> [--head <ref>] (--list <GuideList-forever.xml> | --file <guide.lua>)
-//          [--polestar <clone>] [--out <dir>] [--lint no]
+// Usage: node tools/compare.mjs <base ref> [--head <ref>]
+//          (--list <GuideList-forever.xml> | --file <guide.lua> | --journey <Journey dir> | --zygor <Zygor dir>)
+//          [--polestar <clone>] [--polestar-after <clone>] [--out <dir>] [--lint no]
 // <base ref> and --head are git refs of this repo; without --head the working tree
-// (uncommitted changes included) is the "after". Writes into --out (default: a new
-// temp dir): before/ and after/ packs, their run reports, lint output and diff.patch.
+// (uncommitted changes included) is the "after". --polestar-after converts the
+// "after" side against another clone's data (the same ref twice then compares two
+// data builds). Writes into --out (default: a new temp dir): before/ and after/
+// packs, their run reports, lint output and diff.patch.
 
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -26,15 +29,18 @@ function args(argv) {
 
 const a = args(process.argv.slice(2));
 const [base] = a._;
-if (!base || !(a.list || a.file)) {
-	console.error("usage: node tools/compare.mjs <base ref> [--head <ref>] (--list <GuideList-forever.xml> | --file <guide.lua>) [--polestar <clone>] [--out <dir>] [--lint no]");
+if (!base || !(a.list || a.file || a.journey || a.zygor)) {
+	console.error("usage: node tools/compare.mjs <base ref> [--head <ref>] (--list <GuideList-forever.xml> | --file <guide.lua> | --journey <Journey dir> | --zygor <Zygor dir>) [--polestar <clone>] [--polestar-after <clone>] [--out <dir>] [--lint no]");
 	process.exit(2);
 }
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const polestar = resolve(a.polestar || process.env.POLESTAR || join(process.env.HOME, "Work/polestar-next"));
+const polestarAfter = a["polestar-after"] ? resolve(a["polestar-after"]) : polestar;
 const out = resolve(a.out || mkdtempSync(join(tmpdir(), "polestar-compare-")));
 mkdirSync(out, { recursive: true });
-const source = a.list ? ["--list", resolve(a.list)] : ["--file", resolve(a.file)];
+const source = a.journey ? ["journey", "--dir", resolve(a.journey)]
+	: a.zygor ? ["zygor", "--dir", resolve(a.zygor)]
+	: ["rxp", ...(a.list ? ["--list", resolve(a.list)] : ["--file", resolve(a.file)]), "--locales", "none"];
 
 function run(cmd, argv, opt = {}) {
 	const r = spawnSync(cmd, argv, { encoding: "utf8", maxBuffer: 1 << 30, ...opt });
@@ -59,17 +65,17 @@ function checkout(name, ref) {
 
 // One pack per side. Translations are left out: they are slow and only repeat the
 // English steps' changes.
-function build(name, ref) {
+function build(name, ref, clone) {
 	const tree = checkout(name, ref);
 	const pack = join(out, name);
 	if (!existsSync(join(pack, "pack.json"))) {
 		const r = run("node", [join(polestar, "tools/polestar.js"), "new", pack, "--id", "cmp", "--yes"]);
 		if (r.status) throw new Error(`polestar new: ${r.stderr.trim()}`);
 	}
-	const r = run("node", [join(tree, "bin/polestar-convert.mjs"), "rxp", ...source, "--polestar", polestar, "--pack", pack, "--locales", "none"]);
+	const r = run("node", [join(tree, "bin/polestar-convert.mjs"), ...source, "--polestar", clone, "--pack", pack]);
 	writeFileSync(join(out, `${name}.report.txt`), r.stdout + r.stderr);
 	if (r.status) throw new Error(`convert (${name}) failed, see ${join(out, `${name}.report.txt`)}`);
-	const lint = a.lint === "no" ? null : run("node", [join(polestar, "tools/polestar.js"), "lint"], { cwd: pack });
+	const lint = a.lint === "no" ? null : run("node", [join(clone, "tools/polestar.js"), "lint"], { cwd: pack });
 	if (lint) writeFileSync(join(out, `${name}.lint.txt`), lint.stdout + lint.stderr);
 	return { pack, report: r.stdout, lint: lint && lint.stdout + lint.stderr };
 }
@@ -134,8 +140,8 @@ function table(title, before, after, width = 90) {
 }
 
 try {
-	const before = build("before", base);
-	const after = build("after", a.head);
+	const before = build("before", base, polestar);
+	const after = build("after", a.head, polestarAfter);
 
 	// Per guide: lines added and removed, and the whole diff to read by hunk.
 	const diffArgs = ["diff", "--no-index", "--no-color"];
