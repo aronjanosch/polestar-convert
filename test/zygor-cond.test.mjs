@@ -33,7 +33,7 @@ test("unknown races are dropped, not an only", () => {
 });
 
 test("hardcore and selfmade are false", () => {
-	assert.deepEqual(t("not hardcore()"), { only: {}, whens: [], never: false, dropped: [] });
+	assert.deepEqual(t("not hardcore()"), { only: {}, whens: [], alts: [], never: false, dropped: [], read: [] });
 	assert.equal(t("hardcore()").never, true);
 	assert.equal(t("hardcore").never, true);
 	assert.equal(t("selfmade()").never, true);
@@ -60,17 +60,33 @@ test("guide flags are dungeons", () => {
 	assert.deepEqual(t('guideflag("Nope")').dropped, ["guideflag"]);
 });
 
-test("walking and indoors are assumed true and named", () => {
+test("walking holds off a flight: true, and named as read", () => {
 	const r = t('walking and not zone("Wetlands")');
 	assert.deepEqual(r.whens, ['!zone "Wetlands"']);
-	assert.deepEqual(r.dropped, ["walking"]);
-	assert.equal(r.never, false);
+	assert.deepEqual(r.dropped, []);
+	assert.deepEqual(r.read, ["walking"]);
+	assert.equal(t("not walking").never, true);
+});
+
+test("indoors beside a subzone is that subzone; alone it has no form", () => {
+	assert.deepEqual(t('subzone("Invented Cave") and indoors()').whens, ['subzone "Invented Cave"']);
+	const r = t('not (subzone("Invented Cave") and indoors())');
+	assert.deepEqual(r.whens, ['!subzone "Invented Cave"']);
+	assert.deepEqual(r.read, ["indoors"]);
+	assert.deepEqual(t("indoors()").dropped, ["indoors"]);
+});
+
+test("discountgold is money>= the full price", () => {
+	const r = t("Orc discountgold('Orgrimmar',1000000)");
+	assert.deepEqual(r.only, { race: ["Orc"] });
+	assert.deepEqual(r.whens, ["money>=1000000"]);
+	assert.deepEqual(t("not discountgold('Orgrimmar',500)").whens, ["money<500"]);
 });
 
 test("not in front of a term without a form drops the whole term", () => {
-	const r = t('not (subzone("X") and indoors())');
+	const r = t('not (zone("X") and hasbuff(5))');
 	assert.deepEqual(r.whens, []);
-	assert.deepEqual(r.dropped, ["indoors"]);
+	assert.deepEqual(r.dropped, ["hasbuff"]);
 	const b = t("not hasbuff('Foo')");
 	assert.deepEqual(b.whens, []);
 	assert.deepEqual(b.dropped, ["hasbuff"]);
@@ -92,18 +108,27 @@ test("itemcount, level, skill, zone", () => {
 });
 
 test("predicates without a Polestar form are dropped", () => {
-	const r = t("Orc discountgold('Orgrimmar',1000000)");
-	assert.deepEqual(r.only, { race: ["Orc"] });
-	assert.deepEqual(r.dropped, ["discountgold"]);
 	assert.deepEqual(t("rep('X') >= Friendly").dropped, ["rep"]);
 	assert.deepEqual(t("ZGV.foo").dropped, ["ZGV.foo"]);
 });
 
-test("an OR of mixed kinds or predicates is dropped whole", () => {
+test("an OR of predicates is one alternative per way it holds, none overlapping", () => {
 	const r = t("haveq(5) or completedq(5)");
 	assert.deepEqual(r.whens, []);
-	assert.deepEqual(r.dropped, ["or"]);
+	assert.deepEqual(r.alts, [["onquest 5"], ["turnedin 5"]]); // handed in is never in the log
+	assert.deepEqual(t("itemcount(1) < 1 or itemcount(2) < 1").alts, [["!has 1"], ["!has 2", "has 1"]]);
+	assert.deepEqual(t('subzone("A") or subzone("B")').alts, [['subzone "A"'], ['subzone "B"']]); // one subzone at a time
+	const g = t('(haveq(5) or completedq(5)) and guideflag("WCflag")');
+	assert.deepEqual(g.whens, ['dungeon "Wailing Caverns"']);
+	assert.equal(g.alts.length, 2);
+	const m = t("(haveq(1) or haveq(2)) and (completedq(3) or level >= 10)");
+	assert.deepEqual(m.whens, ["onquest 1,2"]);
+	assert.deepEqual(m.alts, [["turnedin 3"], ["level>=10", "!turnedin 3"]]);
+});
+
+test("an OR of who and a predicate is dropped whole", () => {
 	assert.deepEqual(t("Warrior or Orc").only, {});
+	assert.deepEqual(t("Warrior or haveq(5)").dropped, ["or"]);
 });
 
 test("completeGoal", () => {

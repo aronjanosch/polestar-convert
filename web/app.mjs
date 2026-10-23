@@ -7,7 +7,7 @@ import { packIdProblem } from "./src/pack.mjs";
 const $ = (id) => document.getElementById(id);
 const NAMES = { rxp: "RestedXP", journey: "Journey", zygor: "Zygor" };
 // The folders the converter reads from; the rest of the AddOns folder is not touched.
-const READS = ["rxpguides/guides/", "journey/data/guides/", "zygorguidesviewerclassic/guides-classic/leveling/"];
+const READS = ["rxpguides/guides/", "journey/data/guides/", ...["leveling", "dungeons", "professions", "reputations", "events"].map((f) => `zygorguidesviewerclassic/guides-classic/${f}/`)];
 
 let picked = null; // { files: [[path, File]], sources }
 let zipUrl = null;
@@ -42,7 +42,7 @@ function show(sources, count) {
 		const on = sources.includes(box.value);
 		box.disabled = !on;
 		box.checked = on;
-		$(`src-${box.value}`).textContent = on ? (box.value === "rxp" ? "found: the routes you tick below" : (box.value === "zygor" ? "found: its leveling guides, or its free trial guides" : "found: its whole route")) : "not in this folder";
+		$(`src-${box.value}`).textContent = on ? (box.value === "rxp" ? "found: the routes you tick below" : (box.value === "zygor" ? "found: its guides, or its free trial guides" : "found: its whole route")) : "not in this folder";
 	}
 	routesEnabled();
 	$("step-pack").setAttribute("aria-disabled", String(!sources.length));

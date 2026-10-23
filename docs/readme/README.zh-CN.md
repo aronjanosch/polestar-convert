@@ -121,11 +121,11 @@ npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/A
 | 来源 | 版本 | 无记录损失地转换 |
 |---|---|---|
 | RestedXP | 4.11.26 | **97 %** |
-| Zygor | 8.1 | **88 %** |
+| Zygor | 8.1 | **97 %** |
 | Journey | 4.00.02 | **71 %** |
 
 报告里没有任何记录的步骤才算(原版对谁都不显示的步骤除外)。大多数记录是弱化而不是丢失:
-Polestar 无法表达的条件(Zygor 的 `indoors`)、Journey 每步的变体按常规情况读取、需要手动勾选的目标。
+Polestar 无法表达的条件(Zygor 的增益效果检查)、Journey 每步的变体按常规情况读取、需要手动勾选的目标。
 各来源报告的详细程度不同(Journey 和 Zygor 逐步列出每处弱化,RestedXP 较少),所以这些数字只是初步衡量,
 不是排名;人工审查部分 RestedXP 攻略,约 95% 的步骤正确。所有 lint 均为 0 错误。
 
@@ -169,7 +169,7 @@ RestedXP 还提供翻译过的攻略(德语、西班牙语、法语、巴西葡�
 ## 已知问题
 
 - **步骤编号**会把所有职业的步骤都算上(“3 / 72”);RestedXP 只算你自己的。需要 Polestar 修改。
-- **有些条件在 Polestar 里没有对应写法**(Zygor 的 `walking`、`indoors`、增益效果;
+- **有些条件在 Polestar 里没有对应写法**(Zygor 的增益效果、声望和 `equipped` 检查;
   RestedXP 的 `#requires`、银行里的物品)。步骤会保留但不带该条件,报告里会列出。
 - **没有标题的步骤**会把第一个目标当作标题,所以只有一个任务的步骤会显示两次。
 - **骑术**在 Polestar 里不算专业技能,会被忽略。

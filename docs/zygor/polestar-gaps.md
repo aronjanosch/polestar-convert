@@ -10,16 +10,17 @@ step).
 
 | Zygor | Polestar wish | today |
 |---|---|---|
-| `walking` (a waypoint walked, not flown) | `when walking` | kept without it |
-| `A or B` across predicate kinds (`haveq(x) or completedq(x)`) | an OR of predicates | the whole OR dropped, line kept |
-| `indoors()` | `when indoors` | kept without it |
-| `discountgold(...)` (price check) | `when discount` or a price predicate | dropped |
+| `A or B` of predicates (`haveq(x) or completedq(x)`) | an OR of predicates | a copy of the step per alternative, none overlapping |
+| `A or B` of a class and a predicate (`Warrior or haveq(x)`) | an OR across `only` and `when` | kept without it |
+| `indoors()` without a subzone beside it | `when indoors` | kept without it (with one: the subzone) |
+| `discountgold(...)` (price check with the reputation discount) | a reputation predicate | `money>=` the full price |
 | `hasbuff(...)`, `\|havebuff X`, `\|nobuff X` | `when buff "<name>"` / `!buff` | kept without it |
 | `equipped(id)`, `\|equipped`, `\|unequipped` | `when equipped <item>` | kept without it |
 | `\|skillmax P,N` | `when skill` at the maximum for the level | kept without it |
 | `\|region X` | `when region` | kept without it |
 | `rep(...)` comparisons | `when rep "<Faction>" <Standing>` (the `rep` goal exists, the predicate does not) | kept without it |
-| `completedallq`, other `itemcount` forms | predicates for them | dropped or kept |
+| `knowsrecipe(id)` | `when known <spell>` | kept without it |
+| other `itemcount` forms | predicates for them | dropped or kept |
 | predicate on a text line (`subzone`, `zone`, `has`, `dungeon`) | a conditional `tip` or `note` | the tip shows for everyone |
 | predicate on a goal beside other goals of its step | a `when` per goal, not per step | kept without it |
 
@@ -31,7 +32,12 @@ such a task into a tip (Polestar has no conditional tip).
 | Zygor | Polestar wish | today |
 |---|---|---|
 | `\|next "label"` to an earlier step | a backward `skipto` (a loop) | dropped |
-| `\|next "label"` forward | (has `skipto`: supported) | `skipto` when a predicate can carry it |
+| `\|next "label"` forward | (has `skipto`: supported) | `skipto`; without a predicate, `when done` on the next step |
+| `\|next` on a check Polestar cannot ask (`rep(...) == Exalted`) | the predicate (`when rep`) | dropped |
+| `\|next` on several predicates at once (`itemcount(x) == 1 and level >= 10`) | an AND in `skipto` | dropped |
+| `\|or` with a check Polestar cannot ask (a standing) | an OR between a goal and a predicate | the check left out, the other ways stay |
+| a skill threshold per race (`skill("X") >= ((Gnome and 45) or 30)`) | a `when` per race | the check dropped |
+| a menu (`Option \|confirm \|next "label"` per option) | a choice goal: pick one, jump to its label | a step per option: tick one, skip the others |
 | `\|or` (an alternative line: either goal) | an OR between goals | both lines kept |
 | `turninany Q1,Q2,...` | `turnin any <q1>,<q2>` (hold until any is handed in) | each quest turned in |
 | `\|multiq N,M,...` (a click that serves several quests) | several quests on one goal | kept without the list |
@@ -47,6 +53,8 @@ such a task into a tip (Polestar has no conditional tip).
 | `openskill` (open a profession window) | an `open` goal | tips |
 | `\|noautoaccept`, `\|autoacceptany`, `\|delay`, `\|execute`, `\|macro`, `\|autoscript`, `\|forceuse` | none: Zygor automation | ignored |
 | `\|confirm XXflag` (dungeon choice) | nothing: Polestar's Options ask it | dropped |
+| a gathering route beside `skill P N` (`path` while herbs or ore raise the skill) | `loop` for a skill goal, or a `gather` goal | the route's first point |
+| `\|n` (a goal counted but never ticked: a farming guide) | a counter that does not hold | `optional`; the step's `\|confirm` holds it |
 
 ## Places and data
 

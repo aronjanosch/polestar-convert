@@ -12,7 +12,8 @@ the ZIP's guides equal what `polestar-convert --path` writes.
   `Interface/AddOns` (the World of Warcraft folder, a client folder, the AddOns
   folder or one addon's folder all work; of several clients `_forever_` comes
   first). Only the files under `RXPGuides/Guides/`, `Journey/data/Guides/` and
-  `ZygorGuidesViewerClassic/Guides-Classic/Leveling/` are passed on.
+  `ZygorGuidesViewerClassic/Guides-Classic/{Leveling,Dungeons,Professions,Reputations,Events}/`
+  are passed on.
 - `web/worker.mjs` reads those files in the browser, fetches the game data from
   `polestar-data/`, runs `convertAddons` and `packZip`, and posts the ZIP back.
   The page's Content-Security-Policy allows connections to its own site only.

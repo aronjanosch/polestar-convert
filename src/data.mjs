@@ -10,7 +10,7 @@ import { readTable } from "./csv.mjs";
 // Every file loadData and Journey's loadNames read, by its path in the clone, for the
 // builds `travel` (data/forever/travel.json) names: what a hosted copy of the data holds.
 export function dataFiles(travel) {
-	const forever = ["quests", "npcs", "zones", "map-frames", "items", "races", "objects", "codex/journal", "travel", "professions"].map((f) => `data/forever/${f}.json`);
+	const forever = ["quests", "npcs", "zones", "map-frames", "items", "races", "objects", "codex/journal", "travel", "professions", "factions"].map((f) => `data/forever/${f}.json`);
 	const wago = (build, table) => (build ? [`data/sources/wago/${build}/${table}.csv`] : []);
 	return [...forever, ...wago(travel.foreverBuild, "AreaTable"), ...wago(travel.foreverBuild, "SpellName"), ...wago(travel.build, "WMOAreaTable")];
 }
@@ -28,6 +28,8 @@ export async function loadData(read) {
 	const items = await json("items.json");
 	const races = await json("races.json");
 	const objects = await json("objects.json");
+	// Reputation factions by id (`rep` goals name them); an older build has none.
+	const factions = (await json("factions.json", false)) || null;
 	// Dungeon quests from the codex build: where each starts and ends, and the
 	// dungeon's entrance for a giver inside it.
 	const journal = new Map();
@@ -61,7 +63,7 @@ export async function loadData(read) {
 			areas.set(id, { name: r.AreaName_lang, parent: Number(r.ParentAreaID) || 0 });
 		}
 	}
-	return { quests, npcs, zones, frames, items, races, objects, journal, inns, flights, hasProfessions, npcByName, areas };
+	return { quests, npcs, zones, frames, items, races, objects, factions, journal, inns, flights, hasProfessions, npcByName, areas };
 }
 
 // The elite a goal needs, by name, or null: a `kill` of an elite (rank 1-3:
@@ -86,6 +88,29 @@ export function baseItemSoldBy(data, item, npcId) {
 	if (!it || !it.name || !npcId || (it.vendors || []).length) return null;
 	const hits = Object.entries(data.items).filter(([id, o]) => o.name && o.name !== it.name && it.name.endsWith(o.name) && (o.vendors || []).includes(npcId));
 	return hits.length === 1 ? Number(hits[0][0]) : null;
+}
+
+// The reputation faction Polestar names `name` ("Stormwind City" is its "Stormwind"), or null.
+// Without factions in the data, the name as given.
+export function factionNamed(data, name) {
+	if (!data.factions) return name;
+	const all = Object.values(data.factions);
+	const low = String(name).toLowerCase();
+	const hit = all.find((f) => f.name.toLowerCase() === low) || all.find((f) => f.name.toLowerCase() === low.replace(/ city$/, ""));
+	return hit ? hit.name : null;
+}
+
+// Whether a vendor in the data sells the item to `faction` ("Alliance" or "Horde"), as
+// Polestar's `buy` finds one: a placed NPC of that side, or a service NPC of none (a goblin).
+export function soldTo(data, item, faction) {
+	const side = faction === "Alliance" ? "A" : faction === "Horde" ? "H" : null;
+	return (data.items[item]?.vendors || []).some((id) => {
+		const npc = data.npcs[id];
+		// One the data places nowhere (inside a dungeon) is no vendor the arrow can lead to.
+		if (!npc || !Object.keys(npc.spawns || {}).length) return false;
+		if (npc.faction) return !side || npc.faction.includes(side);
+		return (npc.roles || []).some((r) => ["vendor", "innkeeper", "repair"].includes(r));
+	});
 }
 
 const near = (pt) => (o) => (pt && o.map === pt.uiMap ? Math.hypot(o.x - pt.x, o.y - pt.y) : 1e9);

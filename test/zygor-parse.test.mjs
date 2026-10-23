@@ -91,16 +91,19 @@ test("parseBody: label and stickystop", () => {
 	assert.equal(steps[5].lines.length, 0);
 });
 
-test("parseBody: a ' line continues the line before it", () => {
+test("parseBody: a ' line is a goal of its own without text, as in Zygor's parser", () => {
 	const s = parseBody(extractGuides(LUA)[0].body)[3];
-	assert.equal(s.lines.length, 1);
-	assert.deepEqual(s.lines[0].mods, [
-		{ name: "confirm", args: "" },
-		{ name: "complete", args: "not haveq(5)" },
-		{ name: "next", args: '"B"' },
-	]);
-	assert.equal(s.lines[0].verb, null);
+	assert.equal(s.lines.length, 2);
+	assert.deepEqual(s.lines[0].mods, [{ name: "confirm", args: "" }]);
 	assert.equal(s.lines[0].text, "Click Here");
+	assert.equal(s.lines[1].verb, null);
+	assert.equal(s.lines[1].text, "");
+	assert.deepEqual(s.lines[1].mods, [{ name: "complete", args: "not haveq(5)" }, { name: "next", args: '"B"' }]);
+	// A verb in its first chunk is the line's verb.
+	const v = parseBody("step\n'|accept Example##100 |or\n")[0].lines[0];
+	assert.equal(v.verb, "accept");
+	assert.equal(v.text, "Example##100");
+	assert.deepEqual(v.mods, [{ name: "or", args: "" }]);
 });
 
 test("refs: Name##id lists, + dropped", () => {
