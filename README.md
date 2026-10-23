@@ -136,7 +136,7 @@ Polestar `next` 772b2065:
 | Source | Version | Carried without a recorded loss |
 |---|---|---|
 | RestedXP | 4.11.26 | **97 %** |
-| Zygor | 8.1 | **88 %** |
+| Zygor (trial) | 8.1 | **92 %** |
 | Journey | 4.00.02 | **71 %** |
 
 A step counts when the run's reports note nothing for it (steps the original

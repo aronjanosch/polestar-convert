@@ -104,7 +104,7 @@ test("convertZygor: guide text in, guides out", async () => {
 
 const slot = (lua) => `<html><body><p>${btoa(lua)}</p></body></html>`;
 const JOURNEY = {
-	"guides.html": slot(`{ { guideID = "H01T_FVR", slot = 1, description = "1-4 Testville", levels = "1-4", faction = "Horde" } }`),
+	"guides.html": slot(`{ { guideID = "H01T_FVR", slot = 1, description = "1-4 Testville", levels = "1-4", faction = "Horde", flags = "BSF" } }`),
 	"0001.html": slot(`{
 	{ id = "01-01", { { "Talk to Bob" }, { npc = 201 }, { accept = 1 } } },
 	{ id = "01-02", { { "Hand in" }, { turnin = 1 } } },
@@ -171,8 +171,17 @@ const ADDONS = {
 	"RXPGuides/Guides/forever/A.lua": RXP_A,
 	"Journey/data/Guides/guides.html": JOURNEY["guides.html"],
 	"Journey/data/Guides/0001.html": JOURNEY["0001.html"],
-	"ZygorGuidesViewerClassic/Guides-Classic/Leveling/ZygorLevelingHordeCLASSIC.lua": ZYGOR_H,
+	"ZygorGuidesViewerClassic/Guides-Classic/Leveling/ZygorLevelingHordeCLASSICTrial.lua": ZYGOR_H,
 };
+
+test("Zygor: only its free trial files are read, never the full leveling files", async () => {
+	const licensed = { "ZygorGuidesViewerClassic/Guides-Classic/Leveling/ZygorLevelingHordeCLASSIC.lua": ZYGOR_H };
+	assert.deepEqual(await findSources(reader(licensed)), []);
+	const asked = [];
+	const read = async (p) => { asked.push(p); return ADDONS[p] ?? null; };
+	await convertAddons(read, await loadData(reader(FULL)), await loadNames(reader(FULL), await loadData(reader(FULL))), { packId: "mine", sources: ["zygor"] });
+	assert.ok(asked.every((p) => !/CLASSIC\.lua$/.test(p)), asked.join(", "));
+});
 
 test("findSources: which guide addons the AddOns folder holds", async () => {
 	assert.deepEqual(await findSources(reader(ADDONS)), ["rxp", "journey", "zygor"]);
