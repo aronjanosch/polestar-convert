@@ -4,7 +4,8 @@
 // Polestar clone with its data built. That data set is published under GPLv3 (it
 // holds QuestieDB facts) with a notice of its sources; the code stays MIT.
 //
-// Usage: node tools/pages.mjs --polestar <clone> [--out <dir>]   (default out/pages)
+// Usage: node tools/pages.mjs --polestar <clone> [--out <dir>] [--commit <sha>]   (default out/pages;
+// --commit names Polestar's commit when the clone is a copy without git)
 // For a data set without QuestieDB (the fallback should its contributors object),
 // build the clone's data with `data build --no-questie` and run this on that clone:
 // the page then says the Forever-only quests are missing.
@@ -57,7 +58,7 @@ for (const f of files) {
 // Provenance: the clone's commit, its data build's sources (without local paths) and
 // whether QuestieDB went into it.
 const meta = JSON.parse(readFileSync(join(forever, "meta.json"), "utf8"));
-const commit = spawnSync("git", ["-C", clone, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout?.trim() || null;
+const commit = a.commit || spawnSync("git", ["-C", clone, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout?.trim() || null;
 const sources = (meta.sources || []).map(({ dir, ...s }) => s);
 // The QuestieDB store itself, not a source that only names it ("quests QuestieDB lacks").
 const questie = sources.some((s) => /^QuestieDB\b/.test(s.name));
@@ -88,7 +89,7 @@ ${sources.map((s) => `- ${s.name}${s.url ? ` (${s.url})` : ""}${s.license ? `: $
 
 **Source code** to rebuild it: Polestar at the commit above, then
 
-    node tools/polestar.js data build
+    node tools/polestar.js data build --no-web-xp --no-wowhead
     node tools/polestar.js travel build
     node tools/polestar.js profession build
     node tools/polestar.js codex build
