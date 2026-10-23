@@ -7,6 +7,9 @@ import { Report } from "../ir.mjs";
 
 // The leveling files under ZygorGuidesViewerClassic/Guides-Classic/Leveling/.
 export const ZYGOR_FILES = { horde: "ZygorLevelingHordeCLASSIC.lua", alliance: "ZygorLevelingAllianceCLASSIC.lua" };
+// The free trial guides the viewer ships (the starting zones), read for a side whose
+// full file is not there; both hold the same starting zones, so never both.
+export const ZYGOR_TRIAL_FILES = { horde: "ZygorLevelingHordeCLASSICTrial.lua", alliance: "ZygorLevelingAllianceCLASSICTrial.lua" };
 const SIDES = [
 	{ side: "h", faction: "Horde", key: "horde" },
 	{ side: "a", faction: "Alliance", key: "alliance" },
