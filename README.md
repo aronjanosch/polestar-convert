@@ -76,7 +76,7 @@ node ../polestar/tools/polestar.js install   # builds the pack and puts it into 
 `Interface/AddOns` work too).
 
 ```sh
-npx polestar-convert --path "<WoW>" --install
+npx github:aronjanosch/polestar-convert --path "<WoW>" --install
 ```
 
 Run it in the folder that holds the `polestar` clone, or name the clone with
@@ -99,7 +99,7 @@ pack) opens Polestar in your browser: the real addon with your pack loaded,
 against a simulated world. Pick a guide in the hub and click through its steps
 as you would in game.
 
-| | Browser | `npx polestar-convert --path` |
+| | Browser | `npx github:aronjanosch/polestar-convert --path` |
 |---|---|---|
 | Needs | a browser | Node 24+ |
 | Game data | Polestar's, hosted with the page ([GPLv3](#licence)) | your own clone's `data build` |
@@ -113,9 +113,9 @@ The single commands convert one addon into a pack you made with
 options (below):
 
 ```sh
-npx polestar-convert rxp --list "<WoW>/_forever_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack
-npx polestar-convert journey --dir "<WoW>/_forever_/Interface/AddOns/Journey" --polestar polestar --pack my-pack
-npx polestar-convert zygor --dir "<WoW>/_forever_/Interface/AddOns/ZygorGuidesViewerClassic" --polestar polestar --pack my-pack
+npx github:aronjanosch/polestar-convert rxp --list "<WoW>/_forever_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack
+npx github:aronjanosch/polestar-convert journey --dir "<WoW>/_forever_/Interface/AddOns/Journey" --polestar polestar --pack my-pack
+npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/AddOns/ZygorGuidesViewerClassic" --polestar polestar --pack my-pack
 ```
 
 > [!TIP]

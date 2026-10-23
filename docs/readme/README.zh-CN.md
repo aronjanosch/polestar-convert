@@ -72,7 +72,7 @@ node ../polestar/tools/polestar.js install   # 编译攻略包并安装到游戏
 `C:\Program Files (x86)\World of Warcraft`(其中的 `_forever_` 文件夹或它的 `Interface/AddOns` 也可以)。
 
 ```sh
-npx polestar-convert --path "<WoW>" --locales zhCN --install
+npx github:aronjanosch/polestar-convert --path "<WoW>" --locales zhCN --install
 ```
 
 在包含 `polestar` 克隆目录的文件夹里运行,或者用 `--polestar <文件夹>` 指定克隆目录。
@@ -96,9 +96,9 @@ lint 会报告一些警告(需要组队的精英、没有已知刷新点的目�
 新建的攻略包,选项更多(见下表):
 
 ```sh
-npx polestar-convert rxp --list "<WoW>/_forever_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack --locales zhCN
-npx polestar-convert journey --dir "<WoW>/_forever_/Interface/AddOns/Journey" --polestar polestar --pack my-pack
-npx polestar-convert zygor --dir "<WoW>/_forever_/Interface/AddOns/ZygorGuidesViewerClassic" --polestar polestar --pack my-pack
+npx github:aronjanosch/polestar-convert rxp --list "<WoW>/_forever_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack --locales zhCN
+npx github:aronjanosch/polestar-convert journey --dir "<WoW>/_forever_/Interface/AddOns/Journey" --polestar polestar --pack my-pack
+npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/AddOns/ZygorGuidesViewerClassic" --polestar polestar --pack my-pack
 ```
 
 > [!TIP]
