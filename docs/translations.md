@@ -27,6 +27,9 @@ no download).
 - The translated guide is converted by its English words: the inn, vendor,
   trainer, level goal and step titles come out as in the English guide, so each
   translated text lines up with its English one.
+- A name RXP's translator spelled their own way still finds its place: the
+  bracket at the name's place (`[...]`), or the one spot one character off the
+  game's name.
 - A text that pairs with nothing takes the translation of a text of the same
   shape: "Talk to {npc}" translated once serves every NPC, a name in the plural
   counts as its singular, a list of names ("A, B and C") as one name, and a text
