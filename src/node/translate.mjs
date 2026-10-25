@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import { join, resolve, sep } from "node:path";
 import { extractGuides, parseGuide } from "../rxp/parse.mjs";
 import { Report } from "../ir.mjs";
-import { pairLanguage } from "../rxp/locale.mjs";
+import { pairLanguage, lineMemory } from "../rxp/locale.mjs";
 import { loadNames, withPaired } from "../i18n/names.mjs";
 import { fillPack } from "../i18n/fill.mjs";
 import { resolveLoose } from "./read.mjs";
@@ -17,6 +17,17 @@ export function underGuides(file) {
 	const parts = resolve(file).split(sep);
 	const i = parts.findLastIndex((p) => p.toLowerCase() === "guides");
 	return i < 0 ? null : { root: parts.slice(0, i).join(sep), rel: parts.slice(i + 1).join("/") };
+}
+
+// The line texts of every guide file RXP ships in a language beside its English one.
+function memoryOf(root, dir) {
+	const memory = new Map();
+	const read = (p) => extractGuides(readFileSync(p, "utf8")).map(parseGuide);
+	for (const rel of readdirSync(dir, { recursive: true }).filter((n) => n.endsWith(".lua")).sort()) {
+		const en = resolveLoose(join(root, "Guides"), rel);
+		if (en) lineMemory(read(en), read(join(dir, rel)), memory);
+	}
+	return memory;
 }
 
 // Each language RXP has: the chosen guides converted again with its words, their
@@ -45,7 +56,7 @@ export async function translateRxp({ want = "all", root, fromList, files, run: {
 			const p = rel && resolveLoose(dir, rel);
 			return p && (!listed || listed.has(p)) ? extractGuides(readFileSync(p, "utf8")).map(parseGuide) : [];
 		});
-		const run = pairLanguage(rawByFile, trByFile, written, (guide, it) => convert(guide, new Report(), it.next, it.g).text);
+		const run = pairLanguage(rawByFile, trByFile, written, (guide, it) => convert(guide, new Report(), it.next, it.g).text, memoryOf(root, dir));
 		runs[locale] = run;
 		pairsByLocale[locale] = run.pairs;
 		namesByLocale[locale] = withPaired(await loadNames(clone, locale, { log: console.error }), run.names);
@@ -78,7 +89,7 @@ export async function translateRxp({ want = "all", root, fromList, files, run: {
 	console.log("\n== translations");
 	const noTables = [];
 	for (const locale of done) {
-		const total = { texts: 0, translated: 0, kept: 0, "no pair": 0, "name not found": 0 };
+		const total = { texts: 0, translated: 0, "partly translated": 0, kept: 0, "no pair": 0, "name not found": 0 };
 		const pairing = {};
 		const guides = {};
 		for (const [slug, rep] of runs[locale].guides) {
@@ -89,7 +100,7 @@ export async function translateRxp({ want = "all", root, fromList, files, run: {
 		}
 		out.locales[locale] = { ...total, pairing, guides };
 		if (namesByLocale[locale].clientTables) { out.locales[locale].clientTables = namesByLocale[locale].clientTables; noTables.push(locale); }
-		console.log(`${locale}: ${total.translated} of ${total.texts} texts translated`);
+		console.log(`${locale}: ${total.translated} of ${total.texts} texts translated, ${total["partly translated"]} in part`);
 	}
 	out.check = check;
 	writeReport();
