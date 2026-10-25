@@ -20,14 +20,31 @@ no download).
   again.
 - Shown translated: game names (NPCs, quests, items, places, spells) for every
   source, since Polestar shows the client's own names; for RXP also the guide
-  words where RXP's translated guide has them. Left English: Journey's and
-  Zygor's own words (a sentence they share word for word with RXP may come
-  translated), RXP texts that did not pair, guide files RXP ships no
-  translated copy of, and texts RXP marks "NOT TRANSLATED".
+  words RXP translated. Where a guide's own translation lacks a line (a guide
+  file RXP ships no translated copy of, a step it left out, a text it marks
+  "NOT TRANSLATED"), the line comes from any other guide RXP translated it in,
+  for every game version RXP ships.
+- The translated guide is converted by its English words: the inn, vendor,
+  trainer, level goal and step titles come out as in the English guide, so each
+  translated text lines up with its English one.
+- A name RXP's translator spelled their own way still finds its place: the
+  bracket at the name's place (`[...]`), or the one spot one character off the
+  game's name.
+- A text that pairs with nothing takes the translation of a text of the same
+  shape: "Talk to {npc}" translated once serves every NPC, a name in the plural
+  counts as its singular, a list of names ("A, B and C") as one name, and a text
+  of several lines or sentences is filled line by line and sentence by sentence.
+  A text whose lines are only partly found keeps the rest English; the report
+  counts it as "partly translated".
+- The converter's own sentences (the elite tip, tasks it writes itself) come
+  translated for Chinese.
+- Left English: Journey's and Zygor's own words (a sentence they share with RXP
+  may come translated), and RXP's words no guide of RXP has translated.
 - A new Forever NPC whose name the game has not shown yet appears in English
   inside a translated sentence until the player has seen or targeted it once.
 - `reports/rxp-locales.json` in the pack: per language, the texts, how many are
-  translated, and the causes for texts left English, with examples per guide.
+  translated (fully or partly), and the causes for texts left English, with
+  examples per guide.
 - Compile and install with Polestar (`node ../polestar/tools/polestar.js compile`,
   then `install`, inside the pack); the compiler builds the language's texts
   addon from `locales/`.

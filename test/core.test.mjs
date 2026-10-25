@@ -102,6 +102,26 @@ test("convertZygor: guide text in, guides out", async () => {
 	assert.equal(convertZygor({ horde: ZYGOR_H, alliance: "" }, data, { packId: "mine", only: "nothing" }).guides.length, 0);
 });
 
+test("convertZygor: every family, its category and folder; Season of Discovery guides left out", async () => {
+	const data = await loadData(reader(FULL));
+	const prof = `ZygorGuidesViewer:RegisterGuide("Profession Guides\\\\Example Craft\\\\Farming Guides\\\\Old Rag",{
+},[[
+step
+collect Old Rag##1 |n
+]])
+ZygorGuidesViewer:RegisterGuide("Profession Guides\\\\Example Craft\\\\Runes",{
+hideif = not ZGV.IsClassicSoD,
+},[[
+step
+accept A Thing##1 |goto Testville 10.0,10.0
+]])
+`;
+	const r = convertZygor({ Leveling: { horde: ZYGOR_H, alliance: "" }, Professions: { horde: prof, alliance: "" } }, data, { packId: "mine" });
+	assert.deepEqual(r.guides.map((g) => g.slug), ["h-testville-1-4", "h-testville-two-4-6", "h-professions-example-craft-farming-guides-old-rag"]);
+	assert.match(r.guides[2].text, /^category Professions\nfolder Example Craft · Farming Guides$/m);
+	assert.match(r.guides[0].text, /^category Leveling$/m);
+});
+
 const slot = (lua) => `<html><body><p>${btoa(lua)}</p></body></html>`;
 const JOURNEY = {
 	"guides.html": slot(`{ { guideID = "H01T_FVR", slot = 1, description = "1-4 Testville", levels = "1-4", faction = "Horde" } }`),

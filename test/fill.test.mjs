@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fillText, fillPack } from "../src/i18n/fill.mjs";
+import { fillText, fillPack, shapesOf } from "../src/i18n/fill.mjs";
+import { OWN } from "../src/i18n/own.mjs";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
@@ -141,4 +142,94 @@ test("fillPack with a relative clone and pack path", async () => {
 	assert.equal(res.counts.translated, 1);
 	assert.equal(res.check.code, 0);
 	assert.match(readFileSync(join(pack, "locales/zhCN/guides/x.lua"), "utf8"), /"Hello"\] = "你好"/);
+});
+
+// Shapes: a key that pairs with nothing takes the translation of a key of its shape.
+const ZH = OWN.zhCN.lang;
+const shapes = (lines, own) => shapesOf([file(lines)], own);
+const LEARNT = `\t["Talk to {npc:1}"] = "与{npc:1}对话",\n\t["Kill {npc:1}."] = "击杀{npc:1}。",\n\t["Loot {item:5}"] = "拾取{item:5}",\n`;
+
+test("a key takes its shape's translation, its own tokens put in", () => {
+	const src = file(`\t-- {npc:2} Alice\n\t["Talk to {npc:2}"] = "",\n`);
+	const { text, counts } = fillText(src, new Map(), names({}), { shapes: shapes(LEARNT) });
+	assert.match(text, /= "与\{npc:2\}对话",/);
+	assert.equal(counts.translated, 1);
+});
+
+test("a shape learns only from one-line keys whose tokens all come back once", () => {
+	const s = shapes(`\t["Talk to {npc:1}"] = "对话",\n\t["Go to {npc:1}\\nWait"] = "去{npc:1}\\n等",\n\t["Ask {npc:1} and {npc:1}"] = "问{npc:1}",\n`);
+	assert.equal(s.size, 0);
+});
+
+test("a shape's most frequent translation wins, the converter's own always", () => {
+	const s = shapes(`${LEARNT}\t["Talk to {npc:3}"] = "和{npc:3}说话",\n\t["Talk to {npc:4}"] = "和{npc:4}说话",\n`, { "Kill {npc}.": "杀{#0}" });
+	assert.equal(s.get("Talk to {npc}"), "和{#0}说话");
+	assert.equal(s.get("Kill {npc}."), "杀{#0}");
+});
+
+test("tokens keep their places when the translation reorders them", () => {
+	const s = shapes(`\t["Give {item:5} to {npc:1}"] = "把{item:5}交给{npc:1}",\n\t["Take {npc:1} to {area:9}"] = "在{area:9}带上{npc:1}",\n`);
+	const src = file(`\t["Take {npc:2} to {area:8}"] = "",\n`);
+	assert.match(fillText(src, new Map(), names({}), { shapes: s }).text, /= "在\{area:8\}带上\{npc:2\}",/);
+});
+
+test("a name in the plural, as words, stands for its singular's token", () => {
+	const src = file(`\t-- plural, as words: Grey Wolfs = {npc:7} Grey Wolf\n\t["Kill Grey Wolfs."] = "",\n`);
+	assert.match(fillText(src, new Map(), names({}), { shapes: shapes(LEARNT) }).text, /= "击杀\{npc:7\}。",/);
+});
+
+test("a list of names takes the shape of one, joined as the language lists", () => {
+	const src = file(`\t["Kill {npc:2}, {npc:3} and {npc:4}."] = "",\n\t["Kill {npc:2} or {npc:3}."] = "",\n`);
+	const { text } = fillText(src, new Map(), names({}), { shapes: shapes(LEARNT), lang: ZH });
+	assert.match(text, /= "击杀\{npc:2\}、\{npc:3\}和\{npc:4\}。",/);
+	assert.match(text, /= "击杀\{npc:2\}或\{npc:3\}。",/);
+	assert.match(fillText(src, new Map(), names({}), { shapes: shapes(LEARNT) }).text, /\] = "",\n\t\["Kill \{npc:2\} or/, "no lists without the language");
+});
+
+test("a line of names alone is its own translation", () => {
+	const src = file(`\t["[{item:5}]"] = "",\n`);
+	assert.match(fillText(src, new Map(), names({})).text, /\["\[\{item:5\}\]"\] = "\[\{item:5\}\]",/);
+});
+
+test("a line of sentences, sentence by sentence", () => {
+	const src = file(`\t["Kill {npc:2}. Loot {item:6}"] = "",\n\t["Kill {npc:2}. Dance"] = "",\n`);
+	const { text, counts } = fillText(src, new Map(), names({}), { shapes: shapes(LEARNT), lang: ZH });
+	assert.match(text, /= "击杀\{npc:2\}。拾取\{item:6\}",/);
+	assert.match(text, /\["Kill \{npc:2\}. Dance"\] = "",/);
+	assert.equal(counts.translated, 1);
+});
+
+test("a key of several lines is filled as far as its lines go", () => {
+	const src = file(`\t["Talk to {npc:2}\\nDance"] = "",\n\t["Dance\\nSing"] = "",\n`);
+	const { text, counts, examples } = fillText(src, new Map(), names({}), { shapes: shapes(LEARNT) });
+	assert.match(text, /= "与\{npc:2\}对话\\nDance",/);
+	assert.match(text, /\["Dance\\nSing"\] = "",/);
+	assert.equal(counts["partly translated"], 1);
+	assert.equal(counts["no pair"], 1);
+	assert.equal(examples[0].what, "partly translated");
+});
+
+test("the converter's own sentences in Chinese", () => {
+	const src = file(`\t["{npc:2} is elite: grouping up is advised."] = "",\n`);
+	const { text } = fillText(src, new Map(), names({}), { shapes: shapesOf([], OWN.zhCN.sentences) });
+	assert.match(text, /= "\{npc:2\}是精英怪，建议组队。",/);
+});
+
+// A translator may spell a name their own way.
+const LOOT = file(`\t-- {npc:1} Bob · {item:5} Example Item\n\t["Kill {npc:1}. Loot him for [{item:5}]"] = "",\n`);
+const LOOT_EN = "Kill Bob. Loot him for [Example Item]";
+
+test("a name in brackets is the bracket at its place", () => {
+	const { text } = fillText(LOOT, new Map([[LOOT_EN, "击杀鲍勃，拾取[样品物]"]]), names({ "npc:1": ["鲍勃"], "item:5": ["示例物品"] }));
+	assert.match(text, /\] = "击杀\{npc:1\}，拾取\[\{item:5\}\]",/);
+	const none = fillText(LOOT, new Map([[LOOT_EN, "击杀鲍勃，拾取[样品物]"]]), names({ "npc:1": ["鲍勃"] }));
+	assert.match(none.text, /\] = "击杀\{npc:1\}，拾取\[\{item:5\}\]",/, "also without a name in the data");
+});
+
+test("a name one character off counts once, never when it fits two places", () => {
+	const nm = names({ "npc:1": ["鲍勃特"], "item:5": ["示例物品"] });
+	const one = fillText(LOOT.replace("[{item:5}]", "{item:5}"), new Map([["Kill Bob. Loot him for Example Item", "击杀鲍伯特，拾取示例物品"]]), nm);
+	assert.match(one.text, /\] = "击杀\{npc:1\}，拾取\{item:5\}",/);
+	const two = fillText(LOOT.replace("[{item:5}]", "{item:5}"), new Map([["Kill Bob. Loot him for Example Item", "击杀鲍伯特和鲍勃丁，拾取示例物品"]]), nm);
+	assert.equal(two.counts["name not found"], 1);
 });

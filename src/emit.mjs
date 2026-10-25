@@ -30,7 +30,9 @@ export function render(guide, { report, slug, packId, next }) {
 		return n > 1 ? `${s.label}-${n}` : s.label;
 	});
 	// A label that `alongUntil` or `skipto` names is written as it is.
-	const named = new Set(steps.flatMap((s) => [s.alongUntil, ...(s.skipto || []).map((k) => k.label)]).filter(Boolean));
+	// So is one a `when done <label>` (on a step or a jump) asks about.
+	const doneOf = (w) => (/^!?done (\S+)$/.exec(w || "") || [])[1];
+	const named = new Set(steps.flatMap((s) => [s.alongUntil, ...(s.skipto || []).flatMap((k) => [k.label, doneOf(k.when)]), ...(s.whens || []).map(doneOf)]).filter(Boolean));
 	// -1: no `until`; -2: the target is the last step, so the list ends when done.
 	const waitsFor = steps.map((s, i) => {
 		if (s.alongUntil || !s.completesWith || !s.allAlong) return -1;
