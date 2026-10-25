@@ -88,8 +88,9 @@ npx github:aronjanosch/polestar-convert --path "<WoW>" --install
 Run it in the folder that holds the `polestar` clone, or name the clone with
 `--polestar <folder>`.
 
-It finds RestedXP, Journey and Zygor (for a Zygor faction whose full guides
-are not installed, the free trial guides the viewer ships), asks which RestedXP routes you want
+It finds RestedXP, Journey and Zygor (its leveling, dungeon, profession,
+reputation and event guides; for a faction whose full guides are not
+installed, the free trial guides the viewer ships), asks which RestedXP routes you want
 (`--routes main,dungeon,survival` skips the question; routes your guides do
 not have are left out), makes the pack `polestar-guides`, converts every guide with
 RestedXP's translations, lints and installs it. Leave out `--install` to look
@@ -138,16 +139,22 @@ Polestar `next` 772b2065:
 | Source | Version | Carried without a recorded loss |
 |---|---|---|
 | RestedXP | 4.11.26 | **97 %** |
-| Zygor | 8.1 | **88 %** |
+| Zygor | 8.1 | **97 %** |
 | Journey | 4.00.02 | **71 %** |
 
 A step counts when the run's reports note nothing for it (steps the original
-shows to no one aside). Most notes are softenings, not losses: a condition
-Polestar cannot express (Zygor's `indoors`), one of Journey's per-step variants
+shows to no one aside). Zygor counts all its families: leveling, dungeons,
+professions, reputations and events. Most notes are softenings, not losses: a condition
+Polestar cannot express (a Zygor buff check), one of Journey's per-step variants
 read as the normal case, a goal to tick by hand. The reports differ in detail
 (Journey and Zygor list every softening per step, RestedXP less), so the
 numbers are a first measure, not a ranking; a hand audit of RestedXP guides
 found about 95 % of steps right. Every lint passes with 0 errors.
+
+RestedXP's words in Chinese (zhCN), measured on 2026-10-25 with the same
+versions and all three routes: **63 %** of the texts translated in full,
+4 % more in part. The rest are words RXP has translated in none of its guides;
+game names show in Chinese everywhere.
 
 ## How it differs from the original
 
@@ -186,8 +193,8 @@ default, or `--locales zhCN,deDE`); the browser page leaves them out. Journey's 
 
 - **Step numbers** count every class's steps ("3 / 72"); RestedXP counts only
   yours. A Polestar change.
-- **Some conditions have no Polestar form** (Zygor's `walking`, `indoors` and
-  buffs; RestedXP's `#requires` and bank contents). The step is kept without
+- **Some conditions have no Polestar form** (Zygor's buffs, reputation and
+  `equipped` checks; RestedXP's `#requires` and bank contents). The step is kept without
   the condition, and the report names it.
 - **A step with no title** shows its first goal as its heading, so a one-task
   step reads twice.

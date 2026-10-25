@@ -5,11 +5,34 @@ import { extractGuides, parseBody } from "./parse.mjs";
 import { convertGuide } from "./convert.mjs";
 import { Report } from "../ir.mjs";
 
-// The leveling files under ZygorGuidesViewerClassic/Guides-Classic/Leveling/.
+// The guide files under ZygorGuidesViewerClassic/Guides-Classic/: per family its folder
+// and file stem, one file per faction (`<stem>HordeCLASSIC.lua`). A side without its full
+// file reads the free trial file the viewer ships (`…CLASSICTrial.lua`), never both.
+export const ZYGOR_FAMILIES = [
+	{ family: "Leveling", stem: "ZygorLeveling" },
+	{ family: "Dungeons", stem: "ZygorDungeon" },
+	{ family: "Professions", stem: "ZygorProfessions" },
+	{ family: "Reputations", stem: "ZygorReputations" },
+	{ family: "Events", stem: "ZygorEvents" },
+];
+const SIDE_NAME = { horde: "Horde", alliance: "Alliance" };
+// Every file the converter may read, by its path under Guides-Classic/, full ones first.
+export const ZYGOR_PATHS = ZYGOR_FAMILIES.flatMap(({ family, stem }) => ["", "Trial"].flatMap((t) => Object.values(SIDE_NAME).map((side) => `${family}/${stem}${side}CLASSIC${t}.lua`)));
 export const ZYGOR_FILES = { horde: "ZygorLevelingHordeCLASSIC.lua", alliance: "ZygorLevelingAllianceCLASSIC.lua" };
-// The free trial guides the viewer ships (the starting zones), read for a side whose
-// full file is not there; both hold the same starting zones, so never both.
 export const ZYGOR_TRIAL_FILES = { horde: "ZygorLevelingHordeCLASSICTrial.lua", alliance: "ZygorLevelingAllianceCLASSICTrial.lua" };
+
+// read(path under Guides-Classic/) -> file text or null. -> { <family>: { horde, alliance } }
+export async function readZygor(read) {
+	const lua = {};
+	for (const { family, stem } of ZYGOR_FAMILIES) {
+		lua[family] = {};
+		for (const [key, side] of Object.entries(SIDE_NAME)) {
+			const base = `${family}/${stem}${side}CLASSIC`;
+			lua[family][key] = (await read(`${base}.lua`)) ?? (await read(`${base}Trial.lua`)) ?? "";
+		}
+	}
+	return lua;
+}
 const SIDES = [
 	{ side: "h", faction: "Horde", key: "horde" },
 	{ side: "a", faction: "Alliance", key: "alliance" },
@@ -17,30 +40,60 @@ const SIDES = [
 export const ZYGOR_SETTINGS = { hardcore: false, selfmade: false };
 
 const slugify = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-// "Leveling Guides\Invented Starter (1-13)" -> "h-invented-starter-1-13" (h or a: the faction).
-const slugOf = (side, name) => `${side}-${slugify(String(name).split("\\").pop())}`;
+// A leveling chapter: "Leveling Guides\Invented Starter (1-13)" -> "h-invented-starter-1-13" (h or a: the
+// faction). Any other guide names its path below the top folder, after its family:
+// "Dungeon Guides\Invented Hollow Quests" -> "h-dungeons-invented-hollow-quests".
+const parts = (name) => String(name).split("\\");
+const isChapter = (g) => g.family === "Leveling" && (/\(\d+-\d+\)\s*$/.test(g.name) || /Class Quests$/.test(g.name));
+const slugOf = (g) => isChapter(g) ? `${g.side}-${slugify(parts(g.name).pop())}` : `${g.side}-${slugify(g.family)}-${slugify(parts(g.name).slice(1).join(" "))}`;
 
-// The guides the leveling chain and class quests are made of: a leveled chapter or a
-// class quest guide, not the SoD rune guides or the hidden wizard.
-function wanted(g) {
-	const h = g.header;
-	if (!g.name.startsWith("Leveling Guides\\")) return false;
-	if (/IsClassicSoD/.test(h.hideif || "")) return false;
-	if (/^function\(\)\s*return false\s*end$/.test(h.condition_visible || "")) return false;
-	return /\(\d+-\d+\)\s*$/.test(g.name) || /Class Quests$/.test(g.name);
+// Polestar's guide menu: the category of a guide, and its folder (Zygor's folders between
+// the top one and the guide: "Cooking · Farming Guides").
+function placeOf(g) {
+	const mid = parts(g.name).slice(1, -1);
+	const folder = mid.length ? mid.join(" · ") : null;
+	if (g.family === "Dungeons") return { category: "Dungeons", folder };
+	if (g.family === "Professions") return { category: "Professions", folder };
+	if (g.family === "Reputations") return { category: "Reputation", folder };
+	if (g.family === "Events") return { category: "Miscellaneous", folder: folder || "Events" };
+	if (isChapter(g)) return { category: null, folder: null };
+	return { category: /Field Duty/.test(g.name) ? "Reputation" : "Miscellaneous", folder };
 }
 
-// lua: { horde, alliance } file texts (one may be empty). opts: { packId, only }.
+// The guides a Classic Era character can play: not the Season of Discovery ones (shown only
+// there), the hidden startup wizard or Zygor's placeholder.
+function wanted(g) {
+	const h = g.header;
+	if (/not\s+ZGV\.IsClassicSoD/.test(h.hideif || "")) return false;
+	if (/^function\(\)\s*return false\s*end$/.test(h.condition_visible || "")) return false;
+	if (/Season of Discovery/.test(g.name)) return false;
+	if (g.family === "Leveling") return g.name.startsWith("Leveling Guides\\");
+	return true;
+}
+
+// lua: { <family>: { horde, alliance } } file texts (readZygor; any may be empty), or the
+// leveling files alone as { horde, alliance }. opts: { packId, only }.
 // -> { guides: [{ slug, text, stepsIn, stepsOut, format }], gaps, settings, report }
 export function convertZygor(lua, data, opts) {
 	const { packId } = opts;
-	// Every guide of both factions, with its file's side and faction.
+	const byFamily = "horde" in lua || "alliance" in lua ? { Leveling: lua } : lua;
+	// Every guide of both factions, with its file's family, side and faction.
 	const all = [];
-	for (const { side, faction, key } of SIDES) {
-		for (const g of extractGuides(lua[key] || "").filter(wanted)) all.push({ ...g, side, faction, steps: parseBody(g.body) });
+	for (const { family } of ZYGOR_FAMILIES) for (const { side, faction, key } of SIDES) {
+		for (const g of extractGuides((byFamily[family] || {})[key] || "")) {
+			const guide = { ...g, family, side, faction };
+			if (wanted(guide)) all.push({ ...guide, steps: parseBody(g.body), ...placeOf(guide) });
+		}
 	}
 	const byName = new Map(all.map((g) => [`${g.side}|${g.name}`, g]));
-	const slugFor = new Map(all.map((g) => [g, slugOf(g.side, g.name)]));
+	// Slugs are unique: a second guide of one name (Zygor lists some twice) gets `-2`.
+	const slugFor = new Map(), taken = new Map();
+	for (const g of all) {
+		const base = slugOf(g);
+		const n = (taken.get(base) || 0) + 1;
+		taken.set(base, n);
+		slugFor.set(g, n > 1 ? `${base}-${n}` : base);
+	}
 	const nextOf = (g) => (g.header.next ? byName.get(`${g.side}|${g.header.next}`) || null : null);
 
 	// Pass 1, each guide alone: what it accepts. A guide's chain-mates before it
@@ -65,7 +118,7 @@ export function convertZygor(lua, data, opts) {
 		// A hand-off to a guide this run does not write would point nowhere.
 		const nx = nextOf(g);
 		const next = nx && kept.has(nx) ? [slugFor.get(nx)] : [];
-		const r = convertGuide(g, data, { report, slug, packId, faction: g.faction, before: beforeOf(g), next });
+		const r = convertGuide(g, data, { report, slug, packId, faction: g.faction, before: beforeOf(g), next, category: g.category, folder: g.folder });
 		guides.push({ slug, text: r.text, stepsIn: r.stepsIn, stepsOut: r.stepsOut, format: r.format });
 		gaps[`${slug}.guide`] = r.gaps;
 	}

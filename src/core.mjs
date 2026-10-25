@@ -4,7 +4,7 @@
 
 import { convertRxp, guideList } from "./rxp/run.mjs";
 import { convertJourney } from "./journey/run.mjs";
-import { convertZygor, ZYGOR_FILES, ZYGOR_TRIAL_FILES } from "./zygor/run.mjs";
+import { convertZygor, readZygor, ZYGOR_PATHS } from "./zygor/run.mjs";
 import { newPack } from "./pack.mjs";
 import { zip } from "./zip.mjs";
 
@@ -13,7 +13,7 @@ export const SOURCES = ["rxp", "journey", "zygor"];
 
 const RXP_LIST = "RXPGuides/Guides/GuideList-forever.xml";
 const JOURNEY_DIR = "Journey/data/Guides/";
-const ZYGOR_DIR = "ZygorGuidesViewerClassic/Guides-Classic/Leveling/";
+const ZYGOR_DIR = "ZygorGuidesViewerClassic/Guides-Classic/";
 const REPORT_SOURCE = { journey: "Journey (local install)", zygor: "Zygor Guide Viewer Classic (local install)" };
 
 const GUIDE_ADDONS = ["rxpguides", "journey", "zygorguidesviewerclassic"];
@@ -45,7 +45,7 @@ export async function findSources(read) {
 	const found = [];
 	if ((await read(RXP_LIST)) != null) found.push("rxp");
 	if ((await read(`${JOURNEY_DIR}guides.html`)) != null) found.push("journey");
-	for (const file of [...Object.values(ZYGOR_FILES), ...Object.values(ZYGOR_TRIAL_FILES)]) {
+	for (const file of ZYGOR_PATHS) {
 		if ((await read(ZYGOR_DIR + file)) != null) { found.push("zygor"); break; }
 	}
 	return found;
@@ -71,9 +71,7 @@ export async function convertAddons(read, data, names, opts) {
 		}
 		if (source === "journey") runs.journey = await convertJourney((name) => read(JOURNEY_DIR + name), data, names, { packId: opts.packId, ah: opts.ah, groups: opts.groups });
 		if (source === "zygor") {
-			const lua = {};
-			for (const [side, file] of Object.entries(ZYGOR_FILES)) lua[side] = (await read(ZYGOR_DIR + file)) ?? (await read(ZYGOR_DIR + ZYGOR_TRIAL_FILES[side])) ?? "";
-			runs.zygor = convertZygor(lua, data, { packId: opts.packId });
+			runs.zygor = convertZygor(await readZygor((path) => read(ZYGOR_DIR + path)), data, { packId: opts.packId });
 		}
 	}
 	return runs;
