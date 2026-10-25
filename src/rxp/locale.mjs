@@ -46,6 +46,7 @@ function pairSteps(en, tr) {
 export function alignGuide(en, tr, report, match = tr ? matchSteps(en, tr) : [], memory = new Map()) {
 	const guide = structuredClone(en);
 	const names = new Map();
+	guide.header.en = en.header;
 	if (tr?.header.name) guide.header.name = tr.header.name;
 	const display = (h) => h.flags.findIndex((f) => /^displayname(\s|$)/.test(f));
 	const di = display(guide.header), ti = tr ? display(tr.header) : -1;
@@ -61,7 +62,7 @@ export function alignGuide(en, tr, report, match = tr ? matchSteps(en, tr) : [],
 			if (own?.includes(UNTRANSLATED)) { report.count("locale: not translated in source"); own = null; }
 			if (own === line.text) own = null;
 			const text = own ?? memory.get(line.text);
-			if (text) line.text = text;
+			if (text) { line.en = line.text; line.text = text; }
 		});
 	});
 	return { guide, names };

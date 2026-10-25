@@ -24,6 +24,9 @@ no download).
   file RXP ships no translated copy of, a step it left out, a text it marks
   "NOT TRANSLATED"), the line comes from any other guide RXP translated it in,
   for every game version RXP ships.
+- The translated guide is converted by its English words: the inn, vendor,
+  trainer, level goal and step titles come out as in the English guide, so each
+  translated text lines up with its English one.
 - A text that pairs with nothing takes the translation of a text of the same
   shape: "Talk to {npc}" translated once serves every NPC, a name in the plural
   counts as its singular, a list of names ("A, B and C") as one name, and a text
