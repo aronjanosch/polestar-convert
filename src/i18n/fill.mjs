@@ -49,6 +49,24 @@ function readTokens(line) {
 	return tokens;
 }
 
+const BRACKET = /\[([^\]]*)\]/g;
+
+// A name the translator wrote their own way: the bracket at the token's place
+// ("[{item:1}]", as many brackets in both), else the one stretch of the translation
+// as long as a known name and one character off. -> the spelling, or null.
+function ownSpelling(translated, key, tok, names) {
+	const inKey = [...key.matchAll(BRACKET)].map((m) => m[1]), inTr = [...translated.matchAll(BRACKET)].map((m) => m[1].trim());
+	const at = inKey.indexOf(`{${tok}}`);
+	if (at >= 0 && at === inKey.lastIndexOf(`{${tok}}`) && inKey.length === inTr.length && inTr[at]) return inTr[at];
+	const t = [...translated], near = new Set();
+	for (const n of names.map((x) => [...x]).filter((n) => n.length >= 3)) {
+		for (let i = 0; i + n.length <= t.length; i++) {
+			if (n.filter((c, j) => c !== t[i + j]).length === 1) near.add(t.slice(i, i + n.length).join(""));
+		}
+	}
+	return near.size === 1 ? [...near][0] : null;
+}
+
 // The translation with each token's name swapped for the token, or null.
 // Longest name first across all tokens, through placeholders, so a name
 // inside a token (or inside another name) is never matched twice.
@@ -57,9 +75,11 @@ function putTokens(translated, key, tokens, namesOf) {
 	for (const m of key.matchAll(TOKEN)) need.set(m[1], (need.get(m[1]) ?? 0) + 1);
 	const names = [];
 	for (const tok of need.keys()) {
-		const list = namesOf(tok, tokens.get(tok));
-		if (!list || !list.length) return { missing: true };
-		for (const n of list) if (n) names.push({ tok, name: n });
+		const list = (namesOf(tok, tokens.get(tok)) ?? []).filter(Boolean);
+		const own = list.some((n) => translated.includes(n)) ? null : ownSpelling(translated, key, tok, list);
+		if (own) list.push(own);
+		if (!list.length) return { missing: true };
+		for (const n of list) names.push({ tok, name: n });
 	}
 	names.sort((a, b) => b.name.length - a.name.length);
 	const seen = new Map();

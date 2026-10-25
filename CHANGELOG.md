@@ -32,7 +32,8 @@
   counts texts filled only in part.
 - **A translated guide is converted by its English words** (inn, vendor,
   trainer, level goal), so its texts line up with the English ones; a step
-  title shortened in one language only still pairs.
+  title shortened in one language only still pairs; a name RXP's translator
+  spelled their own way is found by its brackets or one character off.
 
 ## 0.2.0 (2026-10-23)
 

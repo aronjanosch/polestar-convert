@@ -214,3 +214,22 @@ test("the converter's own sentences in Chinese", () => {
 	const { text } = fillText(src, new Map(), names({}), { shapes: shapesOf([], OWN.zhCN.sentences) });
 	assert.match(text, /= "\{npc:2\}是精英怪，建议组队。",/);
 });
+
+// A translator may spell a name their own way.
+const LOOT = file(`\t-- {npc:1} Bob · {item:5} Example Item\n\t["Kill {npc:1}. Loot him for [{item:5}]"] = "",\n`);
+const LOOT_EN = "Kill Bob. Loot him for [Example Item]";
+
+test("a name in brackets is the bracket at its place", () => {
+	const { text } = fillText(LOOT, new Map([[LOOT_EN, "击杀鲍勃，拾取[样品物]"]]), names({ "npc:1": ["鲍勃"], "item:5": ["示例物品"] }));
+	assert.match(text, /\] = "击杀\{npc:1\}，拾取\[\{item:5\}\]",/);
+	const none = fillText(LOOT, new Map([[LOOT_EN, "击杀鲍勃，拾取[样品物]"]]), names({ "npc:1": ["鲍勃"] }));
+	assert.match(none.text, /\] = "击杀\{npc:1\}，拾取\[\{item:5\}\]",/, "also without a name in the data");
+});
+
+test("a name one character off counts once, never when it fits two places", () => {
+	const nm = names({ "npc:1": ["鲍勃特"], "item:5": ["示例物品"] });
+	const one = fillText(LOOT.replace("[{item:5}]", "{item:5}"), new Map([["Kill Bob. Loot him for Example Item", "击杀鲍伯特，拾取示例物品"]]), nm);
+	assert.match(one.text, /\] = "击杀\{npc:1\}，拾取\{item:5\}",/);
+	const two = fillText(LOOT.replace("[{item:5}]", "{item:5}"), new Map([["Kill Bob. Loot him for Example Item", "击杀鲍伯特和鲍勃丁，拾取示例物品"]]), nm);
+	assert.equal(two.counts["name not found"], 1);
+});
