@@ -25,6 +25,13 @@ const blocks = (text) => text.split(/\n\s*\n/).map((b) => b.split("\n").filter((
 
 const TIP = /^\s*tip\b/;
 
+// emit.mjs shortens a long step title ("...") and repeats it whole as the first tip;
+// the other language may fit the title whole. Folded English: the translation gets
+// that tip too; folded translation: its title is the tip's text again.
+const folded = (lines) => /^\s*step .*\.\.\.$/.test(lines[0] ?? "") && TIP.test(lines[1] ?? "");
+const refold = ([step, ...rest]) => [step, step.replace(/^(\s*)step /, "$1  tip "), ...rest];
+const unfold = ([step, tip, ...rest]) => [step.replace(/step .*$/, `step ${tip.replace(TIP, "").trim()}`), ...rest];
+
 export function pairRendered(en, tr, report, pairs = new Map()) {
 	// True when the texts are a real pair: translated.
 	const add = (t, u) => {
@@ -36,12 +43,15 @@ export function pairRendered(en, tr, report, pairs = new Map()) {
 	const be = blocks(en), bt = blocks(tr);
 	if (be.length !== bt.length) { report.count("locale: blocks differ"); return pairs; }
 	for (let i = 0; i < be.length; i++) {
-		if (be[i].length !== bt[i].length) { report.count("locale: block lines differ"); continue; }
+		let [ea, ta] = [be[i], bt[i]];
+		if (ea.length === ta.length + 1 && folded(ea)) ta = refold(ta);
+		else if (ta.length === ea.length + 1 && folded(ta)) ta = unfold(ta);
+		if (ea.length !== ta.length) { report.count("locale: block lines differ"); continue; }
 		// Polestar joins a step's tip lines with \n into one text, the sync key.
 		const tips = { en: [], tr: [], all: true };
-		for (let j = 0; j < be[i].length; j++) {
-			const a = parseLine(be[i][j]), b = parseLine(bt[i][j]);
-			const tip = TIP.test(be[i][j]);
+		for (let j = 0; j < ea.length; j++) {
+			const a = parseLine(ea[j]), b = parseLine(ta[j]);
+			const tip = TIP.test(ea[j]);
 			if (a.shape !== b.shape || a.texts.length !== b.texts.length) {
 				report.count("locale: line shape differs");
 				if (tip) tips.all = false;

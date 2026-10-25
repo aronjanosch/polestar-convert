@@ -85,6 +85,28 @@ test("a translated guide pairs through convert", () => {
 	assert.equal(run.names.get("Bob"), "鲍勃");
 });
 
+test("a translated guide is converted by its English words: same goals, translated texts", () => {
+	const en = parseGuide(`#name 1-6 Testville
+step
+    .hs >>Hearth to Testville
+step
+    .xp 4 >>Grind to level 4
+`);
+	const tr = parseGuide(`#name 1-6级 测试镇
+step
+    .hs >>使用炉石回到测试镇
+step
+    .xp 4 >>刷怪升级到 4 级
+`);
+	const withInn = { ...data, inns: [{ location: "Testville", names: [], map: 1, c: 0, x: 10, y: 10 }] };
+	const conv = (g) => convertGuide(g, withInn, { report: new Report(), slug: "testville", packId: "mine", next: [], before: new Set() }).text;
+	const [aligned] = alignFile([en], [tr], new Report());
+	const report = new Report();
+	pairRendered(conv(en), conv(aligned.guide), report);
+	assert.equal(report.counts.size, 0, [...report.counts.keys()].join(", "));
+	assert.match(conv(aligned.guide), /levels 1-6/);
+});
+
 test("a missing translation file leaves the guide English", () => {
 	const en = parseGuide(EN);
 	assert.deepEqual(alignFile([en], [], new Report()), [null]);

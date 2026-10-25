@@ -30,6 +30,9 @@
   and lists of names as placeholders), line by line and sentence by
   sentence; the converter's own sentences come in Chinese. The report
   counts texts filled only in part.
+- **A translated guide is converted by its English words** (inn, vendor,
+  trainer, level goal), so its texts line up with the English ones; a step
+  title shortened in one language only still pairs.
 
 ## 0.2.0 (2026-10-23)
 

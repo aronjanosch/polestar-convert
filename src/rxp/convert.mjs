@@ -18,6 +18,9 @@ const IGNORED = new Set([
 const TASKS = new Set(["hs", "home", "fp", "fly", "deathskip", "abandon", "destroy", "cast", "equip", "bankdeposit", "bankwithdraw", "stable"]);
 // What RXP shows for a task command written without text.
 const TASK_TEXT = { stable: "Stable your pet" };
+// What a line says in English: a translated guide (locale.mjs) keeps it in `en`, so
+// every decision on words reads the English and only the shown text is translated.
+const enText = (l) => (l.en ?? l.text) || "";
 // A label as Polestar takes it: letters, digits, `-` and `_`.
 const labelOf = (text) => String(text || "").trim().replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || null;
 // RXP's quest conditions on a step -> Polestar's `when` predicate and its `!`.
@@ -159,7 +162,7 @@ function boughtItem(step, line, npc, data) {
 		const [id, count] = c.args.split(",").map(Number);
 		if (sold(id)) return { id, count: count || 1, line: step.lines.indexOf(c) };
 	}
-	const names = [...(line.text || "").matchAll(/\[(?:\|c[0-9A-Fa-f]{8})?([^\]|]+?)(?:\|r)?\]/g)].map((m) => m[1].toLowerCase());
+	const names = [...enText(line).matchAll(/\[(?:\|c[0-9A-Fa-f]{8})?([^\]|]+?)(?:\|r)?\]/g)].map((m) => m[1].toLowerCase());
 	if (names.length !== 1) return null;
 	const hits = Object.values(data.items).filter((it) => it.name && it.name.toLowerCase() === names[0] && sold(it.id));
 	return hits.length === 1 ? { id: hits[0].id, count: 1 } : null;
@@ -179,8 +182,9 @@ export function friendlyKillText(obj, quest, faction, l, data) {
 	const npc = data.npcs && data.npcs[obj.id];
 	if (!npc || !(npc.faction === "AH" || (faction && npc.faction === faction[0]))) return undefined;
 	if (FIGHT_WORDS.test(quest.objectiveText || "")) return undefined;
-	const said = plain(l.text || l.comment || "").replace(/^\|?\d+\/\d+\s*/, "").replace(/\s*\(\d+\)$/, "").trim();
-	if (TALK_WORDS.test(said)) return said;
+	const clean = (t) => plain(t || l.comment || "").replace(/^\|?\d+\/\d+\s*/, "").replace(/\s*\(\d+\)$/, "").trim();
+	const said = clean(l.text);
+	if (TALK_WORDS.test(clean(enText(l)))) return said;
 	if ((obj.count || 1) > 1) return said || undefined;
 	if (!npc.name) return undefined;
 	return `${/^find\b/i.test(quest.objectiveText || "") ? "Find" : "Talk to"} ${npc.name}`;
@@ -278,8 +282,8 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			const [, name, id] = l.args.replace(/^\+/, "").trim().match(/^(.*?)(?:::(\d+))?$/);
 			targets.push({ name: name.trim(), id: id ? Number(id) : null, cond: l.cond, idx: li });
 		}
-		for (const m of (l.text || "").matchAll(/\|cRXP_FRIENDLY_([^|]+)\|r/g)) friendly.push({ name: m[1].replace(/::\d+$/, "").trim(), cond: l.cond, idx: li });
-		if ((l.text || "").includes("RXP_BUY")) buyText = true;
+		for (const m of enText(l).matchAll(/\|cRXP_FRIENDLY_([^|]+)\|r/g)) friendly.push({ name: m[1].replace(/::\d+$/, "").trim(), cond: l.cond, idx: li });
+		if (enText(l).includes("RXP_BUY")) buyText = true;
 	}
 	const mapId = (gotos.find((g) => g.uiMap) || {}).uiMap || null;
 	// The guide's last place before this step: where the player stands when nothing better is known.
@@ -377,7 +381,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	// ("Get the Crossroads flight path", "Fly to Redridge Mountains").
 	const flightOf = (l) => {
 		const named = (t) => flightNamed(data, t, ctx.faction, firstPt);
-		const text = plain(l.text);
+		const text = plain(enText(l));
 		return named(String(l.args || "").trim()) || named((text.match(/Get the (.+?) flight path/i) || [])[1]) || named((text.match(/^Fly to (.+?)\.?$/i) || [])[1]);
 	};
 	const usedMaps = [];
@@ -517,7 +521,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				if ((quest.objectives || []).length === 0) { report.count("complete on a quest without objectives (dropped)"); continue; }
 				add({ kind: "complete", quest: Number(m[1]) }, l.cond); continue;
 			}
-			const hit = resolveObjective(quest, l.comment || l.text || "", null, { index: Number(m[2]) });
+			const hit = resolveObjective(quest, l.comment || enText(l), null, { index: Number(m[2]) });
 			if (hit && hit.obj.type === "kill") add({ kind: "kill", npc: hit.obj.id, quest: Number(m[1]), oi: hit.index, text: friendlyKillText(hit.obj, quest, ctx.faction, l, data) }, l.cond);
 			else if (hit && hit.obj.type === "item") add({ kind: "collect", item: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
 			else if (hit && hit.obj.type === "object") add({ kind: "interact", object: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
@@ -532,7 +536,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
 				report.count("buy without a vendor (auction house) -> collect");
 			} else if (buyText) {
-				const npc = npcFor("vendor", l.cond, { item: itemId, names: true, idx: li, kinds: ["collect"], text: l.comment || l.text });
+				const npc = npcFor("vendor", l.cond, { item: itemId, names: true, idx: li, kinds: ["collect"], text: l.comment || enText(l) });
 				const base = npc && baseItemSoldBy(data, itemId, npc.id);
 				if (base) report.count("buy of a made item -> buy of the item it is made from");
 				add({ kind: "buy", item: base || itemId, itemName: base ? undefined : itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
@@ -558,7 +562,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			const npc = said || npcFor("vendor", l.cond);
 			const text = plain(l.text);
 			// "Buy [Dirk]" under .vendor: one item the data knows is a buy, not a junk sale.
-			const buyItem = npc && /\bbuy\b/i.test(text) ? boughtItem(step, l, npc, data) : null;
+			const buyItem = npc && /\bbuy\b/i.test(plain(enText(l))) ? boughtItem(step, l, npc, data) : null;
 			if (buyItem && buyItem.line != null && (buyItem.line < li || (step.lines[buyItem.line].cond || "") !== (l.cond || ""))) {
 				// The step's own .collect, written before or for other classes, already is the buy (or the bag count).
 				report.count(".vendor <id> with a buy text, the .collect before it covers it (dropped)");
@@ -572,17 +576,17 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", text);
 			}
 		} else if (n === "train" || n === "trainer") {
-			const note = plain(l.text);
-			const opt = { idx: li, kinds: ["train", "trainer"], text: note };
+			const note = plain(l.text), said = plain(enText(l));
+			const opt = { idx: li, kinds: ["train", "trainer"], text: said };
 			// Spells the pet learns by fighting, not at a trainer.
-			if (n === "train" && /\b(attack mobs with it to learn|tame beast)\b/i.test(note)) {
+			if (n === "train" && /\b(attack mobs with it to learn|tame beast)\b/i.test(said)) {
 				add({ kind: "note", text: note }, l.cond);
 				report.count(".train pet spell learned by fighting -> note");
 				continue;
 			}
 			// A profession by spell id (".train 2018,3") or in the text; Anti-Venom is First Aid.
 			const [spell, flags] = n === "train" ? l.args.split(",").map((x) => Number(x.trim())) : [];
-			const prof = PROFESSION_SPELLS[spell] || (note.match(/\[([^\]]+)\]/) || [])[1] || (note.match(/\btrain\s+(Mining|Herbalism|Skinning|Alchemy|Blacksmithing|Enchanting|Engineering|Leatherworking|Tailoring|First Aid|Cooking|Fishing)\b/i) || [])[1];
+			const prof = PROFESSION_SPELLS[spell] || (said.match(/\[([^\]]+)\]/) || [])[1] || (said.match(/\btrain\s+(Mining|Herbalism|Skinning|Alchemy|Blacksmithing|Enchanting|Engineering|Leatherworking|Tailoring|First Aid|Cooking|Fishing)\b/i) || [])[1];
 			const profName = prof && [...PROFESSIONS].find((p) => p.toLowerCase() === prof.toLowerCase());
 			if (profName) {
 				// ".train <id>,1|3" without text is RXP's skip check ("Mining Trained"): the step
@@ -602,7 +606,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				continue;
 			}
 			// Pets, mounts: not the class trainer's lesson.
-			if (n === "trainer" && /\bmount\b/i.test(note)) { report.count(".trainer for a mount (ignored)"); continue; }
+			if (n === "trainer" && /\bmount\b/i.test(said)) { report.count(".trainer for a mount (ignored)"); continue; }
 			// RXP writes ".train <spell>" and ".trainer" together at one trainer: one goal is enough.
 			if (n === "trainer" && step.lines.some((x) => x.kind === "cmd" && x.name === "train" && condsMeet(x.cond, l.cond))) { report.count(".trainer beside .train (covered)"); continue; }
 			// ".trainer" for all, ".target Briarthorn << Warlock", ".target Brandur << Paladin": each class at its own trainer.
@@ -653,7 +657,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				add({ kind: "level", level, xp: m[4] ? Number(m[4]) : undefined }, l.cond);
 				// What the line says besides the level it names is the grind's text.
 				const said = plain(l.text);
-				if (said && !l.cond && !/^grind (to|until) (level )?[\d\s+\/.,]*(xp)?\.?$/i.test(said)) tips.push(bare(said));
+				if (said && !l.cond && !/^grind (to|until) (level )?[\d\s+\/.,]*(xp)?\.?$/i.test(plain(enText(l)))) tips.push(bare(said));
 				report.count(m[3] ? ".xp N.F -> level" : m[4] ? ".xp L+N -> level" : ".xp N -> level");
 			} else report.count(completewith && !m[5] ? ".xp target in a step beside the route (farm signal only)" : ".xp (ignored)");
 		} else if (n === "skill") {
@@ -731,12 +735,12 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			group = Number(l.args) >= 2 ? Number(l.args) : true;
 			if (l.cond) groupForSome = true;
 		} else if (n === "home") {
-			const inn = innNamed(data, (plain(l.text).match(/Hearthstone to (.+?)\.?$/i) || [])[1] || String(l.args || "").trim(), firstPt, ctx.faction);
+			const inn = innNamed(data, (plain(enText(l)).match(/Hearthstone to (.+?)\.?$/i) || [])[1] || String(l.args || "").trim(), firstPt, ctx.faction);
 			add({ kind: "sethome", location: inn ? inn.location : undefined }, l.cond);
 			ctx.bind = inn ? inn.location : null;
 			report.count(inn ? ".home -> sethome" : ".home -> sethome nearest");
-		} else if (n === "hs" && ((plain(l.text).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1] || ctx.bind)) {
-			const name = (plain(l.text).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1];
+		} else if (n === "hs" && ((plain(enText(l)).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1] || ctx.bind)) {
+			const name = (plain(enText(l)).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1];
 			const inn = name ? innNamed(data, name, null, ctx.faction, ctx.bind) : null;
 			add({ kind: "hearth", location: inn ? inn.location : name || ctx.bind }, l.cond);
 			report.count(".hs -> hearth");
@@ -826,8 +830,8 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		const selfPlaced = goals.some((g) => g.kind !== "note");
 		// The player respawns or arrives elsewhere: the points before it lead nowhere.
 		const travel = step.lines.some((l) => l.kind === "cmd" && (["deathskip", "hs", "fly"].includes(l.name)
-			|| (l.name === "cast" && /teleport|portal/i.test(l.text || ""))
-			|| (l.name === "zone" && /boat|zeppelin|ship|portal|tram|ferry/i.test(l.text || ""))));
+			|| (l.name === "cast" && /teleport|portal/i.test(enText(l)))
+			|| (l.name === "zone" && /boat|zeppelin|ship|portal|tram|ferry/i.test(enText(l)))));
 		if (!farm && !fights && !selfPlaced && !travel) {
 			for (const g of way) {
 				// A point of one class line is that class's way.
@@ -1050,8 +1054,9 @@ export function convertGuide(parsed, data, opts) {
 	const { report, slug, packId } = opts;
 	// RXP's `#displayname` is the name it shows (the name itself can be an internal key).
 	// One with a condition ("<< Paladin") names it for some characters only: not the title.
-	const shown = (parsed.header.flags || []).find((f) => f.startsWith("displayname ") && !f.includes("<<")) || "";
-	const info = parseName(shown.slice("displayname ".length).trim() || parsed.header.name);
+	// A translated guide's English header (`en`) gives the zone and levels.
+	const nameOf = (h) => parseName(((h.flags || []).find((f) => f.startsWith("displayname ") && !f.includes("<<")) || "").slice("displayname ".length).trim() || h.name);
+	const info = nameOf(parsed.header), enInfo = parsed.header.en ? nameOf(parsed.header.en) : info;
 	const titles = new Map();
 	for (const s of parsed.steps) for (const l of s.lines) {
 		if (l.kind === "cmd" && (l.name === "accept" || l.name === "turnin") && l.text) {
@@ -1110,7 +1115,7 @@ export function convertGuide(parsed, data, opts) {
 			const m = l.args.match(/^(\d+)\//);
 			if (m) { defaultMap = Number(m[1]); return zoneName(data, defaultMap); }
 		}
-		const named = zoneIdNamed(data, info.zone);
+		const named = zoneIdNamed(data, enInfo.zone);
 		if (named) defaultMap = named;
 		if (named) return zoneName(data, named);
 		// Else the zone of the first step that is somewhere.
@@ -1124,7 +1129,7 @@ export function convertGuide(parsed, data, opts) {
 		faction,
 		classes: hc.class || null,
 		races,
-		levels: info.levels || levelsOf([...accepted].filter((id) => !before.has(id)), data) || (String(parsed.header.subgroup || "").match(/\b(\d+-\d+)\b/) || [])[1] || null,
+		levels: enInfo.levels || levelsOf([...accepted].filter((id) => !before.has(id)), data) || (String(parsed.header.subgroup || "").match(/\b(\d+-\d+)\b/) || [])[1] || null,
 		zone,
 		defaultMap,
 		...menuPlace(parsed.header.group, parsed.header.subgroup),

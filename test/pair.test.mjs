@@ -82,3 +82,16 @@ test("joined tips need every tip a real pair", () => {
 	assert.equal(p.get("C"), "丙");
 	assert.equal(p.has("C\nD"), false);
 });
+
+// emit.mjs: a title too long is shortened and repeated whole as the first tip.
+test("a title shortened on one side only pairs whole", () => {
+	const r = new Report();
+	const p = pairRendered("step Kill the boars by the...\n  tip Kill the boars by the old mill\n  tip Mind the farmer", "step 杀死老磨坊的野猪\n  tip 小心农夫", r);
+	assert.equal(p.get("Kill the boars by the..."), "杀死老磨坊的野猪");
+	assert.equal(p.get("Kill the boars by the old mill"), "杀死老磨坊的野猪");
+	assert.equal(p.get("Kill the boars by the old mill\nMind the farmer"), "杀死老磨坊的野猪\n小心农夫");
+	const q = pairRendered("step Wait\n  tip Mind the farmer", "step 在这里等很长很长很长时间...\n  tip 在这里等很长很长很长时间直到天黑\n  tip 小心农夫", r);
+	assert.equal(q.get("Wait"), "在这里等很长很长很长时间直到天黑");
+	assert.equal(q.get("Mind the farmer"), "小心农夫");
+	assert.equal(r.counts.size, 0);
+});
