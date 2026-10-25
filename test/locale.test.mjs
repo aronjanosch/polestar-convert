@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseGuide } from "../src/rxp/parse.mjs";
-import { alignGuide, alignFile } from "../src/rxp/locale.mjs";
+import { alignGuide, alignFile, lineMemory } from "../src/rxp/locale.mjs";
 import { Report } from "../src/ir.mjs";
 
 // Invented guides in RXP's syntax; no real guide text lives in this repo.
@@ -101,4 +101,40 @@ test("a missing translation: no guide", () => {
 	const report = new Report();
 	assert.deepEqual(alignFile([parseGuide(EN)], [], report), [null]);
 	assert.equal(report.counts.get("locale: guide not paired"), 1);
+});
+
+// The memory: line texts RXP translated in another guide.
+test("the memory holds each English line text with its translation", () => {
+	const memory = lineMemory([parseGuide(EN)], [parseGuide(TR)]);
+	assert.equal(memory.get("Talk to |cRXP_FRIENDLY_Bob|r"), "与 |cRXP_FRIENDLY_鲍勃|r 对话");
+	assert.equal(memory.get("Go home"), "回家");
+	assert.equal(memory.has("Be careful"), true);
+});
+
+test("the memory leaves out texts that are not translated", () => {
+	const tr = TR.replace(">>回家", ">>Go home").replace("+小心", "+Be careful (NOT TRANSLATED IN :zhCN YET)");
+	const memory = lineMemory([parseGuide(EN)], [parseGuide(tr)]);
+	assert.equal(memory.has("Go home"), false);
+	assert.equal(memory.has("Be careful"), false);
+});
+
+test("a guide without its translation takes its lines from the memory", () => {
+	const report = new Report();
+	const memory = new Map([["Go home", "回家"]]);
+	const [a] = alignFile([parseGuide(EN)], [], report, memory);
+	assert.equal(a.guide.steps[1].lines[0].text, "回家");
+	assert.equal(a.guide.steps[0].lines[0].text, "Talk to |cRXP_FRIENDLY_Bob|r");
+	assert.equal(a.guide.header.name, "1-6 Testville");
+	assert.equal(report.counts.get("locale: guide not paired"), 1);
+	assert.equal(report.counts.get("locale: step not paired"), undefined);
+});
+
+test("a line its translation left English or marked takes the memory's", () => {
+	const report = new Report();
+	const tr = TR.replace(">>回家", ">>Go home").replace("+小心", "+Be careful (NOT TRANSLATED IN :zhCN YET)");
+	const memory = new Map([["Go home", "回家去"], ["Be careful", "当心"]]);
+	const { guide } = alignGuide(parseGuide(EN), parseGuide(tr), report, undefined, memory);
+	assert.equal(guide.steps[1].lines[0].text, "回家去");
+	assert.equal(guide.steps[0].lines[1].text, "当心");
+	assert.equal(report.counts.get("locale: not translated in source"), 1);
 });

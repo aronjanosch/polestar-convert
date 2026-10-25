@@ -23,6 +23,13 @@
 - **Zygor: `'` lines** are goals of their own, as in Zygor's parser, not
   continuations of the line above; jumps on a check Polestar cannot ask are
   dropped instead of taken.
+- **Translations reach much further, Chinese first.** A line a guide's own
+  translation lacks comes from any other guide RXP translated it in (also
+  for guide files RXP ships no translated copy of); a text that pairs with
+  nothing takes the translation of a text of the same shape (names, plurals
+  and lists of names as placeholders), line by line and sentence by
+  sentence; the converter's own sentences come in Chinese. The report
+  counts texts filled only in part.
 
 ## 0.2.0 (2026-10-23)
 

@@ -24,14 +24,11 @@ function parseLine(line) {
 const blocks = (text) => text.split(/\n\s*\n/).map((b) => b.split("\n").filter((l) => l.trim() !== ""));
 
 const TIP = /^\s*tip\b/;
-// RXP keeps the English with this marker where its translator has not been yet.
-const UNTRANSLATED = "(NOT TRANSLATED IN :";
 
 export function pairRendered(en, tr, report, pairs = new Map()) {
-	// True when the texts are a real pair: translated, not marked untranslated.
+	// True when the texts are a real pair: translated.
 	const add = (t, u) => {
 		if (t === u) return false;
-		if (u.includes(UNTRANSLATED)) { report.count("locale: not translated in source"); return false; }
 		if (!pairs.has(t)) pairs.set(t, u);
 		else if (pairs.get(t) !== u) report.count("locale: text with two translations");
 		return true;
