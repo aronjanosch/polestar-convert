@@ -59,16 +59,10 @@ cd ..
 **2. 转换你的攻略。** 两种方式得到的攻略包相同。
 
 *在浏览器里:* 打开 **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
-选择你的 `Interface/AddOns` 文件夹,勾选想要的 RestedXP 路线,把攻略包下载为 ZIP。
-网页在浏览器里读取你的攻略文件,不会上传任何内容。把攻略包解压到 `polestar` 文件夹旁边,然后:
-
-```sh
-cd my-guides
-node ../polestar/tools/polestar.js lint      # 用游戏数据检查每个攻略
-node ../polestar/tools/polestar.js install   # 编译攻略包并安装到游戏里
-```
-
-浏览器版不包含 RestedXP 的中文译文(游戏内名称仍按客户端语言显示);想要中文攻略文本,请用下面的命令。
+选择你的 `Interface/AddOns` 文件夹,勾选想要的 RestedXP 路线,把插件下载为 ZIP。
+网页在浏览器里读取你的攻略文件,不会上传任何内容。编译器就是 Polestar 本身,所以 ZIP 里是
+现成的插件文件夹:解压到 `World of Warcraft/_forever_/Interface/AddOns`(Polestar 需在同一文件夹里)。
+选择 RestedXP 的语言后,译文也会写进插件;浏览器允许时,网页还能直接安装到你的 AddOns 文件夹。
 
 *或者用一条命令:* `<WoW>` 是你的魔兽世界文件夹,例如
 `C:\Program Files (x86)\World of Warcraft`(其中的 `_forever_` 文件夹或它的 `Interface/AddOns` 也可以)。
@@ -96,7 +90,8 @@ lint 会报告一些警告(需要组队的精英、没有已知刷新点的目�
 |---|---|---|
 | 需要 | 浏览器 | Node 24+ |
 | 游戏数据 | Polestar 的数据,随网页托管([GPLv3](#许可证)) | 你自己克隆目录里的 `data build` |
-| RestedXP 译文 | 否(英文文本,名称按客户端语言) | 是 |
+| 输出 | 插件文件夹的 ZIP,放进 `Interface/AddOns` | 攻略包,放进你的 Polestar 克隆 |
+| RestedXP 译文 | 是(选择语言时) | 是 |
 | lint 与安装 | 由你运行 | 自动完成 |
 
 ### 一次转换一个插件
@@ -154,7 +149,7 @@ RestedXP 攻略文字的中文翻译(zhCN),2026-10-25 用相同版本、全部�
 
 对所有来源,Polestar 都用客户端的语言显示游戏内名称(NPC、任务、物品、地点、法术)。
 RestedXP 还提供翻译过的攻略(德语、西班牙语、法语、巴西葡萄牙语、中文),
-命令行会把这些译文写进攻略包(默认 `--locales all`,或 `--locales zhCN`);浏览器版不包含译文。
+命令行会把这些译文写进攻略包(默认 `--locales all`,或 `--locales zhCN`);浏览器版对网页上选择的那一种语言做同样的事。
 
 - 每种语言第一次运行时,会从 wago.tools(公开的游戏数据)下载客户端的区域、地图和法术名称,
   保存到 Polestar 目录下被 git 忽略的 `data/sources/wago/`。不会上传任何攻略内容。
@@ -210,7 +205,7 @@ RestedXP 还提供翻译过的攻略(德语、西班牙语、法语、巴西葡�
 写明攻略名称、步骤以及原版是怎么做的。
 
 **有不需要 Node 和 Git 的版本吗?**
-转换可以:用[浏览器版](https://aronjanosch.github.io/polestar-convert/)。在 Polestar 0.3.0 发布之前,安装攻略包仍需从 Polestar 的克隆目录运行它的工具。
+可以:[浏览器版](https://aronjanosch.github.io/polestar-convert/)直接给出现成的插件 ZIP,不需要 Node 和 Polestar 克隆目录。游戏里仍需要 Polestar 本身。
 
 ## 文档
 
