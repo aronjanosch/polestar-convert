@@ -120,8 +120,8 @@ read as the normal case, a goal to tick by hand. The reports differ in detail
 numbers are a first measure, not a ranking; a hand audit of RestedXP guides
 found about 95 % of steps right. Every lint passes with 0 errors.
 
-RestedXP's words in Chinese (zhCN), measured on 2026-10-25 with the same
-versions and all three routes: **63 %** of the texts translated in full,
+RestedXP's words in Chinese (zhCN), measured on 2026-10-28 with RestedXP
+4.11.26, Polestar `next` 1f5a2cfd and all three routes: **63 %** of the texts translated in full,
 4 % more in part. The rest are words RXP has translated in none of its guides;
 game names show in Chinese everywhere.
 
