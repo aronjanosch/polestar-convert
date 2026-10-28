@@ -1,9 +1,10 @@
 # The browser page
 
 https://aronjanosch.github.io/polestar-convert/ converts the guide addons of a
-folder the player picks and hands the pack over as a ZIP. It runs the same
-converter as the command line (`src/core.mjs`); for the same addons and data
-the ZIP's guides equal what `polestar-convert --path` writes.
+folder the player picks and hands over the finished addon folders as a ZIP. It
+runs the same code as the command line (`src/build.mjs`): for the same addons
+and data, the ZIP holds what `polestar-convert --path` writes, byte for byte.
+The command line takes the game data and the compiler from this site too.
 
 ## How it works
 
@@ -20,8 +21,8 @@ the ZIP's guides equal what `polestar-convert --path` writes.
   writes them). With a language picked, `rxpTranslations` fills RestedXP's
   translated texts in first. Errors from the compiler stop the ZIP; warnings do not.
   The page's Content-Security-Policy allows connections to its own site only.
-- The ZIP holds the addon folders (`<pack id>/` with the guides, and sibling
-  addons such as the names packs beside it), ready to unzip into
+- The ZIP holds the addon folders (`PolestarPack_<Name>/` with the guides, and sibling
+  addons such as the language addon `<folder>_zhCN` beside it), ready to unzip into
   `Interface/AddOns`. Polestar itself must be in that folder. Where
   `showDirectoryPicker` exists, the page can also write the folders there.
 - `tools/pages.mjs` builds the compiler (cargo, wasm-bindgen via mise) and the

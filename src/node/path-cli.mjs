@@ -185,7 +185,13 @@ export async function run(a) {
 		for (const e of r.errors.slice(0, 50)) console.error(`${e.file}${e.line ? `:${e.line}` : ""}: ${e.message}`);
 		fail(`Polestar's compiler found ${r.errors.length} errors: no addon written`);
 	}
-	writeFileSync(join(reports, "rxp-locales.json"), JSON.stringify({ locales: Object.fromEntries(Object.entries(r.translated).map(([l, t]) => [l, { ...t.counts, guides: t.guides }])) }, null, 1) + "\n");
+	// Per language: the counts, why texts did not pair (all guides) and each guide's.
+	const pairing = (t) => {
+		const sum = {};
+		for (const rep of t.pairing.values()) for (const [k, v] of rep.counts) sum[k] = (sum[k] ?? 0) + v;
+		return sum;
+	};
+	writeFileSync(join(reports, "rxp-locales.json"), JSON.stringify({ locales: Object.fromEntries(Object.entries(r.translated).map(([l, t]) => [l, { ...t.counts, pairing: pairing(t), guides: t.guides }])) }, null, 1) + "\n");
 	for (const [l, t] of Object.entries(r.translated)) {
 		const total = Object.values(t.counts).reduce((n, v) => n + v, 0);
 		console.log(`${l}: ${t.counts.translated} of ${total} texts translated, ${t.counts["partly translated"]} in part`);
