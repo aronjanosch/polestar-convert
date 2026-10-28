@@ -7,6 +7,10 @@
 
 import { readTable } from "./csv.mjs";
 
+// The files of data/forever the compiler (wasm/, the web page) reads, by name: the
+// first seven are required by it, the rest optional (a missing one is an empty table).
+export const COMPILER_NAMES = ["quests", "npcs", "objects", "items", "zones", "map-frames", "meta", "professions", "factions", "trainers", "races", "travel", "spawnz"];
+
 // Every file loadData and Journey's loadNames read, by its path in the clone, for the
 // builds `travel` (data/forever/travel.json) names: what a hosted copy of the data holds.
 export function dataFiles(travel) {
