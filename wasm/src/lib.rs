@@ -102,6 +102,11 @@ impl Compiler {
 		Ok(diags(&d).to_string())
 	}
 
+	/// The pack's addon folder (pack.json's `folder`, else the default): `packFiles` names its files.
+	pub fn folder(&self) -> String {
+		self.manifest.get("folder").to_js_string()
+	}
+
 	/// Compile the pack's guides: JSON [[pack-relative path, text], ...] -> JSON diagnostics. The
 	/// guides are kept for `texts` and `packFiles`.
 	pub fn compile(&mut self, files: &str) -> Result<String, JsValue> {
