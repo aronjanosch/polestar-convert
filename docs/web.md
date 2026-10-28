@@ -51,10 +51,10 @@ data with `forge data build --no-questie` (then `forge data travel`,
 `professions` and `codex`, as below) and publish from that checkout.
 The page then shows a warning. Measured on 2026-10-23 against Polestar
 772b2065 (`tools/compare.mjs` with `--polestar-after`): without QuestieDB the
-Forever-only quests are missing, RestedXP changes N of N guides with N
-lint errors (class trainers for Forever's new race and class pairs), Journey N
-of N with N errors, Zygor N of N with none. So it is an emergency mode, not
-an equal.
+Forever-only quests are missing, and most RestedXP and Zygor guides and some
+Journey guides change; RestedXP and Journey then fail lint (class trainers for
+Forever's new race and class pairs). So it is an emergency mode, not an
+equal.
 
 ## Building and publishing
 

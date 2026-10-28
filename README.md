@@ -105,7 +105,7 @@ npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/A
 How much of each original carries over, measured on 2026-10-23 against
 Polestar `next` 772b2065:
 
-| Source | Version | Carried without a recorded loss |
+| Source | Version | Steps carried without a recorded loss |
 |---|---|---|
 | RestedXP | 4.11.26 | **97 %** |
 | Zygor | 8.1 | **97 %** |

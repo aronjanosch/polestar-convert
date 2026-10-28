@@ -81,7 +81,7 @@ npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/A
 
 原版有多少内容被完整转换,2026-10-23 针对 Polestar `next` 772b2065 测得:
 
-| 来源 | 版本 | 无记录损失地转换 |
+| 来源 | 版本 | 无记录损失地转换的步骤 |
 |---|---|---|
 | RestedXP | 4.11.26 | **97 %** |
 | Zygor | 8.1 | **97 %** |

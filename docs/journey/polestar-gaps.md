@@ -1,6 +1,6 @@
 # What a one-to-one Journey conversion still lacks
 
-Measured on Journey's N Forever guides (1-30) with `polestar-convert journey`,
+Measured on Journey's Forever guides (1-30) with `polestar-convert journey`,
 against Polestar `next` (0.3.0: #605/#645, #606, #607, #608/#637, #609 merged).
 Per step, the pack's `reports/journey-gaps.json` lists each case and what the
 converter did instead: a `task` the player ticks, a note, an alternative step
@@ -8,7 +8,7 @@ with "Only if …", or the route's normal case.
 
 Three parts: what the converter already uses, what Polestar has but the
 intermediate form (`src/ir.mjs`, `src/emit.mjs`) cannot carry yet, and what
-Polestar itself lacks. Counts are Journey steps or constructs.
+Polestar itself lacks.
 
 ## Used by the converter
 
