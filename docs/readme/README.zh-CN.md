@@ -32,87 +32,50 @@
 
 你喜欢某个攻略插件的路线,但想用 Polestar 的箭头、自动交接任务、旅行规划和攻略中心来玩。
 polestar-convert 读取该插件的攻略文件,把每一步写成 Polestar 的 `.guide` 格式,
-ID、名称和坐标都来自 Polestar 自己的游戏数据。最后得到一个社区攻略包,
-可以用 Polestar 的工具检查、在模拟器里跑完,并安装到游戏里。
+ID、名称和坐标都来自 Polestar 自己的游戏数据,再用 Polestar 自己的编译器
+生成一个插件,你把它复制进游戏即可。
 
-所有内容都留在你的电脑上。转换器用 Node 在本地运行,没有任何依赖,
+你的攻略不会离开你的电脑。转换器在本地运行(浏览器里或用 Node),
 并会报告所有被删掉、被弱化或无法定位的内容,方便你检查。
 
 ## 快速开始
 
-需要魔兽世界:Forever,以及在 `Interface/AddOns` 里至少装有一个攻略插件(RestedXP、Journey 或 Zygor)。
-转换后的攻略包需要 Polestar 0.3.0:在它正式发布之前,请使用 Polestar 的 `next` 分支,
-并从克隆的目录安装到游戏里(需要 **Node 24 或更新版本**,例如从 nodejs.org 下载安装包,以及 **Git**)。
-在中国大陆访问 GitHub 或 nodejs.org 可能较慢,可以使用镜像或代理。
+需要魔兽世界:Forever,`Interface/AddOns` 里装有 **Polestar 0.3.0 或更新版本**
+(0.3.0 正式发布之前,请按 Polestar 的说明安装它的 `next` 分支),以及至少一个攻略插件:
+RestedXP、Journey 或 Zygor。别的都不需要:不用克隆,也不用构建游戏数据。
 
-**1. 获取 Polestar 及其游戏数据(只需一次)。**
+**在浏览器里:** 打开 **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
+选择你的 `Interface/AddOns` 文件夹,勾选攻略插件和 RestedXP 路线,RestedXP 还可以选择语言(中文),
+确认你只转换有权使用的攻略,然后下载 ZIP。把它解压到 `World of Warcraft/_forever_/Interface/AddOns`。
+浏览器允许时(Chrome、Edge),网页会直接把文件夹放进去。网页只在浏览器里读取你的攻略文件,不会上传任何内容。
 
-```sh
-git clone -b next https://github.com/fitzforge/polestar
-cd polestar
-node tools/polestar.js data build        # 找不到 QuestieDB 时加上 --questie "<WoW>/Interface/AddOns"
-node tools/polestar.js profession build  # 专业技能等级和配方,供训练步骤使用
-node tools/polestar.js install           # 把这个 Polestar 安装到游戏里
-cd ..
-```
-
-**2. 转换你的攻略。** 两种方式得到的攻略包相同。
-
-*在浏览器里:* 打开 **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
-选择你的 `Interface/AddOns` 文件夹,勾选想要的 RestedXP 路线,把攻略包下载为 ZIP。
-网页在浏览器里读取你的攻略文件,不会上传任何内容。把攻略包解压到 `polestar` 文件夹旁边,然后:
-
-```sh
-cd my-guides
-node ../polestar/tools/polestar.js lint      # 用游戏数据检查每个攻略
-node ../polestar/tools/polestar.js install   # 编译攻略包并安装到游戏里
-```
-
-浏览器版不包含 RestedXP 的中文译文(游戏内名称仍按客户端语言显示);想要中文攻略文本,请用下面的命令。
-
-*或者用一条命令:* `<WoW>` 是你的魔兽世界文件夹,例如
+**或者用一条命令**(需要 **Node 24 或更新版本**,例如从 nodejs.org 下载安装包):`<WoW>` 是你的魔兽世界文件夹,例如
 `C:\Program Files (x86)\World of Warcraft`(其中的 `_forever_` 文件夹或它的 `Interface/AddOns` 也可以)。
 
 ```sh
 npx github:aronjanosch/polestar-convert --path "<WoW>" --locales zhCN --install
 ```
 
-在包含 `polestar` 克隆目录的文件夹里运行,或者用 `--polestar <文件夹>` 指定克隆目录。
+它会找到 RestedXP、Journey 和 Zygor(某个阵营没有安装 Zygor 完整攻略时,读取查看器自带的免费试用攻略),
+询问你要哪些 RestedXP 路线(用 `--routes main,dungeon,survival` 可跳过询问;你的攻略里没有的路线会被略过),
+转换全部攻略并写入中文译文,然后把插件放进游戏。去掉 `--install` 时,文件夹会写到 `./polestar-addon`,
+可以先看一看。`--name "My Guides"` 设定插件的名称。
+在中国大陆访问 GitHub、github.io 或 nodejs.org 可能较慢,可以使用镜像或代理。
 
-它会找到 RestedXP、Journey 和 Zygor(某个阵营没有安装 Zygor 完整攻略时,读取查看器自带的免费试用攻略),询问你要哪些 RestedXP 路线(用 `--routes main,dungeon,survival` 可跳过询问;
-你的攻略里没有的路线会被略过),新建攻略包 `polestar-guides`,转换全部攻略并写入中文译文,
-检查后安装。去掉 `--install` 可以先看一看。
+两种方式生成的插件相同:由 Polestar 自己的编译器(以 WebAssembly 运行)用网站托管的游戏数据
+([GPLv3](#许可证))从转换后的攻略生成。编译器的警告(需要组队的精英、没有已知刷新点的目标)是正常的,
+只有错误才会阻止生成。完全重启游戏后,你的攻略会出现在 Polestar 攻略中心(`/polestar guides`)的“社区攻略”里。
 
-完全重启游戏。你的攻略会出现在 Polestar 攻略中心(`/polestar guides`)的“社区攻略”里。
+### 开发转换器
 
-lint 会报告一些警告(需要组队的精英、没有已知刷新点的目标),这是正常的。
-只有错误才会阻止 `install`。
-
-**手边没有游戏?** 在攻略包目录里运行 `node ../polestar/tools/polestar.js play`,
-会在浏览器里打开 Polestar:真正的插件加载了你的攻略包,运行在模拟的世界中。
-在攻略中心选一个攻略,像在游戏里一样逐步点击。
-
-| | 浏览器 | `npx github:aronjanosch/polestar-convert --path` |
-|---|---|---|
-| 需要 | 浏览器 | Node 24+ |
-| 游戏数据 | Polestar 的数据,随网页托管([GPLv3](#许可证)) | 你自己克隆目录里的 `data build` |
-| RestedXP 译文 | 否(英文文本,名称按客户端语言) | 是 |
-| lint 与安装 | 由你运行 | 自动完成 |
-
-### 一次转换一个插件
-
-单独的命令把一个插件转换进你用 `node polestar/tools/polestar.js new my-pack --id my-pack --yes`
-新建的攻略包,选项更多(例如 `--only "<攻略名称>"`):
+单独的命令把 `.guide` 文件写进用 Polestar 的 `new` 新建的攻略包,供它的 `lint`、`playtest` 和 `play` 使用
+(需要构建过数据的 Polestar 克隆目录),选项更多(例如 `--only "<攻略名称>"`):
 
 ```sh
-npx github:aronjanosch/polestar-convert rxp --list "<WoW>/_forever_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack --locales zhCN
+npx github:aronjanosch/polestar-convert rxp --list "<WoW>/_forever_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack
 npx github:aronjanosch/polestar-convert journey --dir "<WoW>/_forever_/Interface/AddOns/Journey" --polestar polestar --pack my-pack
 npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/AddOns/ZygorGuidesViewerClassic" --polestar polestar --pack my-pack
 ```
-
-> [!TIP]
-> `--only "<攻略名称>"` 只转换一个攻略,试用时快得多。每次运行都会打印一份报告:
-> 哪些被删掉,哪些变成了任务或备注,哪些需要人工查看。
 
 ## 覆盖率
 
@@ -129,7 +92,7 @@ Polestar 无法表达的条件(Zygor 的增益效果检查)、Journey 每步的�
 各来源报告的详细程度不同(Journey 和 Zygor 逐步列出每处弱化,RestedXP 较少),所以这些数字只是初步衡量,
 不是排名;人工审查部分 RestedXP 攻略,约 95% 的步骤正确。所有 lint 均为 0 错误。
 
-RestedXP 攻略文字的中文翻译(zhCN),2026-10-25 用相同版本、全部三条路线测得:文本中
+RestedXP 攻略文字的中文翻译(zhCN),2026-10-28 用 RestedXP 4.11.26、Polestar `next` 1f5a2cfd、全部三条路线测得:文本中
 **63 %** 完整翻译,另有 4 % 部分翻译。其余是 RXP 在任何攻略里都没有翻译过的文字;
 游戏内名称在所有地方都显示中文。
 
@@ -154,13 +117,9 @@ RestedXP 攻略文字的中文翻译(zhCN),2026-10-25 用相同版本、全部�
 
 对所有来源,Polestar 都用客户端的语言显示游戏内名称(NPC、任务、物品、地点、法术)。
 RestedXP 还提供翻译过的攻略(德语、西班牙语、法语、巴西葡萄牙语、中文),
-命令行会把这些译文写进攻略包(默认 `--locales all`,或 `--locales zhCN`);浏览器版不包含译文。
+译文作为一个语言插件放在主插件旁边(`<插件>_zhCN`),Polestar 在该语言的客户端上加载它。
+网页添加你在网页上选择的语言,命令行默认添加 RestedXP 提供的全部语言(`--locales zhCN` 只要中文)。
 
-- 每种语言第一次运行时,会从 wago.tools(公开的游戏数据)下载客户端的区域、地图和法术名称,
-  保存到 Polestar 目录下被 git 忽略的 `data/sources/wago/`。不会上传任何攻略内容。
-- 已经有译文的行不会被修改,所以你自己的修正在重新运行后仍会保留。转换器自己填写的行也算“已有译文”:
-  想采用 RXP 更新的翻译或转换器的修复,请删除攻略包里的 `locales/<locale>/` 文件夹
-  (你自己在其中的修改会丢失),然后重新运行。
 - 某个攻略自己的译文缺少某一行时(RXP 没有提供翻译版的攻略文件、漏掉的步骤、标为 “NOT TRANSLATED” 的文本),
   会从 RXP 在任何其他攻略里(包括其他游戏版本的攻略)对同一行的译文中取用。
 - 翻译版攻略按英文原文转换:旅店、商人、训练师、等级目标和步骤标题都与英文攻略一致,
@@ -170,7 +129,7 @@ RestedXP 还提供翻译过的攻略(德语、西班牙语、法语、巴西葡�
   复数形式的名称按单数处理,名称列表(“A、B 和 C”)按一个名称处理;多行或多句的文本逐行、逐句填写。
   只找到部分行的文本,其余行保留英文,报告里记为 “partly translated”。
 - 转换器自己写的句子(精英提示、它自己生成的任务)带有中文译文。
-- 攻略包里的 `reports/rxp-locales.json` 按语言记录:文本总数、完整或部分翻译的数量,以及仍是英文的原因。
+- 命令行的 `reports/rxp-locales.json` 按语言记录:文本总数、完整或部分翻译的数量,以及仍是英文的原因。
 
 仍是英文的内容:
 
@@ -202,15 +161,15 @@ RestedXP 还提供翻译过的攻略(德语、西班牙语、法语、巴西葡�
 本工具的目的是让你用 Polestar 玩你有权使用的攻略。
 
 **它会上传什么东西吗?**
-任何攻略内容都不会离开你的电脑,命令行和浏览器版都一样:网页只在浏览器里读取你选择的文件夹,只从自己的网站下载 Polestar 的游戏数据。开启翻译时,命令行每种语言第一次运行会从 wago.tools 下载客户端公开的地点和法术名称。
+任何攻略内容都不会离开你的电脑,命令行和浏览器版都一样:网页只在浏览器里读取你选择的文件夹,两者都只从本项目的网站下载游戏数据和 Polestar 的编译器(命令行会把它们缓存起来)。
 
 **某一步被跳过、重复或缺失,是 bug 吗?**
 先看运行时的报告和攻略包里的 `reports/`:很多区别是有意的(见上文)。
 如果仍然不对,请提交 [issue](https://github.com/aronjanosch/polestar-convert/issues),
 写明攻略名称、步骤以及原版是怎么做的。
 
-**有不需要 Node 和 Git 的版本吗?**
-转换可以:用[浏览器版](https://aronjanosch.github.io/polestar-convert/)。在 Polestar 0.3.0 发布之前,安装攻略包仍需从 Polestar 的克隆目录运行它的工具。
+**需要 Node、Git 或 Polestar 克隆目录吗?**
+不需要:[浏览器版](https://aronjanosch.github.io/polestar-convert/)直接给出现成的插件。命令行只需要 Node。游戏的 AddOns 文件夹里需要装有 Polestar 本身。
 
 ## 文档
 
@@ -228,7 +187,7 @@ RestedXP 还提供翻译过的攻略(德语、西班牙语、法语、巴西葡�
 
 ## 许可证
 
-转换器采用 [MIT](../../LICENSE) 许可证。它不含任何攻略内容,也不含 Polestar 的代码;
-你转换的攻略保留它们自己的许可证。浏览器版加载的游戏数据是 Polestar 数据构建的副本,
-因为包含 QuestieDB 的数据而单独以 GPLv3 发布([说明](https://aronjanosch.github.io/polestar-convert/polestar-data/NOTICE.md))。提到 RestedXP、Journey、Zygor 和 Polestar
+转换器采用 [MIT](../../LICENSE) 许可证,不含任何攻略内容;你转换的攻略保留它们自己的许可证。
+它的编译器(`wasm/`)是 Polestar 的 `forge-guide`,编译为 WebAssembly,与 Polestar 一样采用 GPL-3.0。
+网页和命令行加载的游戏数据是 Polestar 数据构建的副本,因为包含 QuestieDB 的数据而以 GPLv3 发布([说明](https://aronjanosch.github.io/polestar-convert/polestar-data/NOTICE.md))。提到 RestedXP、Journey、Zygor 和 Polestar
 只是为了说明本工具读取和写出什么,不主张任何商标权利。

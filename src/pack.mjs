@@ -1,5 +1,4 @@
-// A new pack's own files, for a pack made without Polestar's `new` (the web page):
-// the pack.json Polestar checks (tools/lib/pack/manifest.js) and a README.
+// A new pack made without Polestar's `new` (the web page): its id and pack.json.
 
 const PACK_ID_RE = /^[a-z0-9][a-z0-9-]{1,31}$/;
 const RESERVED_IDS = ["guides", "forever", "lookup", "draft", "polestar", "imported"];
@@ -11,23 +10,8 @@ export function packIdProblem(id) {
 	return null;
 }
 
-export function newPack({ id, title, author }) {
-	const manifest = { id, title, author, version: "0.1.0", license: "Personal use: converted from guides you own" };
-	const readme = `# ${title}
-
-Guides converted with polestar-convert (https://github.com/aronjanosch/polestar-convert)
-from the guide addons in your own game install. The guides are their authors'
-work: keep this pack to yourself.
-
-Check it and put it into the game from your Polestar clone:
-
-    cd ${id}
-    node <polestar>/tools/polestar.js lint      # warnings are expected; only errors stop install
-    node <polestar>/tools/polestar.js install   # builds the pack and puts it into the game
-
-Then restart the game completely. The guides show in Polestar's hub
-(/polestar guides) under Community guides. reports/ lists what each guide
-addon's steps could not carry.
-`;
-	return { "pack.json": JSON.stringify(manifest, null, "\t") + "\n", "README.md": readme };
+// A new pack's pack.json, with the key order Polestar's `new` writes. The guides are
+// their authors' work, so no open licence: for the player's own use.
+export function packJson({ id, title, author }) {
+	return JSON.stringify({ id, title, author, version: "0.1.0", license: "Personal use: converted from guides you own" }, null, "\t") + "\n";
 }

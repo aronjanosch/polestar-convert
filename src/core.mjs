@@ -5,8 +5,6 @@
 import { convertRxp, guideList } from "./rxp/run.mjs";
 import { convertJourney } from "./journey/run.mjs";
 import { convertZygor, readZygor, ZYGOR_PATHS } from "./zygor/run.mjs";
-import { newPack } from "./pack.mjs";
-import { zip } from "./zip.mjs";
 
 export { ROUTES, rxpRoute } from "./rxp/run.mjs";
 export const SOURCES = ["rxp", "journey", "zygor"];
@@ -100,12 +98,4 @@ export function runReport(run) {
 	out.push("", "== needs a look");
 	for (const it of run.report.items) out.push(`${it.guide ? it.guide + " " : ""}step ${it.stepNo}: ${it.what}${it.line ? "  [" + String(it.line).slice(0, 90) + "]" : ""}`);
 	return out.join("\n") + "\n";
-}
-
-// A new pack holding the runs, as a ZIP with one folder named by the pack's id.
-// pack: { id, title, author }.
-export function packZip(runs, pack) {
-	const files = { ...newPack(pack), ...packFiles(runs) };
-	for (const [source, run] of Object.entries(runs)) files[`reports/${source}-run.txt`] = runReport(run);
-	return zip(Object.fromEntries(Object.entries(files).map(([path, text]) => [`${pack.id}/${path}`, text])));
 }

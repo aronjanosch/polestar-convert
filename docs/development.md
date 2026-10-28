@@ -9,12 +9,15 @@ npm test
 ## Layout
 
 ```
-bin/polestar-convert.mjs  the command: --path or one adapter, writes the pack
-src/core.mjs         every guide addon of an AddOns folder in one run, pack files, the ZIP
+bin/polestar-convert.mjs  the command: --path (the addon folders) or one adapter (a pack's .guide files)
+src/core.mjs         every guide addon of an AddOns folder in one run, the pack's .guide files
+src/build.mjs        convert, compile (wasm/), translate: the addon folders, for the page and --path
+wasm/                Polestar's compiler (forge-guide) as WebAssembly, and the tables binary (Rust)
 src/rxp/run.mjs, src/journey/run.mjs, src/zygor/run.mjs
                      one source's whole run: file texts in, .guide texts out
-src/node/            Node only: reading folders, --path, RXP's translations
-src/zip.mjs, src/pack.mjs  the ZIP writer and a new pack's own files (web page)
+src/node/            Node only: reading folders, --path (data and compiler from the site, cached)
+src/zip.mjs, src/pack.mjs, src/addon.mjs  the ZIP writer, pack.json, the addon folders' layout
+src/rxp/translations.mjs, src/i18n/  RXP's translations filled into the compiler's texts, names
 web/                 the browser page; tools/pages.mjs builds it with the data (docs/web.md)
 src/ir.mjs           the intermediate form and goal text; no source format in it
 src/emit.mjs         intermediate guide -> Polestar .guide text
@@ -34,7 +37,7 @@ src/*/cli.mjs        a single command: read the files, write the pack, print the
 tools/               helpers around Polestar's own tools
 ```
 
-Nothing under `src/` but `src/node/`, the `cli.mjs` files and `src/i18n/`
+Nothing under `src/` but `src/node/` and the `cli.mjs` files
 touches files or the process: the core takes every input through a
 `read(path)` function (a file's text or null), so the command line and the
 browser run the same code.

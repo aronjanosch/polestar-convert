@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { addonsDirOf, listArg } from "../src/node/path-cli.mjs";
+import { addonsDirOf, listArg, idOf } from "../src/node/path-cli.mjs";
 
 function tree(paths) {
 	const root = mkdtempSync(join(tmpdir(), "pc-path-"));
@@ -38,4 +38,10 @@ test("listArg: a comma list of known names; unknown ones are an error", () => {
 	assert.equal(listArg(undefined, ROUTES, "--routes"), null);
 	assert.deepEqual(listArg("all", ROUTES, "--routes"), ROUTES);
 	assert.throws(() => listArg("main,other", ROUTES, "--routes"), /--routes: unknown "other" \(main, dungeon, survival\)/);
+});
+
+test("idOf: the addon's name as a pack id", () => {
+	assert.equal(idOf("My Guides"), "my-guides");
+	assert.equal(idOf("  Invented Vale: 1-60! "), "invented-vale-1-60");
+	assert.equal(idOf("测试"), "my-guides");
 });

@@ -50,6 +50,7 @@ input[type=text][aria-invalid="true"] { border-color: var(--warn); }
 .err { color: var(--warn); font-size: 0.85rem; min-height: 1.2em; margin-top: 4px; }
 button, .button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-family: inherit; font-size: 1rem; font-weight: 600; line-height: 1.2; cursor: pointer; text-decoration: none; }
 button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .routes { margin-left: 26px; }
@@ -106,6 +107,11 @@ a { color: var(--accent); }
 		<label class="check"><input type="checkbox" name="route" value="dungeon" checked disabled> <span>Dungeon route<small>the zones with dungeon quests woven in, and the dungeon quest guides</small></span></label>
 		<label class="check"><input type="checkbox" name="route" value="survival" checked disabled> <span>Survival route<small>a careful route</small></span></label>
 	</div>
+	<div id="lang-field" class="routes field" hidden style="margin-bottom:10px">
+		<label for="lang">RestedXP's texts in</label>
+		<select id="lang"><option value="">English (as RestedXP has them)</option></select>
+		<small style="display:block;color:var(--muted)">The translation RestedXP ships in your folder, filled into the steps and their guide names. Game names follow where the page has them.</small>
+	</div>
 	<label class="check"><input type="checkbox" name="source" value="journey" checked disabled> <span>Journey<small id="src-journey">pick a folder first</small></span></label>
 	<label class="check"><input type="checkbox" name="source" value="zygor" checked disabled> <span>Zygor<small id="src-zygor">pick a folder first</small></span></label>
 </section>
@@ -125,16 +131,15 @@ a { color: var(--accent); }
 </form>
 
 <section id="step-done" hidden>
-	<h2><span class="n">4</span> Install it</h2>
+	<h2><span class="n">4</span> Your addon</h2>
 	<table id="summary"><thead><tr><th>Source</th><th class="num">Guides</th><th class="num">Steps</th><th class="num">To look at</th></tr></thead><tbody></tbody></table>
-	<p style="margin-top:14px"><a class="button" id="download" download>Download again</a></p>
-	<p>Unzip it next to your Polestar clone (Polestar <code>next</code> installs from the clone until 0.3.0 is out),
-	then check it and put it into the game:</p>
-	<pre class="cmd" id="cmds"></pre>
-	<p>Restart the game completely. Your guides show in Polestar's hub (<code>/polestar guides</code>) under Community
-	guides. Lint warnings are expected; only errors stop <code>install</code>. <code>reports/</code> in the pack lists
-	what each addon's steps could not carry. No game at hand? <code>node ../polestar/tools/polestar.js play</code> in the
-	pack opens Polestar in your browser.</p>
+	<p id="lang-note" hidden style="margin-top:12px"></p>
+	<p style="margin-top:14px"><a class="button" id="download" download>Download again</a>
+	<button type="button" class="secondary" id="install" hidden>Install into my AddOns folder</button></p>
+	<p id="install-status" aria-live="polite"></p>
+	<p>Unzip the ZIP into <code>World of Warcraft/_forever_/Interface/AddOns</code>. The guides are addon folders there,
+	and they need Polestar, which must be in the same folder. Restart the game completely; your guides show in
+	Polestar's hub (<code>/polestar guides</code>) under Community guides.</p>
 </section>
 
 <section id="coverage">
@@ -146,7 +151,7 @@ a { color: var(--accent); }
 		<tr><td>Zygor</td><td class="wide">8.1</td><td class="num"><strong>97 %</strong></td></tr>
 		<tr><td>Journey</td><td class="wide">4.00.02</td><td class="num"><strong>71 %</strong></td></tr>
 	</tbody></table>
-	<p style="margin-top:12px">Chinese (zhCN), measured on 2026-10-25 with the command line: <strong>63 %</strong> of
+	<p style="margin-top:12px">Chinese (zhCN), measured on 2026-10-28: <strong>63 %</strong> of
 	RestedXP's texts translated in full, 4 % more in part; game names show in Chinese everywhere.</p>
 	<p style="margin-top:12px">Most notes are softenings, not losses: a condition Polestar cannot express, a goal to tick
 	by hand. The reports differ in detail, so this is a first measure, not a ranking.
@@ -156,7 +161,7 @@ a { color: var(--accent); }
 <footer>
 	<p id="data-info">Loading data info …</p>
 	<p>Unofficial: not made, endorsed or supported by RestedXP, Journey, Zygor or Polestar. Converter code
-	<a href="https://github.com/aronjanosch/polestar-convert">on GitHub</a> (MIT); translations and single guides on the
+	<a href="https://github.com/aronjanosch/polestar-convert">on GitHub</a> (MIT), Polestar's compiler (GPL-3.0); the same on the
 	command line: <code>npx github:aronjanosch/polestar-convert --path &lt;WoW folder&gt;</code>. Game data under GPLv3:
 	<a href="polestar-data/NOTICE.md">notice</a>, <a href="polestar-data/LICENSE">licence</a>.</p>
 </footer>

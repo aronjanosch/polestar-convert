@@ -1,54 +1,8 @@
-// Fill the empty lines of a pack's locale files from paired texts.
-// The files are the ones `i18n guides sync` writes; a line that already holds
-// text is never changed, and a line that does not pair stays "".
+// Fill a pack's texts from paired texts: the list of texts Polestar's compiler gives
+// (fillTexts). A text that already holds a translation is kept as it is, and one
+// that does not pair gets no translation.
 
-import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
-import { join, resolve, relative, sep } from "node:path";
-import { execFileSync } from "node:child_process";
-import { OWN } from "./own.mjs";
-
-// As the clone's tools/lib/i18n/files.js writes a Lua string.
-function luaString(s) {
-	let out = '"';
-	for (const ch of String(s)) {
-		if (ch === "\\") out += "\\\\";
-		else if (ch === '"') out += '\\"';
-		else if (ch === "\n") out += "\\n";
-		else if (ch === "\r") out += "\\r";
-		else if (ch === "\t") out += "\\t";
-		else if (ch.charCodeAt(0) < 32) out += `\\${String(ch.charCodeAt(0)).padStart(3, "0")}`;
-		else out += ch;
-	}
-	return `${out}"`;
-}
-
-// The text inside Lua quotes: \\ \" \n \r \t and \ddd (a UTF-8 byte).
-function decode(body) {
-	const bytes = [];
-	for (let i = 0; i < body.length; i++) {
-		if (body[i] !== "\\") { bytes.push(...Buffer.from(String.fromCodePoint(body.codePointAt(i)))); if (body.codePointAt(i) > 0xffff) i++; continue; }
-		const d = /^\d{1,3}/.exec(body.slice(i + 1));
-		if (d) { bytes.push(Number(d[0])); i += d[0].length; continue; }
-		const c = body[++i];
-		bytes.push(...Buffer.from(c === "n" ? "\n" : c === "r" ? "\r" : c === "t" ? "\t" : c));
-	}
-	return Buffer.from(bytes).toString("utf8");
-}
-
-const LINE = /^(\t\[)"((?:[^"\\]|\\.)*)"(\] = )"((?:[^"\\]|\\.)*)"(,.*)$/;
 const TOKEN = /\{([^{}:]+:\d+)\}/g;
-const UNNAMED = " (no name in this language: may be words)";
-
-// { "npc:1": "Bob" } from the token comment line above a key.
-function readTokens(line) {
-	const tokens = new Map();
-	for (const part of line.replace(/^\t-- /, "").split(" · ")) {
-		const m = /^\{([^{}]+)\} (.*)$/.exec(part);
-		if (m) tokens.set(m[1], m[2].endsWith(UNNAMED) ? m[2].slice(0, -UNNAMED.length) : m[2]);
-	}
-	return tokens;
-}
-
 const BRACKET = /\[([^\]]*)\]/g;
 
 // A name the translator wrote their own way: the bracket at the token's place
@@ -97,7 +51,7 @@ function putTokens(translated, key, tokens, namesOf) {
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // The compiler may make a token from a short spelling ("Keldric") while the
-// comment holds the full name, so the rebuilt English pairs nothing. Then the
+// token list holds the full name, so the rebuilt English pairs nothing. Then the
 // key is a pattern, each token a wildcard; it counts only when one text fits.
 // The English texts are bucketed by their start, built per prefix length.
 function byPattern(pairs) {
@@ -147,22 +101,15 @@ function learn(shapes, key, translated) {
 	seen.set(text, (seen.get(text) ?? 0) + 1);
 }
 
-// Shape -> its most frequent translation, from the locale files' filled lines and
-// `own` (the converter's own sentences: shape -> translation, which always wins).
-export function shapesOf(fileTexts, own = {}) {
+// Shape -> its most frequent translation, from translated entries ([key, translation]
+// pairs, a Map or an array) and `own` (the converter's own sentences: shape ->
+// translation, which always wins).
+export function shapesOfTexts(entryLists, own = {}) {
 	const shapes = new Map();
-	for (const text of fileTexts) for (const line of text.split("\n")) {
-		const m = LINE.exec(line);
-		if (m && m[4] !== "") learn(shapes, decode(m[2]), decode(m[4]));
-	}
+	for (const entries of entryLists) for (const [key, translated] of entries) learn(shapes, key, translated);
 	const best = new Map([...shapes].map(([shape, seen]) => [shape, [...seen].reduce((a, b) => (b[1] > a[1] ? b : a))[0]]));
 	for (const [shape, text] of Object.entries(own)) best.set(shape, text);
 	return best;
-}
-
-// [[words, token]] from a "plural, as words" line: "Wolfs = {npc:1} Wolf · ...".
-function readPlurals(line) {
-	return line.replace(/^\t-- plural, as words: /, "").split(" · ").map((part) => /^(.*) = \{([^{}]+)\} /.exec(part)?.slice(1)).filter(Boolean);
 }
 
 // A list of names of one kind: "{npc:1}, {npc:2} and {npc:3}".
@@ -174,7 +121,8 @@ const LIST = /\{(\w+):\d+\}(?:, \{\1:\d+\})*,? (and|or) \{\1:\d+\}/g;
 // With `lang` (own.mjs: [separator, last word] for "and" and "or"), a list of
 // names stands for one name when its own shape has no translation.
 function byShape(shapes, key, plurals, lang) {
-	for (const [words, tok] of [...plurals].sort((a, b) => b[0].length - a[0].length)) key = key.split(words).join(`{${tok}}`);
+	// Polestar's plural, as words: the English name with "s".
+	for (const [tok, en] of [...plurals].sort((a, b) => b[1].length - a[1].length)) key = key.split(`${en}s`).join(`{${tok}}`);
 	const of = (k) => {
 		const { shape, tokens } = shapeOf(k);
 		if (!/[A-Za-z]/.test(shape.replace(/\{\w+\}/g, ""))) return k;
@@ -193,34 +141,30 @@ function byShape(shapes, key, plurals, lang) {
 	return of(short)?.replace(TOKEN, (all) => joined.get(all) ?? all);
 }
 
-// `shapes` (shapesOf): for a key or its lines that pair with nothing, the
+// `shapes` (shapesOfTexts): for a key or its lines that pair with nothing, the
 // translation of a key of the same shape; `lang`: the language's own words
 // (own.mjs), for lists of names and a line of several sentences. A key of several
 // lines is filled line by line, as far as its lines go.
-export function fillText(fileText, pairs, namesOf, { shapes = new Map(), lang } = {}) {
+// The core: fills a list of texts, each { text (the key), where ("Guide" or
+// "Step 3: <title>"), tokens and plurals as [token, english] pairs } in the shape
+// Polestar's guide_texts returns. `kept` (key -> translation already there) is never
+// changed. -> { translations: Map(key -> translated) for the texts that got one, counts, examples }
+export function fillTexts(texts, pairs, namesOf, { shapes = new Map(), lang, kept = new Map() } = {}) {
 	const fuzzy = byPattern(pairs);
 	const counts = { translated: 0, "partly translated": 0, kept: 0, "no pair": 0, "name not found": 0 };
 	const examples = [];
-	let tokens = new Map(), plurals = [];
-	let step = null;
-	const out = fileText.split("\n").map((line) => {
-		const at = /^\t-- (?:Step (\d+)|Guide)\b/.exec(line);
-		if (at) step = at[1] ? Number(at[1]) : null;
-		if (/^\t-- \{/.test(line)) { tokens = readTokens(line); return line; }
-		if (/^\t-- plural, as words: /.test(line)) { plurals = readPlurals(line); return line; }
-		const m = LINE.exec(line);
-		if (!m) return line;
-		const [, pre, rawKey, mid, rawValue, post] = m;
-		const mine = tokens, theirs = plurals;
-		tokens = new Map(); plurals = [];
-		if (rawValue !== "") { counts.kept++; return line; }
-		const key = decode(rawKey);
+	const translations = new Map();
+	for (const { text: key, where, tokens: tokenPairs = [], plurals = [] } of texts) {
+		if (kept.has(key)) { counts.kept++; continue; }
+		const at = /^Step (\d+)/.exec(where ?? "");
+		const step = at ? Number(at[1]) : null;
+		const mine = new Map(tokenPairs);
 		const english = (k) => k.replace(TOKEN, (all, tok) => mine.get(tok) ?? all);
 		// The key's own pair, else its shape's; null when a name was not found.
 		const one = (k) => {
 			const tr = pairs.get(english(k)) ?? fuzzy(k, mine);
 			const done = tr ? putTokens(tr, k, mine, namesOf) : { missing: false };
-			return done.text ?? byShape(shapes, k, theirs, lang) ?? (done.missing ? null : undefined);
+			return done.text ?? byShape(shapes, k, plurals, lang) ?? (done.missing ? null : undefined);
 		};
 		// A line of several sentences, sentence by sentence when each has a translation.
 		const translate = (k) => {
@@ -240,63 +184,14 @@ export function fillText(fileText, pairs, namesOf, { shapes = new Map(), lang } 
 			}
 		}
 		if (!text) {
-			const what = text === null ? "name not found" : "no pair";
-			counts[what]++;
-			examples.push({ step, what, line: english(key) });
-			return line;
+			const kind = text === null ? "name not found" : "no pair";
+			counts[kind]++;
+			examples.push({ step, what: kind, line: english(key) });
+			continue;
 		}
 		counts[what]++;
 		if (what !== "translated") examples.push({ step, what, line: english(key) });
-		return `${pre}"${rawKey}"${mid}${luaString(text)}${post}`;
-	});
-	return { text: out.join("\n"), counts, examples };
-}
-
-function luaFiles(dir) {
-	return readdirSync(dir).flatMap((name) => {
-		const path = join(dir, name);
-		if (statSync(path).isDirectory()) return luaFiles(path);
-		return name.endsWith(".lua") && name !== "_pack.lua" ? [path] : [];
-	});
-}
-
-// The script path is absolute: the child starts in the clone, so a relative one would not be found.
-// process.execPath: the Node that runs us, not whatever `node` the PATH has.
-function polestar(clone, args) {
-	const dir = resolve(clone);
-	return execFileSync(process.execPath, [join(dir, "tools/polestar.js"), "i18n", "guides", ...args], { cwd: dir, encoding: "utf8", stdio: "pipe" });
-}
-
-export async function fillPack({ polestar: clone, pack: packArg, locales, pairsByLocale, namesByLocale }) {
-	// Polestar resolves --pack from the clone as cwd: pass one absolute path to every reader.
-	const pack = resolve(packArg);
-	try {
-		polestar(clone, ["sync", ...locales, "--pack", pack]);
-	} catch (e) {
-		throw new Error(`i18n guides sync failed:\n${e.stdout ?? ""}${e.stderr ?? ""}`);
+		translations.set(key, text);
 	}
-	const counts = { translated: 0, "partly translated": 0, kept: 0, "no pair": 0, "name not found": 0 };
-	// per file, by its path under locales/ ("zhCN/guides/x.lua"), for the report
-	const files = {};
-	for (const locale of locales) {
-		const dir = join(pack, "locales", locale);
-		const pairs = pairsByLocale[locale] ?? new Map();
-		const before = new Map(luaFiles(dir).map((file) => [file, readFileSync(file, "utf8")]));
-		// Shapes from what the pairs fill everywhere, so one guide's line helps another's.
-		const own = OWN[locale] ?? {};
-		const shapes = shapesOf([...before.values()].map((text) => fillText(text, pairs, namesByLocale[locale]).text), own.sentences);
-		for (const [file, old] of before) {
-			const { text, counts: c, examples } = fillText(old, pairs, namesByLocale[locale], { shapes, lang: own.lang });
-			for (const k in c) counts[k] += c[k];
-			files[relative(join(pack, "locales"), file).split(sep).join("/")] = { counts: c, examples };
-			if (text !== old) writeFileSync(file, text);
-		}
-	}
-	let check;
-	try {
-		check = { code: 0, output: polestar(clone, ["check", ...locales, "--pack", pack]) };
-	} catch (e) {
-		check = { code: e.status ?? 1, output: `${e.stdout ?? ""}${e.stderr ?? ""}` };
-	}
-	return { counts, files, check };
+	return { translations, counts, examples };
 }

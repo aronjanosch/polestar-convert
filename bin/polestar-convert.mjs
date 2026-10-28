@@ -1,18 +1,18 @@
 #!/usr/bin/env node
-// polestar-convert --path <WoW folder> [--polestar <clone>] [--pack <dir>] [--routes ...]   (every guide addon found; src/node/path-cli.mjs)
+// polestar-convert --path <WoW folder> [--routes ...] [--locales ...] [--install]   (every guide addon found, to the addon folders; src/node/path-cli.mjs)
 // polestar-convert journey --dir <Journey> --polestar <clone> --pack <pack dir> [...]
 // polestar-convert zygor --dir <ZygorGuidesViewerClassic> --polestar <clone> --pack <pack dir> [--only "<guide>"]
-// polestar-convert rxp --file <RXP guide .lua> | --list <GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<name>"] [--max-start N] [--self-found yes] [--locales all|none|zhCN,deDE]
+// polestar-convert rxp --file <RXP guide .lua> | --list <GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<name>"] [--max-start N] [--self-found yes]
 //
-// Reads guides you own from your own install and writes `.guide` files into a
-// local Polestar pack. It carries no guide content of its own.
+// Reads guides you own from your own install. --path makes the addon folders; the
+// single commands write `.guide` files into a Polestar pack, for working on the
+// converter with Polestar's tools. It carries no guide content of its own.
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { join, dirname } from "node:path";
 import { convertRxp, guideList } from "../src/rxp/run.mjs";
 import { loadData } from "../src/data.mjs";
 import { folderReader, resolveLoose } from "../src/node/read.mjs";
-import { translateRxp, underGuides } from "../src/node/translate.mjs";
 
 function args(argv) {
 	const out = { _: [] };
@@ -26,7 +26,7 @@ function args(argv) {
 
 const a = args(process.argv.slice(2));
 const [cmd] = a._;
-if (!cmd && a.path !== undefined || !cmd && a.polestar !== undefined && !a.list && !a.file) {
+if (!cmd && a.path !== undefined) {
 	await (await import("../src/node/path-cli.mjs")).run(a);
 	process.exit(process.exitCode ?? 0);
 }
@@ -44,7 +44,7 @@ if (cmd === "zygor") {
 	process.exit(0);
 }
 if (cmd !== "rxp" || !(a.file || a.list) || !a.polestar || !a.pack) {
-	console.error('usage: polestar-convert rxp --file <guide.lua> | --list <RXPGuides/Guides/GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<guide name>"] [--max-start N] [--self-found yes] [--locales all|none|zhCN,deDE]');
+	console.error('usage: polestar-convert rxp --file <guide.lua> | --list <RXPGuides/Guides/GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<guide name>"] [--max-start N] [--self-found yes]');
 	process.exit(2);
 }
 
@@ -59,7 +59,7 @@ if (!existsSync(guidesDir)) mkdirSync(guidesDir, { recursive: true });
 const files = a.list
 	? guideList(readFileSync(a.list, "utf8")).map((f) => resolveLoose(dirname(dirname(a.list)), f) || (console.error(`missing: ${f}`), null)).filter(Boolean)
 	: [a.file];
-const { guides, report, rawByFile, written, convert } = convertRxp(files.map((f) => ({ path: f, text: readFileSync(f, "utf8") })), data,
+const { guides, report } = convertRxp(files.map((f) => ({ path: f, text: readFileSync(f, "utf8") })), data,
 	{ packId, only: a.only, maxStart: a["max-start"], selfFound: a["self-found"] != null });
 if (!guides.length) { console.error("no guide matches"); process.exit(1); }
 for (const g of guides) {
@@ -72,4 +72,3 @@ for (const [k, v] of [...report.counts].sort((x, y) => y[1] - x[1])) if (v) cons
 console.log("\n== needs a look");
 for (const it of report.items.slice(0, 60)) console.log(`step ${it.stepNo}: ${it.what}${it.line ? "  [" + String(it.line).slice(0, 70) + "]" : ""}`);
 if (report.items.length > 60) console.log(`... and ${report.items.length - 60} more`);
-await translateRxp({ want: a.locales, root: a.list ? dirname(dirname(resolve(a.list))) : underGuides(a.file)?.root, fromList: !!a.list, files, run: { rawByFile, written, convert }, polestar: a.polestar, pack: a.pack });
