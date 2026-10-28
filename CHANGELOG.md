@@ -1,7 +1,23 @@
 # Changelog
 
-## 0.2.1 (unreleased)
+## 0.3.0 (unreleased)
 
+Nothing to bring but your guides: no Polestar clone, no game data to build.
+
+- **A finished addon, from the page or one command.** Polestar's own compiler
+  (`forge-guide`, as WebAssembly, `wasm/`) builds the converted guides into the
+  addon folders: unzip the page's ZIP into `Interface/AddOns`, or run
+  `npx github:aronjanosch/polestar-convert --path <WoW> --install`. Chrome and
+  Edge can put the folders there from the page itself.
+- **RestedXP's translations on the page too**, as a language addon beside the
+  guides (`<addon>_zhCN`); the command line adds every language RestedXP ships.
+- **The command line reads the page's data and compiler** (kept in a cache):
+  its `--polestar` and `--pack` are gone, `--name`, `--out` and `--install`
+  remain. The single commands (`rxp`, `journey`, `zygor`) still write `.guide`
+  files into a pack, for working on the converter with Polestar's tools; `rxp`
+  no longer translates.
+- A converted pack's licence says what it is: "Personal use: converted from
+  guides you own".
 - **Convert only guides you have the right to use:** said in the README, by
   the command line, and confirmed with a tick on the web page before it
   converts.
