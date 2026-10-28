@@ -67,7 +67,7 @@ test("fillTexts: a shape's translation fills a key with other tokens", () => {
 
 test("fillTexts: a name in the plural, as words, stands for its token", () => {
 	const shapes = shapesOfTexts([new Map([["Kill {npc:1}", "击杀{npc:1}"]])]);
-	const text = { text: "Kill Wolfs", where: "Step 1", tokens: [["npc:1", "Wolf"]], plurals: [["npc:1", "Wolfs"]] };
+	const text = { text: "Kill Wolfs", where: "Step 1", tokens: [], plurals: [["npc:1", "Wolf"]] };
 	const { translations } = fillTexts([text], new Map(), names({}), { shapes });
 	assert.equal(translations.get("Kill Wolfs"), "击杀{npc:1}");
 });
