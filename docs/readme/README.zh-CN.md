@@ -56,7 +56,7 @@ node tools/polestar.js install           # 把这个 Polestar 安装到游戏里
 cd ..
 ```
 
-**2. 转换你的攻略。** 两种方式得到的攻略包相同。
+**2. 转换你的攻略。** 两种方式转换的攻略相同。
 
 *在浏览器里:* 打开 **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
 选择你的 `Interface/AddOns` 文件夹,勾选想要的 RestedXP 路线,把插件下载为 ZIP。
@@ -92,7 +92,7 @@ lint 会报告一些警告(需要组队的精英、没有已知刷新点的目�
 | 游戏数据 | Polestar 的数据,随网页托管([GPLv3](#许可证)) | 你自己克隆目录里的 `data build` |
 | 输出 | 插件文件夹的 ZIP,放进 `Interface/AddOns` | 攻略包,放进你的 Polestar 克隆 |
 | RestedXP 译文 | 是(选择语言时) | 是 |
-| lint 与安装 | 由你运行 | 自动完成 |
+| lint 与安装 | 由编译器检查;你只需解压 | 自动检查,加 `--install` 时安装 |
 
 ### 一次转换一个插件
 

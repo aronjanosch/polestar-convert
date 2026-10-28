@@ -62,8 +62,8 @@ node tools/polestar.js install           # puts this Polestar into the game
 cd ..
 ```
 
-**2. Convert your guides.** Both ways write the same guides; only the
-command line adds RestedXP's translations.
+**2. Convert your guides.** Both ways write the same guides, with RestedXP's
+translations if you want them.
 
 *In your browser:* open **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
 pick your `Interface/AddOns` folder, choose the guide addons and RestedXP
@@ -111,7 +111,7 @@ as you would in game.
 | Game data | Polestar's, hosted with the page ([GPLv3](#licence)) | your own clone's `data build` |
 | Output | a ZIP of the addon folders, for `Interface/AddOns` | the pack, for your Polestar clone |
 | RestedXP translations | yes, when a language is picked | yes |
-| Lint and install | done by the compiler | you run them |
+| Lint and install | checked by the compiler; you unzip | checked, and installed with `--install` |
 
 ### One addon at a time
 
