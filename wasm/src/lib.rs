@@ -7,7 +7,7 @@
 use forge_guide::data::Data;
 use forge_guide::diag::{Diag, Diagnostics};
 use forge_guide::format::default_folder;
-use forge_guide::i18n_guides::{guide_texts, pack_texts, Text};
+use forge_guide::i18n_guides::{guide_texts, pack_texts, text_problems, Text};
 use forge_guide::js::{parse_json, V};
 use forge_guide::manifest::validate_manifest;
 use forge_guide::project::{build_pack_files, compile_sources, CompileOpts, FileContent, Source};
@@ -131,12 +131,46 @@ impl Compiler {
 	}
 
 	/// The addon folders: `translations` JSON `{ <locale>: { pack: {..}, guides: { <guide id>: { english: translated } } } }`
-	/// -> JSON `[[name, text | { b64 }]]`, the main folder's files and `../<addon>/<file>` for the others.
+	/// -> JSON `{ files: [[name, text | { b64 }]], warnings: [message] }`: the main folder's files and
+	/// `../<addon>/<file>` for the others. A translation Polestar would refuse (a token lost, a broken
+	/// format) is left out with a warning, as reading a pack's locale files does: the English shows.
 	#[wasm_bindgen(js_name = packFiles)]
 	pub fn pack_files(&self, translations: &str) -> Result<String, JsValue> {
 		let translations = parse(translations, "translations")?;
 		let translations = if translations.truthy() { translations } else { V::obj() };
-		let files = build_pack_files(&self.guides, &self.manifest, &self.data, self.license.as_deref(), &translations, &[], &self.iface, Vec::new());
+		let mut warnings: Vec<String> = Vec::new();
+		let checked = |locale: &str, what: &str, texts: &[Text], given: &V, warnings: &mut Vec<String>| -> V {
+			let out = V::obj();
+			for (k, v) in given.entries() {
+				let v = v.to_js_string();
+				let plurals: Vec<String> = texts.iter().find(|t| t.text == *k).map(|t| t.plurals.iter().map(|p| p.0.clone()).collect()).unwrap_or_default();
+				let problems = text_problems(&k, &v, &plurals, &[]);
+				if problems.is_empty() {
+					out.set(&k, v);
+				}
+				for p in problems {
+					warnings.push(format!("{locale} {what}: {k:?}: the translation {p}; it is left out, the English shows"));
+				}
+			}
+			out
+		};
+		let ok = V::obj();
+		for locale in translations.keys() {
+			let t = translations.get(&locale);
+			let guides = V::obj();
+			for g in &self.guides {
+				let id = g.get("id").to_js_string();
+				let given = t.get("guides").get(&id);
+				if given.truthy() {
+					guides.set(&id, checked(&locale, &id, &guide_texts(g), &given, &mut warnings));
+				}
+			}
+			let pack = checked(&locale, "pack", &pack_texts(&self.manifest, &self.guides), &t.get("pack"), &mut warnings);
+			ok.set(&locale, V::obj());
+			ok.get(&locale).set("pack", pack);
+			ok.get(&locale).set("guides", guides);
+		}
+		let files = build_pack_files(&self.guides, &self.manifest, &self.data, self.license.as_deref(), &ok, &[], &self.iface, Vec::new());
 		let out: Vec<Value> = files
 			.into_iter()
 			.map(|(name, c)| match c {
@@ -144,6 +178,6 @@ impl Compiler {
 				FileContent::Bytes(b) => json!([name, { "b64": b64(&b) }]),
 			})
 			.collect();
-		Ok(Value::Array(out).to_string())
+		Ok(json!({ "files": out, "warnings": warnings }).to_string())
 	}
 }
