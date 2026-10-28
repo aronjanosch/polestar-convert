@@ -8,7 +8,7 @@ import { withPaired, namesFrom } from "../src/i18n/names.mjs";
 const base = new URL("./fixtures/clone/", import.meta.url).pathname;
 const BUILD = "1.60.1.1";
 const hosted = {
-	"names/zhCN/Names.lua": "addon/Polestar_Names_zhCN/Names.lua",
+	"names/zhCN/Names.lua": "addon/Polestar_zhCN/Names.lua",
 	"names/zhCN/L.lua": "addon/Polestar/Locales/zhCN.lua",
 	"names/zhCN/AreaTable.csv": `data/sources/wago/${BUILD}/zhCN/AreaTable.csv`,
 	"names/zhCN/UiMap.csv": `data/sources/wago/${BUILD}/zhCN/UiMap.csv`,
@@ -22,7 +22,7 @@ test("names from the names pack", async () => {
 	assert.deepEqual(namesOf("npc:3", "x"), ["第二块"]);
 	assert.deepEqual(namesOf("npc:2", "x"), ['说"你好"的人']);
 	assert.deepEqual(namesOf("item:7", "Sword"), ["测试剑"]);
-	assert.deepEqual(namesOf("quest:9", "Q"), ["第一行\n第二行\\"]);
+	assert.deepEqual(namesOf("quest:9", "Q"), ["第一行\n第二行]]%"], "%XX and a long bracket of its own level");
 });
 
 test("area, zone and spell from the cached client tables", async () => {
@@ -55,18 +55,7 @@ test("paired names come after the pack's", async () => {
 
 // Invented names only: Bob/鲍勃, Testville, a test sword.
 const files = {
-	"names/deDE/Names.lua": [
-		'add("deDE", "npc", {',
-		'[1]="Bobby (de)",',
-		'})',
-		'add("zhCN", "npc", {',
-		'[1]="鲍勃",',
-		'[2]="说\\"你好\\"的人",',
-		'})',
-		'add("zhCN", "item", {',
-		'[7]="测试剑",',
-		'})',
-	].join("\n"),
+	"names/deDE/Names.lua": 'R("npc", 1, 1, [[\n1\tBobby (de)\n]])\n',
 	"names/deDE/L.lua": ['L["Mining"] = "Bergbau"', '-- L["Herbalism"] = "Kräuterkunde"'].join("\n"),
 	"names/deDE/AreaTable.csv": 'ID,AreaName_lang\n10,Testville\n11,"Test, Hill"\n',
 	"names/deDE/UiMap.csv": 'Name_lang,ID\nTestforest,1429\n',
@@ -78,7 +67,7 @@ test("namesFrom reads the pack, L and client tables through read", async () => {
 	const namesOf = await namesFrom(fromMap(files), "deDE");
 	assert.deepEqual(namesOf("npc:1", "Bob"), ["Bobby (de)"]);
 	assert.deepEqual(namesOf("npc:2", "x"), []);
-	assert.deepEqual(namesOf("item:7", "Sword"), []); // the pack's zhCN rows are not deDE's
+	assert.deepEqual(namesOf("item:7", "Sword"), []);
 	assert.deepEqual(namesOf("skill:164", "Mining"), ["Bergbau"]);
 	assert.deepEqual(namesOf("skill:1", "Herbalism"), []); // commented out
 	assert.deepEqual(namesOf("area:10", "Testville"), ["Testville"]);
@@ -91,7 +80,7 @@ test("namesFrom reads the pack, L and client tables through read", async () => {
 });
 
 test("a missing file gives no names of its kind, and clientTables says which tables", async () => {
-	const onlyPack = { "names/zhCN/Names.lua": ['add("zhCN", "npc", {', '[1]="鲍勃",', '[2]="说\\"你好\\"的人",', '})', 'add("zhCN", "item", {', '[7]="测试剑",', '})'].join("\n") };
+	const onlyPack = { "names/zhCN/Names.lua": 'R("npc", 1, 2, [[\n1\t鲍勃\n2\t说"你好"的人\n]])\nR("item", 7, 7, [[\n7\t测试剑\n]])\n' };
 	const namesOf = await namesFrom(fromMap(onlyPack), "zhCN");
 	assert.deepEqual(namesOf("npc:1", "Bob"), ["鲍勃"]);
 	assert.deepEqual(namesOf("npc:2", "x"), ['说"你好"的人']);

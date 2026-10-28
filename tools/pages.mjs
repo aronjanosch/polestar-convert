@@ -116,7 +116,7 @@ const nameFiles = [];
 const licences = [];
 for (const locale of NAME_LOCALES) {
 	const build = localeBuild(wagoCache, locale);
-	const addon = join(clone, "addon", `Polestar_Names_${locale}`);
+	const addon = join(clone, "addon", `Polestar_${locale}`);
 	const wanted = [
 		[join(addon, "Names.lua"), "Names.lua"],
 		[join(clone, "addon", "Polestar", "Locales", `${locale}.lua`), "L.lua"],

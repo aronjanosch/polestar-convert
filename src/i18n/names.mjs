@@ -18,23 +18,17 @@ function unescape(text) {
 	return text.replace(/\\(.)/gs, (_, c) => (c === "n" ? "\n" : c === "r" ? "\r" : c));
 }
 
-// kind -> Map<id, name> from the `add("<locale>", "<kind>", {` blocks of Names.lua's text.
-export function parsePack(text, locale) {
+// kind -> Map<id, name> from Names.lua's chunks, as `forge data names` writes them:
+// `R("<kind>", <lo>, <hi>, [[` with "<id>\t<name>" lines, then `]])`; % ; , : | tab and
+// line breaks in a name are %XX (Polestar's LuaChunks.Unesc).
+export function parsePack(text) {
 	const kinds = new Map();
-	if (!text) return kinds;
-	let current = null;
-	for (const line of text.split("\n")) {
-		const open = line.match(/^add\("([^"]+)",\s*"([^"]+)",\s*\{\s*$/);
-		if (open) {
-			current = null;
-			if (open[1] !== locale) continue;
-			if (!kinds.has(open[2])) kinds.set(open[2], new Map());
-			current = kinds.get(open[2]);
-			continue;
+	for (const m of String(text ?? "").matchAll(/^R\("(\w+)", \d+, \d+, \[(=*)\[\n?([\s\S]*?)\]\2\]\)/gm)) {
+		if (!kinds.has(m[1])) kinds.set(m[1], new Map());
+		for (const line of m[3].split("\n")) {
+			const tab = line.indexOf("\t");
+			if (tab > 0) kinds.get(m[1]).set(line.slice(0, tab), line.slice(tab + 1).replace(/%([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16))));
 		}
-		if (line.startsWith("})")) { current = null; continue; }
-		const row = current && line.match(/^\[(\d+)\]="((?:[^"\\]|\\.)*)",?\s*$/);
-		if (row) current.set(row[1], unescape(row[2]));
 	}
 	return kinds;
 }
@@ -78,7 +72,7 @@ export function makeNamesOf({ pack, L, tables, clientTables }) {
 // carries `clientTables`: null, or which tables are missing.
 export async function namesFrom(read, locale) {
 	const dir = `names/${locale}/`;
-	const pack = parsePack(await read(`${dir}Names.lua`), locale);
+	const pack = parsePack(await read(`${dir}Names.lua`));
 	const L = parseL(await read(`${dir}L.lua`));
 	const tables = new Map();
 	const missing = [];
