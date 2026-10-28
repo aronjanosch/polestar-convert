@@ -1,49 +1,8 @@
-// Fill a pack's texts from paired texts: a list of texts (fillTexts), or a locale
-// file as `i18n guides sync` writes it (fillText). A text that already holds a
-// translation is never changed, and one that does not pair stays "".
+// Fill a pack's texts from paired texts: the list of texts Polestar's compiler gives
+// (fillTexts). A text that already holds a translation is kept as it is, and one
+// that does not pair gets no translation.
 
-// As the clone's tools/lib/i18n/files.js writes a Lua string.
-function luaString(s) {
-	let out = '"';
-	for (const ch of String(s)) {
-		if (ch === "\\") out += "\\\\";
-		else if (ch === '"') out += '\\"';
-		else if (ch === "\n") out += "\\n";
-		else if (ch === "\r") out += "\\r";
-		else if (ch === "\t") out += "\\t";
-		else if (ch.charCodeAt(0) < 32) out += `\\${String(ch.charCodeAt(0)).padStart(3, "0")}`;
-		else out += ch;
-	}
-	return `${out}"`;
-}
-
-// The text inside Lua quotes: \\ \" \n \r \t and \ddd (a UTF-8 byte).
-function decode(body) {
-	const bytes = [];
-	for (let i = 0; i < body.length; i++) {
-		if (body[i] !== "\\") { bytes.push(...Buffer.from(String.fromCodePoint(body.codePointAt(i)))); if (body.codePointAt(i) > 0xffff) i++; continue; }
-		const d = /^\d{1,3}/.exec(body.slice(i + 1));
-		if (d) { bytes.push(Number(d[0])); i += d[0].length; continue; }
-		const c = body[++i];
-		bytes.push(...Buffer.from(c === "n" ? "\n" : c === "r" ? "\r" : c === "t" ? "\t" : c));
-	}
-	return Buffer.from(bytes).toString("utf8");
-}
-
-const LINE = /^(\t\[)"((?:[^"\\]|\\.)*)"(\] = )"((?:[^"\\]|\\.)*)"(,.*)$/;
 const TOKEN = /\{([^{}:]+:\d+)\}/g;
-const UNNAMED = " (no name in this language: may be words)";
-
-// { "npc:1": "Bob" } from the token comment line above a key.
-function readTokens(line) {
-	const tokens = new Map();
-	for (const part of line.replace(/^\t-- /, "").split(" · ")) {
-		const m = /^\{([^{}]+)\} (.*)$/.exec(part);
-		if (m) tokens.set(m[1], m[2].endsWith(UNNAMED) ? m[2].slice(0, -UNNAMED.length) : m[2]);
-	}
-	return tokens;
-}
-
 const BRACKET = /\[([^\]]*)\]/g;
 
 // A name the translator wrote their own way: the bracket at the token's place
@@ -92,7 +51,7 @@ function putTokens(translated, key, tokens, namesOf) {
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // The compiler may make a token from a short spelling ("Keldric") while the
-// comment holds the full name, so the rebuilt English pairs nothing. Then the
+// token list holds the full name, so the rebuilt English pairs nothing. Then the
 // key is a pattern, each token a wildcard; it counts only when one text fits.
 // The English texts are bucketed by their start, built per prefix length.
 function byPattern(pairs) {
@@ -153,27 +112,6 @@ export function shapesOfTexts(entryLists, own = {}) {
 	return best;
 }
 
-// The filled entries of a locale file: [key, translation] for each non-empty line.
-function filledEntries(fileText) {
-	const entries = [];
-	for (const line of fileText.split("\n")) {
-		const m = LINE.exec(line);
-		if (m && m[4] !== "") entries.push([decode(m[2]), decode(m[4])]);
-	}
-	return entries;
-}
-
-// Shape -> its most frequent translation, from the locale files' filled lines (see shapesOfTexts).
-export function shapesOf(fileTexts, own = {}) {
-	return shapesOfTexts(fileTexts.map(filledEntries), own);
-}
-
-// [[token, English]] from a "plural, as words" line: "Wolfs = {npc:1} Wolf · ..."
-// gives [["npc:1", "Wolf"]], as Polestar's guide_texts lists plurals.
-function readPlurals(line) {
-	return line.replace(/^\t-- plural, as words: /, "").split(" · ").map((part) => /^.* = \{([^{}]+)\} (.*)$/.exec(part)?.slice(1)).filter(Boolean);
-}
-
 // A list of names of one kind: "{npc:1}, {npc:2} and {npc:3}".
 const LIST = /\{(\w+):\d+\}(?:, \{\1:\d+\})*,? (and|or) \{\1:\d+\}/g;
 
@@ -203,7 +141,7 @@ function byShape(shapes, key, plurals, lang) {
 	return of(short)?.replace(TOKEN, (all) => joined.get(all) ?? all);
 }
 
-// `shapes` (shapesOf): for a key or its lines that pair with nothing, the
+// `shapes` (shapesOfTexts): for a key or its lines that pair with nothing, the
 // translation of a key of the same shape; `lang`: the language's own words
 // (own.mjs), for lists of names and a line of several sentences. A key of several
 // lines is filled line by line, as far as its lines go.
@@ -256,36 +194,4 @@ export function fillTexts(texts, pairs, namesOf, { shapes = new Map(), lang, kep
 		translations.set(key, text);
 	}
 	return { translations, counts, examples };
-}
-
-// The texts of a locale file (one per key line, with the comments above it) and its
-// filled values (key -> translation). The file format is only read and written here.
-function readFile(fileText) {
-	const texts = [], kept = new Map();
-	let where, tokens = [], plurals = [];
-	for (const line of fileText.split("\n")) {
-		if (/^\t-- (?:Step \d+|Guide)\b/.test(line)) where = line.slice(4);
-		if (/^\t-- \{/.test(line)) tokens = [...readTokens(line)];
-		if (/^\t-- plural, as words: /.test(line)) plurals = readPlurals(line);
-		const m = LINE.exec(line);
-		if (!m) continue;
-		const key = decode(m[2]);
-		if (m[4] !== "") kept.set(key, decode(m[4]));
-		texts.push({ text: key, where, tokens, plurals });
-		tokens = []; plurals = [];
-	}
-	return { texts, kept };
-}
-
-// The file with each empty value that got a translation filled in.
-export function fillText(fileText, pairs, namesOf, { shapes = new Map(), lang } = {}) {
-	const { texts, kept } = readFile(fileText);
-	const { translations, counts, examples } = fillTexts(texts, pairs, namesOf, { shapes, lang, kept });
-	const out = fileText.split("\n").map((line) => {
-		const m = LINE.exec(line);
-		if (!m || m[4] !== "") return line;
-		const tr = translations.get(decode(m[2]));
-		return tr === undefined ? line : `${m[1]}"${m[2]}"${m[3]}${luaString(tr)}${m[5]}`;
-	});
-	return { text: out.join("\n"), counts, examples };
 }
