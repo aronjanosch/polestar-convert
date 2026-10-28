@@ -37,87 +37,57 @@ You like the route of a guide addon you have installed, but you want to
 play it with Polestar's arrow, quest automation, travel planner and hub.
 polestar-convert reads that addon's guide files, writes every step in
 Polestar's `.guide` format with ids, names and coordinates from Polestar's own
-game data, and leaves you a community pack that Polestar's tools check, play
-through in a simulator and install into the game.
+game data, and builds them with Polestar's own compiler into an addon you copy
+into the game.
 
-Nothing leaves your machine. The converter runs locally, with Node or in
-your browser, has no dependencies, and reports everything it dropped, softened or could not place,
-so you know what to look at.
+Your guides never leave your machine. The converter runs locally, in your
+browser or with Node, and reports everything it dropped, softened or could not
+place, so you know what to look at.
 
 ## Quick start
 
-You need World of Warcraft: Forever and at least one guide addon (RestedXP,
-Journey or Zygor) in its `Interface/AddOns` folder.
-Converted packs need Polestar 0.3.0: until it is released, play Polestar's
-`next` branch, installed from a clone (needs **Node 24+** and **Git**).
+You need World of Warcraft: Forever, **Polestar 0.3.0 or newer** in its
+`Interface/AddOns` folder (until 0.3.0 is released, Polestar's `next` branch,
+installed as its README says) and at least one guide addon there: RestedXP,
+Journey or Zygor. Nothing else: no clone, no game data to build.
 
-**1. Polestar with its game data (once).**
-
-```sh
-git clone -b next https://github.com/fitzforge/polestar
-cd polestar
-node tools/polestar.js data build        # add --questie "<WoW>/Interface/AddOns" if it does not find QuestieDB
-node tools/polestar.js profession build  # profession ranks and recipes, for the training steps
-node tools/polestar.js install           # puts this Polestar into the game
-cd ..
-```
-
-**2. Convert your guides.** Both ways write the same guides, with RestedXP's
-translations if you want them.
-
-*In your browser:* open **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
+**In your browser:** open **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
 pick your `Interface/AddOns` folder, choose the guide addons and RestedXP
-routes you want, confirm that you convert only guides you have the right to
-use, and download the addon as a ZIP. The page reads your guide files in the
-browser; nothing is uploaded. Its compiler is Polestar's own, so the ZIP holds
-finished addon folders: unzip it into `World of Warcraft/_forever_/Interface/AddOns`
-(Polestar must be in the same folder). Pick a RestedXP language on the page and
-its translated texts go into the addon too. Where the browser allows it, the
-page can also install the folders into your AddOns folder itself.
+routes you want and, for RestedXP, a language, confirm that you convert only
+guides you have the right to use, and download the ZIP. Unzip it into
+`World of Warcraft/_forever_/Interface/AddOns`. Where the browser allows it
+(Chrome, Edge), the page puts the folders there itself. The page reads your
+guide files in the browser; nothing is uploaded.
 
-*Or with one command:* `<WoW>` is your World of Warcraft folder, such as
-`C:\Program Files (x86)\World of Warcraft` (the `_forever_` folder in it or its
-`Interface/AddOns` work too).
+**Or with one command** (needs **Node 24+**): `<WoW>` is your World of Warcraft
+folder, such as `C:\Program Files (x86)\World of Warcraft` (the `_forever_`
+folder in it or its `Interface/AddOns` work too).
 
 ```sh
 npx github:aronjanosch/polestar-convert --path "<WoW>" --install
 ```
 
-Run it in the folder that holds the `polestar` clone, or name the clone with
-`--polestar <folder>`.
-
 It finds RestedXP, Journey and Zygor (its leveling, dungeon, profession,
 reputation and event guides; for a faction whose full guides are not
-installed, the free trial guides the viewer ships), asks which RestedXP routes you want
-(`--routes main,dungeon,survival` skips the question; routes your guides do
-not have are left out), makes the pack `polestar-guides`, converts every guide with
-RestedXP's translations, lints and installs it. Leave out `--install` to look
-first.
+installed, the free trial guides the viewer ships), asks which RestedXP routes
+you want (`--routes main,dungeon,survival` skips the question; routes your
+guides do not have are left out), converts every guide with all of RestedXP's
+languages (`--locales zhCN` for one, `none` for none) and puts the addon into
+the game. Without `--install` it writes the folders into `./polestar-addon` to
+look at first. `--name "My Guides"` names the addon.
 
-Restart the game completely. Your guides show in Polestar's hub
-(`/polestar guides`) under Community guides.
+Both ways make the same addon: Polestar's own compiler, run as WebAssembly,
+builds it from the converted guides, with the game data the page hosts
+([GPLv3](#licence)). Compiler warnings (an elite to group up for, a target with
+no known spawn) are expected; only errors stop it. Restart the game
+completely: your guides show in Polestar's hub (`/polestar guides`) under
+Community guides.
 
-Lint reports warnings (an elite to group up for, a target with no known
-spawn); those are expected. Only errors stop `install`.
+### Working on the converter
 
-**No game at hand?** `node ../polestar/tools/polestar.js play` (inside the
-pack) opens Polestar in your browser: the real addon with your pack loaded,
-against a simulated world. Pick a guide in the hub and click through its steps
-as you would in game.
-
-| | Browser | `npx github:aronjanosch/polestar-convert --path` |
-|---|---|---|
-| Needs | a browser | Node 24+ |
-| Game data | Polestar's, hosted with the page ([GPLv3](#licence)) | your own clone's `data build` |
-| Output | a ZIP of the addon folders, for `Interface/AddOns` | the pack, for your Polestar clone |
-| RestedXP translations | yes, when a language is picked | yes |
-| Lint and install | checked by the compiler; you unzip | checked, and installed with `--install` |
-
-### One addon at a time
-
-The single commands convert one addon into a pack you made with
-`node polestar/tools/polestar.js new my-pack --id my-pack --yes`, with more
-options such as `--only "<guide name>"`:
+The single commands write `.guide` files into a pack made with Polestar's
+`new`, for its `lint`, `playtest` and `play` (a Polestar clone with its data
+built), with more options such as `--only "<guide name>"`:
 
 ```sh
 npx github:aronjanosch/polestar-convert rxp --list "<WoW>/_forever_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack
@@ -183,9 +153,11 @@ The details per source: [RestedXP](docs/rxp.md), [Zygor](docs/zygor.md),
 
 Polestar shows game names (NPCs, quests, items, places, spells) in your
 client's language for every source. RestedXP also ships translated guides
-(German, Spanish, French, Brazilian Portuguese, Chinese), and the `rxp` run
-carries their text into the pack on the command line (`--locales all`, the
-default, or `--locales zhCN,deDE`); the browser page does the same for the one language picked on it. Journey's and Zygor's own words stay English. More in
+(German, Spanish, French, Brazilian Portuguese, Chinese): their text goes into
+the addon as a language addon beside it (`<addon>_zhCN`), which Polestar loads
+on a client in that language. The page adds the language picked on it, the
+command line every one RestedXP ships (`--locales zhCN,deDE` for some).
+Journey's and Zygor's own words stay English. More in
 [docs/translations.md](docs/translations.md).
 
 ## Known gaps
@@ -219,10 +191,9 @@ Polestar.
 
 **Does it send anything anywhere?**
 No guide content leaves your machine, on the command line or in the browser:
-the page reads the folder you pick inside the browser and only downloads
-Polestar's game data from its own site. With translations on, the first
-command-line run per language downloads the client's public place and spell
-names from wago.tools.
+the page reads the folder you pick inside the browser, and both only download
+the game data and Polestar's compiler from this project's site (the command
+line keeps them in its cache).
 
 **A step is skipped, doubled or missing. Is that a bug?**
 Look at the run's report and the pack's `reports/` first: many differences are
@@ -230,10 +201,10 @@ deliberate (above). If it is still wrong, open an
 [issue](https://github.com/aronjanosch/polestar-convert/issues) with the
 guide's name, the step and what the original does.
 
-**Is there a version without Node and Git?**
-Yes: the [browser page](https://aronjanosch.github.io/polestar-convert/) gives a
-finished addon ZIP, with no Node and no Polestar clone. Polestar itself is still
-needed in the game's AddOns folder.
+**Do I need Node, Git or a Polestar clone?**
+No: the [browser page](https://aronjanosch.github.io/polestar-convert/) gives
+the finished addon. The command line needs Node only. Polestar itself must be
+in the game's AddOns folder.
 
 ## Documentation
 
@@ -249,9 +220,11 @@ needed in the game's AddOns folder.
 
 ## Licence
 
-The converter is [MIT](LICENSE). It contains no guide content and no Polestar
-code; the guides you convert keep their own licence. The game data the browser
-page loads is a copy of Polestar's data build without values taken from websites,
-published separately under GPLv3 because it holds QuestieDB facts ([notice](https://aronjanosch.github.io/polestar-convert/polestar-data/NOTICE.md)). RestedXP, Journey, Zygor
+The converter is [MIT](LICENSE) and contains no guide content; the guides you
+convert keep their own licence. Its compiler (`wasm/`) is Polestar's,
+`forge-guide`, built to WebAssembly, and is GPL-3.0 like Polestar. The game
+data the page and the command line load is a copy of Polestar's data build
+without values taken from websites, published under GPLv3 because it holds
+QuestieDB facts ([notice](https://aronjanosch.github.io/polestar-convert/polestar-data/NOTICE.md)). RestedXP, Journey, Zygor
 and Polestar are named to say what the tool reads and writes; no trademark
 rights are claimed.
