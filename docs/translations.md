@@ -2,22 +2,18 @@
 
 Polestar shows game names (NPCs, quests, items, places, spells) in the
 client's own language for every source. RestedXP also ships translated
-guides, and the `rxp` run carries their text into the pack's translations.
+guides (`RXPGuides/lang/Guides-<locale>/`, with the language's own
+`GuideList-forever.xml`), and their text goes into the addon as a language
+addon beside it, `<addon>_<locale>`, which Polestar loads on a client in that
+language.
 
-The `rxp` run fills the pack's translations. `--locales <all|none|zhCN,deDE,...>`
-(default `all`): for each language RXP ships translated guides for (found as `RXPGuides/lang/Guides-<locale>/GuideList-forever.xml`)
-the run fills the pack's `locales/<locale>/` files through Polestar's
-`i18n guides sync`, then runs `i18n guides check`. `none` turns it off (no sync,
-no download).
-
-- The first run per language downloads the client's area, zone and spell names
-  in that language from wago.tools (public game data) into the clone's
-  git-ignored `data/sources/wago/`. Nothing of the guides is sent.
-- Lines that already hold a translation are never changed, so your own
-  corrections survive a rerun. That includes the lines the converter filled
-  itself: to pick up a newer RXP translation or a converter fix, delete the
-  pack's `locales/<locale>/` folder (your own edits there are lost) and run
-  again.
+The page adds the language picked on it; the command line every language RXP
+ships, or those of `--locales zhCN,deDE` (`none` for none). The texts to fill
+are the compiler's (`Compiler.texts()`, as Polestar's `i18n guides sync` lists
+them); src/rxp/translations.mjs fills them, and the compiler leaves out, with a
+warning, a translation Polestar would refuse (a token lost, a broken format).
+The names of each language (names packs, client tables) come with the game
+data from the page's site. Nothing of the guides is sent.
 - Shown translated: game names (NPCs, quests, items, places, spells) for every
   source, since Polestar shows the client's own names; for RXP also the guide
   words RXP translated. Where a guide's own translation lacks a line (a guide
@@ -42,9 +38,8 @@ no download).
   may come translated), and RXP's words no guide of RXP has translated.
 - A new Forever NPC whose name the game has not shown yet appears in English
   inside a translated sentence until the player has seen or targeted it once.
-- `reports/rxp-locales.json` in the pack: per language, the texts, how many are
+- `reports/rxp-locales.json` (command line): per language, the texts, how many are
   translated (fully or partly), and the causes for texts left English, with
   examples per guide.
-- Compile and install with Polestar (`node ../polestar/tools/polestar.js compile`,
-  then `install`, inside the pack); the compiler builds the language's texts
-  addon from `locales/`.
+- Each run fills the texts afresh: a newer RXP translation or a converter fix
+  shows on the next run.
