@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fillText, fillPack, shapesOf } from "../src/i18n/fill.mjs";
+import { fillText, shapesOf } from "../src/i18n/fill.mjs";
+import { fillPack } from "../src/node/fill-pack.mjs";
 import { OWN } from "../src/i18n/own.mjs";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";

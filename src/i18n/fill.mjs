@@ -1,11 +1,6 @@
-// Fill the empty lines of a pack's locale files from paired texts.
-// The files are the ones `i18n guides sync` writes; a line that already holds
-// text is never changed, and a line that does not pair stays "".
-
-import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
-import { join, resolve, relative, sep } from "node:path";
-import { execFileSync } from "node:child_process";
-import { OWN } from "./own.mjs";
+// Fill a pack's texts from paired texts: a list of texts (fillTexts), or a locale
+// file as `i18n guides sync` writes it (fillText). A text that already holds a
+// translation is never changed, and one that does not pair stays "".
 
 // As the clone's tools/lib/i18n/files.js writes a Lua string.
 function luaString(s) {
@@ -293,53 +288,4 @@ export function fillText(fileText, pairs, namesOf, { shapes = new Map(), lang } 
 		return tr === undefined ? line : `${m[1]}"${m[2]}"${m[3]}${luaString(tr)}${m[5]}`;
 	});
 	return { text: out.join("\n"), counts, examples };
-}
-
-function luaFiles(dir) {
-	return readdirSync(dir).flatMap((name) => {
-		const path = join(dir, name);
-		if (statSync(path).isDirectory()) return luaFiles(path);
-		return name.endsWith(".lua") && name !== "_pack.lua" ? [path] : [];
-	});
-}
-
-// The script path is absolute: the child starts in the clone, so a relative one would not be found.
-// process.execPath: the Node that runs us, not whatever `node` the PATH has.
-function polestar(clone, args) {
-	const dir = resolve(clone);
-	return execFileSync(process.execPath, [join(dir, "tools/polestar.js"), "i18n", "guides", ...args], { cwd: dir, encoding: "utf8", stdio: "pipe" });
-}
-
-export async function fillPack({ polestar: clone, pack: packArg, locales, pairsByLocale, namesByLocale }) {
-	// Polestar resolves --pack from the clone as cwd: pass one absolute path to every reader.
-	const pack = resolve(packArg);
-	try {
-		polestar(clone, ["sync", ...locales, "--pack", pack]);
-	} catch (e) {
-		throw new Error(`i18n guides sync failed:\n${e.stdout ?? ""}${e.stderr ?? ""}`);
-	}
-	const counts = { translated: 0, "partly translated": 0, kept: 0, "no pair": 0, "name not found": 0 };
-	// per file, by its path under locales/ ("zhCN/guides/x.lua"), for the report
-	const files = {};
-	for (const locale of locales) {
-		const dir = join(pack, "locales", locale);
-		const pairs = pairsByLocale[locale] ?? new Map();
-		const before = new Map(luaFiles(dir).map((file) => [file, readFileSync(file, "utf8")]));
-		// Shapes from what the pairs fill everywhere, so one guide's line helps another's.
-		const own = OWN[locale] ?? {};
-		const shapes = shapesOf([...before.values()].map((text) => fillText(text, pairs, namesByLocale[locale]).text), own.sentences);
-		for (const [file, old] of before) {
-			const { text, counts: c, examples } = fillText(old, pairs, namesByLocale[locale], { shapes, lang: own.lang });
-			for (const k in c) counts[k] += c[k];
-			files[relative(join(pack, "locales"), file).split(sep).join("/")] = { counts: c, examples };
-			if (text !== old) writeFileSync(file, text);
-		}
-	}
-	let check;
-	try {
-		check = { code: 0, output: polestar(clone, ["check", ...locales, "--pack", pack]) };
-	} catch (e) {
-		check = { code: e.status ?? 1, output: `${e.stdout ?? ""}${e.stderr ?? ""}` };
-	}
-	return { counts, files, check };
 }

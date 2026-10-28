@@ -9,7 +9,7 @@ import { Report } from "../ir.mjs";
 import { pairLanguage, lineMemory } from "../rxp/locale.mjs";
 import { withPaired } from "../i18n/names.mjs";
 import { loadNames } from "./names.mjs";
-import { fillPack } from "../i18n/fill.mjs";
+import { fillPack } from "./fill-pack.mjs";
 import { resolveLoose } from "./read.mjs";
 
 // RXPGuides/Guides/<rel> -> RXPGuides and <rel>; RXP keeps a language's copy at
