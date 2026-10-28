@@ -1,29 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync } from "node:fs";
-import { join, relative } from "node:path";
-import { loadNames } from "../src/node/names.mjs";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { withPaired, namesFrom } from "../src/i18n/names.mjs";
 
-const clone = new URL("./fixtures/clone/", import.meta.url).pathname;
+// The fixture clone's names files, laid out as the web page hosts them (names/<locale>/).
+const base = new URL("./fixtures/clone/", import.meta.url).pathname;
 const BUILD = "1.60.1.1";
-
-// A stand-in for the clone's wago.js that reads the fixture CSVs (no fetch, no local clone).
-const csv = (text) => {
-	const [head, ...lines] = text.trim().split("\n");
-	const keys = head.split(",");
-	return lines.map((l) => Object.fromEntries(l.split(",").map((v, i) => [keys[i], v])));
+const hosted = {
+	"names/zhCN/Names.lua": "addon/Polestar_Names_zhCN/Names.lua",
+	"names/zhCN/L.lua": "addon/Polestar/Locales/zhCN.lua",
+	"names/zhCN/AreaTable.csv": `data/sources/wago/${BUILD}/zhCN/AreaTable.csv`,
+	"names/zhCN/UiMap.csv": `data/sources/wago/${BUILD}/zhCN/UiMap.csv`,
+	"names/zhCN/SpellName.csv": `data/sources/wago/${BUILD}/zhCN/SpellName.csv`,
 };
-const wago = {
-	pickBuild: async () => ({ build: BUILD, warnings: [] }),
-	cachedTable: async ({ sourcesDir, build, table, locale }) => {
-		const file = join(sourcesDir, "wago", build, ...(locale ? [locale] : []), `${table}.csv`);
-		if (!existsSync(file)) throw new Error(`missing ${file}`);
-		return csv(readFileSync(file, "utf8"));
-	},
-};
-
-const load = (opts = {}) => loadNames(clone, "zhCN", { offline: true, wago, ...opts });
+const load = () => namesFrom(async (p) => (hosted[p] ? readFileSync(join(base, hosted[p]), "utf8") : null), "zhCN");
 
 test("names from the names pack", async () => {
 	const namesOf = await load();
@@ -54,30 +45,12 @@ test("unknown id gives []", async () => {
 	assert.deepEqual(namesOf("bogus:1", "x"), []);
 });
 
-test("a failing client table gives [] and is logged once", async () => {
-	const logged = [];
-	const broken = { ...wago, cachedTable: async () => { throw new Error("offline"); } };
-	const namesOf = await load({ wago: broken, log: (m) => logged.push(m) });
-	assert.deepEqual(namesOf("area:10", "x"), []);
-	assert.deepEqual(namesOf("npc:1", "Bob"), ["鲍勃"]);
-	assert.equal(logged.length, 1);
-	assert.match(logged[0], /offline/);
-});
-
 test("paired names come after the pack's", async () => {
 	const namesOf = withPaired(await load(), new Map([["Bob", "鲍勃先生"], ["Same", "鲍勃"]]));
 	assert.deepEqual(namesOf("npc:1", "Bob"), ["鲍勃", "鲍勃先生"]);
 	assert.deepEqual(namesOf("npc:1", "Same"), ["鲍勃"]);
 	assert.deepEqual(namesOf("npc:999", "Bob"), ["鲍勃先生"]);
 	assert.deepEqual(namesOf("npc:999", "Other"), []);
-});
-
-test("a relative clone path (no ./) works, and a failing client table says why", async () => {
-	const rel = relative(process.cwd(), clone.replace(/\/$/, ""));
-	const namesOf = await loadNames(rel, "zhCN", { offline: true }); // the clone's own wago.js, through require
-	assert.deepEqual(namesOf("npc:1", "Bob"), ["鲍勃"]);
-	assert.match(namesOf.clientTables, /no network/);
-	assert.equal((await load()).clientTables, null);
 });
 
 // Invented names only: Bob/鲍勃, Testville, a test sword.
@@ -135,24 +108,4 @@ test("an empty table file counts as missing; a complete set has clientTables nul
 	assert.match(namesOf.clientTables, /AreaTable/);
 	const full = { ...files, "names/deDE/UiMap.csv": files["names/deDE/UiMap.csv"], "names/deDE/SpellName.csv": files["names/deDE/SpellName.csv"] };
 	assert.equal((await namesFrom(fromMap(full), "deDE")).clientTables, null);
-});
-
-test("namesFrom and loadNames agree on the fixture clone", async () => {
-	const fixture = {};
-	const base = new URL("./fixtures/clone/", import.meta.url).pathname;
-	const copies = {
-		"names/zhCN/Names.lua": "addon/Polestar_Names_zhCN/Names.lua",
-		"names/zhCN/L.lua": "addon/Polestar/Locales/zhCN.lua",
-		"names/zhCN/AreaTable.csv": `data/sources/wago/${BUILD}/zhCN/AreaTable.csv`,
-		"names/zhCN/UiMap.csv": `data/sources/wago/${BUILD}/zhCN/UiMap.csv`,
-		"names/zhCN/SpellName.csv": `data/sources/wago/${BUILD}/zhCN/SpellName.csv`,
-	};
-	for (const [out, src] of Object.entries(copies)) fixture[out] = readFileSync(join(base, src), "utf8");
-	const web = await namesFrom(fromMap(fixture), "zhCN");
-	const node = await load();
-	for (const token of ["npc:1", "npc:2", "npc:3", "item:7", "quest:9", "area:10", "zone:1429", "spell:5", "npc:999", "area:999"]) {
-		assert.deepEqual(web(token, "Bob"), node(token, "Bob"), token);
-	}
-	assert.deepEqual(web("skill:164", "Mining"), node("skill:164", "Mining"));
-	assert.equal(web.clientTables, null);
 });

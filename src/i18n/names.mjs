@@ -1,8 +1,7 @@
 // Names of one language for the tokens of a translation key ("npc:234"): the names
 // pack (Names.lua), the L file (skills) and the client tables (area, zone, spell).
-// Browser-safe: the files come in through `read(path)` as data.mjs reads game data
-// (`names/<locale>/...` on the web page); the command line's loadNames, which reads a
-// Polestar clone, is in ../node/names.mjs.
+// The files come in through `read(path)` as data.mjs reads game data: `names/<locale>/...`
+// of the web page's polestar-data, for the page and the command line alike.
 
 import { readTable } from "../csv.mjs";
 
