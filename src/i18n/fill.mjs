@@ -173,10 +173,10 @@ export function shapesOf(fileTexts, own = {}) {
 	return shapesOfTexts(fileTexts.map(filledEntries), own);
 }
 
-// [[token, words]] from a "plural, as words" line: "Wolfs = {npc:1} Wolf · ..."
-// gives [["npc:1", "Wolfs"]].
+// [[token, English]] from a "plural, as words" line: "Wolfs = {npc:1} Wolf · ..."
+// gives [["npc:1", "Wolf"]], as Polestar's guide_texts lists plurals.
 function readPlurals(line) {
-	return line.replace(/^\t-- plural, as words: /, "").split(" · ").map((part) => /^(.*) = \{([^{}]+)\} /.exec(part)?.slice(1).reverse()).filter(Boolean);
+	return line.replace(/^\t-- plural, as words: /, "").split(" · ").map((part) => /^.* = \{([^{}]+)\} (.*)$/.exec(part)?.slice(1)).filter(Boolean);
 }
 
 // A list of names of one kind: "{npc:1}, {npc:2} and {npc:3}".
@@ -188,7 +188,8 @@ const LIST = /\{(\w+):\d+\}(?:, \{\1:\d+\})*,? (and|or) \{\1:\d+\}/g;
 // With `lang` (own.mjs: [separator, last word] for "and" and "or"), a list of
 // names stands for one name when its own shape has no translation.
 function byShape(shapes, key, plurals, lang) {
-	for (const [tok, words] of [...plurals].sort((a, b) => b[1].length - a[1].length)) key = key.split(words).join(`{${tok}}`);
+	// Polestar's plural, as words: the English name with "s".
+	for (const [tok, en] of [...plurals].sort((a, b) => b[1].length - a[1].length)) key = key.split(`${en}s`).join(`{${tok}}`);
 	const of = (k) => {
 		const { shape, tokens } = shapeOf(k);
 		if (!/[A-Za-z]/.test(shape.replace(/\{\w+\}/g, ""))) return k;
