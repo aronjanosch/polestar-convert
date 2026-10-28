@@ -15,14 +15,19 @@ the ZIP's guides equal what `polestar-convert --path` writes.
   `ZygorGuidesViewerClassic/Guides-Classic/{Leveling,Dungeons,Professions,Reputations,Events}/`
   are passed on.
 - `web/worker.mjs` reads those files in the browser, fetches the game data from
-  `polestar-data/`, runs `convertAddons` and `packZip`, and posts the ZIP back.
+  `polestar-data/`, runs `convertAddons`, then Polestar's compiler (`wasm/`, built
+  into `web/forge/`: `Compiler` compiles the guides into addon folders, `packFiles`
+  writes them). With a language picked, `rxpTranslations` fills RestedXP's
+  translated texts in first. Errors from the compiler stop the ZIP; warnings do not.
   The page's Content-Security-Policy allows connections to its own site only.
-- The ZIP holds one folder named by the pack id: `pack.json` (author and title
-  from the form, licence "Personal use: converted from guides you own"), `README.md`, `guides/`, `reports/`.
-  The player still lints and installs it with Polestar's tools.
-- Not in the page: RestedXP's translations (they need Polestar's
-  `i18n guides sync`), `--only`, `--max-start`, `--self-found`, Journey's
-  `--ah` and `--groups`.
+- The ZIP holds the addon folders (`<pack id>/` with the guides, and sibling
+  addons such as the names packs beside it), ready to unzip into
+  `Interface/AddOns`. Polestar itself must be in that folder. Where
+  `showDirectoryPicker` exists, the page can also write the folders there.
+- `tools/pages.mjs` builds the compiler (cargo, wasm-bindgen via mise) and the
+  client tables (`wasm/`'s `tables` binary) from the clone.
+- Not in the page: `--only`, `--max-start`, `--self-found`, Journey's `--ah`
+  and `--groups`.
 
 ## The game data
 

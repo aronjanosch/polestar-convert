@@ -68,14 +68,12 @@ command line adds RestedXP's translations.
 *In your browser:* open **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
 pick your `Interface/AddOns` folder, choose the guide addons and RestedXP
 routes you want, confirm that you convert only guides you have the right to
-use, and download the pack as a ZIP. The page reads your guide files in the browser;
-nothing is uploaded. Unzip the pack next to the `polestar` folder, then:
-
-```sh
-cd my-guides
-node ../polestar/tools/polestar.js lint      # checks every guide against the game's data
-node ../polestar/tools/polestar.js install   # builds the pack and puts it into the game
-```
+use, and download the addon as a ZIP. The page reads your guide files in the
+browser; nothing is uploaded. Its compiler is Polestar's own, so the ZIP holds
+finished addon folders: unzip it into `World of Warcraft/_forever_/Interface/AddOns`
+(Polestar must be in the same folder). Pick a RestedXP language on the page and
+its translated texts go into the addon too. Where the browser allows it, the
+page can also install the folders into your AddOns folder itself.
 
 *Or with one command:* `<WoW>` is your World of Warcraft folder, such as
 `C:\Program Files (x86)\World of Warcraft` (the `_forever_` folder in it or its
@@ -111,8 +109,9 @@ as you would in game.
 |---|---|---|
 | Needs | a browser | Node 24+ |
 | Game data | Polestar's, hosted with the page ([GPLv3](#licence)) | your own clone's `data build` |
-| RestedXP translations | no (English texts, names in your client's language) | yes |
-| Lint and install | you run them | done for you |
+| Output | a ZIP of the addon folders, for `Interface/AddOns` | the pack, for your Polestar clone |
+| RestedXP translations | yes, when a language is picked | yes |
+| Lint and install | done by the compiler | you run them |
 
 ### One addon at a time
 
@@ -186,7 +185,7 @@ Polestar shows game names (NPCs, quests, items, places, spells) in your
 client's language for every source. RestedXP also ships translated guides
 (German, Spanish, French, Brazilian Portuguese, Chinese), and the `rxp` run
 carries their text into the pack on the command line (`--locales all`, the
-default, or `--locales zhCN,deDE`); the browser page leaves them out. Journey's and Zygor's own words stay English. More in
+default, or `--locales zhCN,deDE`); the browser page does the same for the one language picked on it. Journey's and Zygor's own words stay English. More in
 [docs/translations.md](docs/translations.md).
 
 ## Known gaps
@@ -232,9 +231,9 @@ deliberate (above). If it is still wrong, open an
 guide's name, the step and what the original does.
 
 **Is there a version without Node and Git?**
-Converting, yes: the [browser page](https://aronjanosch.github.io/polestar-convert/).
-Installing the pack still runs Polestar's tools from its clone until Polestar
-0.3.0 is released.
+Yes: the [browser page](https://aronjanosch.github.io/polestar-convert/) gives a
+finished addon ZIP, with no Node and no Polestar clone. Polestar itself is still
+needed in the game's AddOns folder.
 
 ## Documentation
 

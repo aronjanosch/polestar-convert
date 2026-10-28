@@ -13,11 +13,12 @@ export function crc32(bytes) {
 	return (c ^ 0xffffffff) >>> 0;
 }
 
-// { "folder/name.txt": text } -> the ZIP's bytes. Names and texts as UTF-8 (flag bit 11).
+// { "folder/name.txt": text | Uint8Array } -> the ZIP's bytes. Names and texts as UTF-8
+// (flag bit 11); a byte array is stored as it is.
 export function zip(files) {
 	const enc = new TextEncoder();
 	const entries = Object.entries(files).map(([name, text]) => {
-		const data = enc.encode(text);
+		const data = typeof text === "string" ? enc.encode(text) : text;
 		return { name: enc.encode(name), data, crc: crc32(data) };
 	});
 	const size = entries.reduce((n, e) => n + 30 + e.name.length + e.data.length + 46 + e.name.length, 22);
