@@ -1,0 +1,33 @@
+[package]
+name = "polestar-convert-wasm"
+description = "Polestar's guide compiler (forge-guide) for the converter's web page: compile a pack, its texts to translate, its addon folders."
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "tables"
+required-features = ["native"]
+
+[features]
+# The tables binary reads a Polestar clone's files (forge-guide's native side, with Lua 5.1).
+native = ["forge-guide/native"]
+
+[dependencies]
+# Polestar's compiler, pinned: the page's game data comes from the same commit.
+forge-guide = { git = "https://github.com/fitzforge/polestar", rev = "1f5a2cfd221ce18f3333311562281e57f060070a", default-features = false }
+rustc-hash = "2"
+serde_json = "1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
