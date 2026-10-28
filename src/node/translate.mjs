@@ -7,7 +7,8 @@ import { join, resolve, sep } from "node:path";
 import { extractGuides, parseGuide } from "../rxp/parse.mjs";
 import { Report } from "../ir.mjs";
 import { pairLanguage, lineMemory } from "../rxp/locale.mjs";
-import { loadNames, withPaired } from "../i18n/names.mjs";
+import { withPaired } from "../i18n/names.mjs";
+import { loadNames } from "./names.mjs";
 import { fillPack } from "../i18n/fill.mjs";
 import { resolveLoose } from "./read.mjs";
 

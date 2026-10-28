@@ -9,8 +9,9 @@
 // For a data set without QuestieDB (if QuestieDB's licence does not allow it),
 // build the clone's data with `data build --no-questie` and run this on that clone:
 // the page then says the Forever-only quests are missing.
+// names/<locale>/ holds the translated names for the locales below, when the clone has them.
 
-import { mkdirSync, rmSync, cpSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, rmSync, cpSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -40,8 +41,10 @@ if (!existsSync(join(forever, "quests.json"))) {
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 cpSync(join(repo, "web"), out, { recursive: true });
-// The converter as the page imports it; the Node-only modules stay out.
-cpSync(join(repo, "src"), join(out, "src"), { recursive: true, filter: (p) => !p.includes(`${join("src", "node")}`) && !/[\\/]cli\.mjs$/.test(p) && !p.includes(join("src", "i18n")) });
+// The converter as the page imports it; the Node-only modules stay out, and of src/i18n
+// only names.mjs (the page reads the names files; fill.mjs and friends write them).
+const i18n = join(repo, "src", "i18n");
+cpSync(join(repo, "src"), join(out, "src"), { recursive: true, filter: (p) => !p.includes(`${join("src", "node")}`) && !/[\\/]cli\.mjs$/.test(p) && (!p.startsWith(i18n) || p === i18n || p === join(i18n, "names.mjs")) });
 writeFileSync(join(out, ".nojekyll"), "");
 
 // The data: every file the converter reads, at its path in the clone.
@@ -55,6 +58,49 @@ for (const f of files) {
 	cpSync(from, join(dataDir, f));
 }
 
+// Names: per locale, the pack's Names.lua, the Locales file as L.lua and the three client
+// tables in that language from the newest Forever build that holds all of them. A locale
+// the clone lacks any of is skipped.
+const NAME_LOCALES = ["deDE", "esES", "frFR", "ptBR", "zhCN"];
+const NAME_TABLES = ["AreaTable", "UiMap", "SpellName"];
+const versionOrder = (x, y) => {
+	const a = x.split(".").map(Number), b = y.split(".").map(Number);
+	for (let i = 0; i < Math.max(a.length, b.length); i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) - (b[i] || 0);
+	return 0;
+};
+// The newest cached Forever build (1.6x, as Polestar's wago.js counts them) with the locale's tables, or null.
+function localeBuild(wago, locale) {
+	if (!existsSync(wago)) return null;
+	const builds = readdirSync(wago).filter((b) => /^1\.6\d(\.\d+)+$/.test(b) && NAME_TABLES.every((t) => existsSync(join(wago, b, locale, `${t}.csv`))));
+	return builds.sort(versionOrder).at(-1) ?? null;
+}
+const wagoCache = join(clone, "data", "sources", "wago");
+const names = [];
+const licences = [];
+for (const locale of NAME_LOCALES) {
+	const build = localeBuild(wagoCache, locale);
+	const addon = join(clone, "addon", `Polestar_Names_${locale}`);
+	const wanted = [
+		[join(addon, "Names.lua"), "Names.lua"],
+		[join(clone, "addon", "Polestar", "Locales", `${locale}.lua`), "L.lua"],
+		...NAME_TABLES.map((t) => [build && join(wagoCache, build, locale, `${t}.csv`), `${t}.csv`]),
+	];
+	const missing = wanted.filter(([from]) => !from || !existsSync(from)).map(([, to]) => to);
+	if (missing.length) {
+		console.log(`names for ${locale} skipped, missing in the clone: ${missing.join(", ")}${build ? "" : " (no cached Forever build holds its tables)"}`);
+		continue;
+	}
+	mkdirSync(join(dataDir, "names", locale), { recursive: true });
+	for (const [from, to] of wanted) cpSync(from, join(dataDir, "names", locale, to));
+	names.push(locale);
+	if (existsSync(join(addon, "LICENSE-DATA.txt"))) {
+		const rule = "=".repeat(72);
+		licences.push(`${rule}\n${locale}\n${rule}\n\n${readFileSync(join(addon, "LICENSE-DATA.txt"), "utf8").trimEnd()}\n`);
+	}
+}
+// The packs' licence notes, one after the other (each pack's differs), as names/LICENSE-DATA.txt.
+if (licences.length) writeFileSync(join(dataDir, "names", "LICENSE-DATA.txt"), licences.join("\n"));
+
 // Provenance: the clone's commit, its data build's sources (without local paths) and
 // whether QuestieDB went into it.
 const meta = JSON.parse(readFileSync(join(forever, "meta.json"), "utf8"));
@@ -62,7 +108,7 @@ const commit = a.commit || spawnSync("git", ["-C", clone, "rev-parse", "HEAD"], 
 const sources = (meta.sources || []).map(({ dir, ...s }) => s);
 // The QuestieDB store itself, not a source that only names it ("quests QuestieDB lacks").
 const questie = sources.some((s) => /^QuestieDB\b/.test(s.name));
-const manifest = { polestar: { repo: "https://github.com/fitzforge/polestar", commit }, builtAt: meta.builtAt, foreverBuild: travel.foreverBuild, build: travel.build, questie, files, levelXp: levelXpOf(clone) };
+const manifest = { polestar: { repo: "https://github.com/fitzforge/polestar", commit }, builtAt: meta.builtAt, foreverBuild: travel.foreverBuild, build: travel.build, questie, files, names, levelXp: levelXpOf(clone) };
 writeFileSync(join(dataDir, "manifest.json"), JSON.stringify(manifest, null, 1) + "\n");
 writeFileSync(join(dataDir, "sources.json"), JSON.stringify(sources, null, 1) + "\n");
 
@@ -87,7 +133,13 @@ ${questie ? "\nIf QuestieDB's licence does not allow it, the set is rebuilt with
 
 ${sources.map((s) => `- ${s.name}${s.url ? ` (${s.url})` : ""}${s.license ? `: ${s.license.split("\n")[0].slice(0, 300)}` : ""}`).join("\n")}
 
-**Source code** to rebuild it: Polestar at the commit above, then
+${names.length ? `**Names** (\`names/\`, ${names.join(", ")}): the translated names of Polestar's names packs
+(\`Names.lua\`), its Locales files (\`L.lua\`) and the client tables (AreaTable, UiMap, SpellName)
+in each language, for the newest Forever build that holds them. The packs' own licence notes
+(\`names/LICENSE-DATA.txt\`) name their sources and licences, which differ between the packs (some
+parts are MIT, some GPL-3.0); they cover the names, not the rest of this folder.
+
+` : ""}**Source code** to rebuild it: Polestar at the commit above, then
 
     node tools/polestar.js data build --no-web-xp --no-wowhead
     node tools/polestar.js travel build
