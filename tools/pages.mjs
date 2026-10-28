@@ -66,7 +66,9 @@ if (!existsSync(join(out, "forge", "polestar_convert_wasm.js"))) fail("web/forge
 // The converter as the page imports it; the Node-only modules stay out, and of src/i18n
 // only names.mjs (the page reads the names files; fill.mjs and friends write them).
 const i18n = join(repo, "src", "i18n");
-cpSync(join(repo, "src"), join(out, "src"), { recursive: true, filter: (p) => !p.includes(`${join("src", "node")}`) && !/[\\/]cli\.mjs$/.test(p) && (!p.startsWith(i18n) || p === i18n || p === join(i18n, "names.mjs")) });
+// The browser-side modules of src/i18n: the names, the translation fill and what they import.
+const BROWSER_I18N = ["names.mjs", "fill.mjs", "own.mjs", "pair.mjs"].map((f) => join(i18n, f));
+cpSync(join(repo, "src"), join(out, "src"), { recursive: true, filter: (p) => !p.includes(`${join("src", "node")}`) && !/[\\/]cli\.mjs$/.test(p) && (!p.startsWith(i18n) || p === i18n || BROWSER_I18N.includes(p)) });
 writeFileSync(join(out, ".nojekyll"), "");
 
 // The data: every file the converter reads, at its path in the clone.
