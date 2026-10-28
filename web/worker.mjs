@@ -9,7 +9,8 @@ import { loadNames } from "./src/journey/names.mjs";
 import { convertAddons } from "./src/core.mjs";
 import { namesFrom } from "./src/i18n/names.mjs";
 import { rxpTranslations } from "./src/rxp/translations.mjs";
-import { packJson, addonZip, lintErrors, addonEntries } from "./src/addon.mjs";
+import { addonZip, lintErrors, addonEntries } from "./src/addon.mjs";
+import { packJson } from "./src/pack.mjs";
 import { COMPILER_NAMES } from "./src/data.mjs";
 import init, { Compiler } from "./forge/polestar_convert_wasm.js";
 

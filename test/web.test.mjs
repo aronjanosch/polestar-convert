@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { zip, crc32 } from "../src/zip.mjs";
-import { newPack, packIdProblem } from "../src/pack.mjs";
+import { packJson, packIdProblem } from "../src/pack.mjs";
 import { loadData, dataFiles } from "../src/data.mjs";
 import { loadNames } from "../src/journey/names.mjs";
 import { addonsPaths } from "../src/core.mjs";
@@ -42,10 +42,9 @@ test("zip: files with UTF-8 names and text, read back", () => {
 	assert.deepEqual(unzip(bytes), { "my-guides/pack.json": "{}\n", "my-guides/guides/ä-1.guide": "step\n  accept 1 \"Grüße\"\n" });
 });
 
-test("newPack: a pack.json Polestar accepts and a README", () => {
-	const files = newPack({ id: "my-guides", title: "My Guides", author: "Me" });
-	assert.deepEqual(JSON.parse(files["pack.json"]), { id: "my-guides", title: "My Guides", author: "Me", version: "0.1.0", license: "Personal use: converted from guides you own" });
-	assert.match(files["README.md"], /polestar\.js install/);
+test("packJson: a pack.json Polestar accepts, for personal use", () => {
+	assert.equal(packJson({ id: "my-guides", title: "My Guides", author: "Me" }),
+		'{\n\t"id": "my-guides",\n\t"title": "My Guides",\n\t"author": "Me",\n\t"version": "0.1.0",\n\t"license": "Personal use: converted from guides you own"\n}\n');
 	assert.equal(packIdProblem("my-guides"), null);
 	assert.match(packIdProblem("My Guides"), /lowercase/);
 	assert.match(packIdProblem("polestar"), /reserved/);
@@ -80,21 +79,8 @@ test("addonsPaths: the paths under Interface/AddOns of the files a folder pick g
 		new Map([["journey/b", 1]]));
 });
 
-test("packZip: the whole pack in one folder named by its id, with a run report per source", async () => {
-	const { packZip } = await import("../src/core.mjs");
-	const { Report } = await import("../src/ir.mjs");
-	const report = new Report();
-	report.count("zone map set");
-	const runs = { zygor: { guides: [{ slug: "h-a-1-4", text: "guide my-guides/h-a-1-4\n", stepsOut: 1 }], gaps: { "h-a-1-4.guide": [] }, settings: {}, report } };
-	const files = unzip(packZip(runs, { id: "my-guides", title: "My Guides", author: "Me" }));
-	assert.deepEqual(Object.keys(files).sort(), ["my-guides/README.md", "my-guides/guides/h-a-1-4.guide", "my-guides/pack.json", "my-guides/reports/zygor-gaps.json", "my-guides/reports/zygor-run.txt"]);
-	assert.match(files["my-guides/reports/zygor-run.txt"], /1 zone map set/);
-});
-
-test("addon: pack.json as polestar new writes it, and the addon folders' ZIP layout", async () => {
-	const { packJson, addonEntries, addonZip, topFolders, lintErrors } = await import("../src/addon.mjs");
-	assert.equal(packJson({ id: "my-guides", title: "My Guides", author: "Me" }),
-		'{\n\t"id": "my-guides",\n\t"title": "My Guides",\n\t"author": "Me",\n\t"version": "0.1.0",\n\t"license": "CC-BY-4.0"\n}\n');
+test("addon: the addon folders' ZIP layout", async () => {
+	const { addonEntries, addonZip, topFolders, lintErrors } = await import("../src/addon.mjs");
 	// Invented packFiles output: the pack's folder, a sibling addon and a binary file.
 	const outputs = [["pack.json", "{}\n"], ["guides/example-1.guide", "guide x\n"], ["../Polestar_Names/Names.lua", "-- names\n"], ["Legs.lua", { b64: "AQI=" }]];
 	const entries = addonEntries("my-guides", outputs);

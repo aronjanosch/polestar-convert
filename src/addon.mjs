@@ -1,14 +1,7 @@
-// The addon folders a compiled pack becomes on the web page: pack.json for a new pack,
-// the files Polestar's compiler gives (packFiles), as the ZIP's entries, and the
+// The addon folders a compiled pack becomes on the web page: the files Polestar's compiler gives (packFiles), as the ZIP's entries, and the
 // diagnostics that stop a pack. Runs in Node and the browser.
 
 import { zip } from "./zip.mjs";
-
-// The pack.json of a new pack: its id, title, author, version 0.1.0 and the licence
-// `polestar new` writes by default (CC-BY-4.0), with the key order it writes.
-export function packJson({ id, title, author }) {
-	return JSON.stringify({ id, title, author, version: "0.1.0", license: "CC-BY-4.0" }, null, "\t") + "\n";
-}
 
 // A packFiles entry's content as ZIP data: its text, or the bytes of its base64 { b64 }.
 export function fileBytes(content) {
