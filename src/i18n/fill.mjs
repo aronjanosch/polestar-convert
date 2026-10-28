@@ -147,22 +147,36 @@ function learn(shapes, key, translated) {
 	seen.set(text, (seen.get(text) ?? 0) + 1);
 }
 
-// Shape -> its most frequent translation, from the locale files' filled lines and
-// `own` (the converter's own sentences: shape -> translation, which always wins).
-export function shapesOf(fileTexts, own = {}) {
+// Shape -> its most frequent translation, from translated entries ([key, translation]
+// pairs, a Map or an array) and `own` (the converter's own sentences: shape ->
+// translation, which always wins).
+export function shapesOfTexts(entryLists, own = {}) {
 	const shapes = new Map();
-	for (const text of fileTexts) for (const line of text.split("\n")) {
-		const m = LINE.exec(line);
-		if (m && m[4] !== "") learn(shapes, decode(m[2]), decode(m[4]));
-	}
+	for (const entries of entryLists) for (const [key, translated] of entries) learn(shapes, key, translated);
 	const best = new Map([...shapes].map(([shape, seen]) => [shape, [...seen].reduce((a, b) => (b[1] > a[1] ? b : a))[0]]));
 	for (const [shape, text] of Object.entries(own)) best.set(shape, text);
 	return best;
 }
 
-// [[words, token]] from a "plural, as words" line: "Wolfs = {npc:1} Wolf · ...".
+// The filled entries of a locale file: [key, translation] for each non-empty line.
+function filledEntries(fileText) {
+	const entries = [];
+	for (const line of fileText.split("\n")) {
+		const m = LINE.exec(line);
+		if (m && m[4] !== "") entries.push([decode(m[2]), decode(m[4])]);
+	}
+	return entries;
+}
+
+// Shape -> its most frequent translation, from the locale files' filled lines (see shapesOfTexts).
+export function shapesOf(fileTexts, own = {}) {
+	return shapesOfTexts(fileTexts.map(filledEntries), own);
+}
+
+// [[token, words]] from a "plural, as words" line: "Wolfs = {npc:1} Wolf · ..."
+// gives [["npc:1", "Wolfs"]].
 function readPlurals(line) {
-	return line.replace(/^\t-- plural, as words: /, "").split(" · ").map((part) => /^(.*) = \{([^{}]+)\} /.exec(part)?.slice(1)).filter(Boolean);
+	return line.replace(/^\t-- plural, as words: /, "").split(" · ").map((part) => /^(.*) = \{([^{}]+)\} /.exec(part)?.slice(1).reverse()).filter(Boolean);
 }
 
 // A list of names of one kind: "{npc:1}, {npc:2} and {npc:3}".
@@ -174,7 +188,7 @@ const LIST = /\{(\w+):\d+\}(?:, \{\1:\d+\})*,? (and|or) \{\1:\d+\}/g;
 // With `lang` (own.mjs: [separator, last word] for "and" and "or"), a list of
 // names stands for one name when its own shape has no translation.
 function byShape(shapes, key, plurals, lang) {
-	for (const [words, tok] of [...plurals].sort((a, b) => b[0].length - a[0].length)) key = key.split(words).join(`{${tok}}`);
+	for (const [tok, words] of [...plurals].sort((a, b) => b[1].length - a[1].length)) key = key.split(words).join(`{${tok}}`);
 	const of = (k) => {
 		const { shape, tokens } = shapeOf(k);
 		if (!/[A-Za-z]/.test(shape.replace(/\{\w+\}/g, ""))) return k;
@@ -197,30 +211,26 @@ function byShape(shapes, key, plurals, lang) {
 // translation of a key of the same shape; `lang`: the language's own words
 // (own.mjs), for lists of names and a line of several sentences. A key of several
 // lines is filled line by line, as far as its lines go.
-export function fillText(fileText, pairs, namesOf, { shapes = new Map(), lang } = {}) {
+// The core: fills a list of texts, each { text (the key), where ("Guide" or
+// "Step 3: <title>"), tokens and plurals as [token, english] pairs } in the shape
+// Polestar's guide_texts returns. `kept` (key -> translation already there) is never
+// changed. -> { translations: Map(key -> translated) for the texts that got one, counts, examples }
+export function fillTexts(texts, pairs, namesOf, { shapes = new Map(), lang, kept = new Map() } = {}) {
 	const fuzzy = byPattern(pairs);
 	const counts = { translated: 0, "partly translated": 0, kept: 0, "no pair": 0, "name not found": 0 };
 	const examples = [];
-	let tokens = new Map(), plurals = [];
-	let step = null;
-	const out = fileText.split("\n").map((line) => {
-		const at = /^\t-- (?:Step (\d+)|Guide)\b/.exec(line);
-		if (at) step = at[1] ? Number(at[1]) : null;
-		if (/^\t-- \{/.test(line)) { tokens = readTokens(line); return line; }
-		if (/^\t-- plural, as words: /.test(line)) { plurals = readPlurals(line); return line; }
-		const m = LINE.exec(line);
-		if (!m) return line;
-		const [, pre, rawKey, mid, rawValue, post] = m;
-		const mine = tokens, theirs = plurals;
-		tokens = new Map(); plurals = [];
-		if (rawValue !== "") { counts.kept++; return line; }
-		const key = decode(rawKey);
+	const translations = new Map();
+	for (const { text: key, where, tokens: tokenPairs = [], plurals = [] } of texts) {
+		if (kept.has(key)) { counts.kept++; continue; }
+		const at = /^Step (\d+)/.exec(where ?? "");
+		const step = at ? Number(at[1]) : null;
+		const mine = new Map(tokenPairs);
 		const english = (k) => k.replace(TOKEN, (all, tok) => mine.get(tok) ?? all);
 		// The key's own pair, else its shape's; null when a name was not found.
 		const one = (k) => {
 			const tr = pairs.get(english(k)) ?? fuzzy(k, mine);
 			const done = tr ? putTokens(tr, k, mine, namesOf) : { missing: false };
-			return done.text ?? byShape(shapes, k, theirs, lang) ?? (done.missing ? null : undefined);
+			return done.text ?? byShape(shapes, k, plurals, lang) ?? (done.missing ? null : undefined);
 		};
 		// A line of several sentences, sentence by sentence when each has a translation.
 		const translate = (k) => {
@@ -240,14 +250,46 @@ export function fillText(fileText, pairs, namesOf, { shapes = new Map(), lang } 
 			}
 		}
 		if (!text) {
-			const what = text === null ? "name not found" : "no pair";
-			counts[what]++;
-			examples.push({ step, what, line: english(key) });
-			return line;
+			const kind = text === null ? "name not found" : "no pair";
+			counts[kind]++;
+			examples.push({ step, what: kind, line: english(key) });
+			continue;
 		}
 		counts[what]++;
 		if (what !== "translated") examples.push({ step, what, line: english(key) });
-		return `${pre}"${rawKey}"${mid}${luaString(text)}${post}`;
+		translations.set(key, text);
+	}
+	return { translations, counts, examples };
+}
+
+// The texts of a locale file (one per key line, with the comments above it) and its
+// filled values (key -> translation). The file format is only read and written here.
+function readFile(fileText) {
+	const texts = [], kept = new Map();
+	let where, tokens = [], plurals = [];
+	for (const line of fileText.split("\n")) {
+		if (/^\t-- (?:Step \d+|Guide)\b/.test(line)) where = line.slice(4);
+		if (/^\t-- \{/.test(line)) tokens = [...readTokens(line)];
+		if (/^\t-- plural, as words: /.test(line)) plurals = readPlurals(line);
+		const m = LINE.exec(line);
+		if (!m) continue;
+		const key = decode(m[2]);
+		if (m[4] !== "") kept.set(key, decode(m[4]));
+		texts.push({ text: key, where, tokens, plurals });
+		tokens = []; plurals = [];
+	}
+	return { texts, kept };
+}
+
+// The file with each empty value that got a translation filled in.
+export function fillText(fileText, pairs, namesOf, { shapes = new Map(), lang } = {}) {
+	const { texts, kept } = readFile(fileText);
+	const { translations, counts, examples } = fillTexts(texts, pairs, namesOf, { shapes, lang, kept });
+	const out = fileText.split("\n").map((line) => {
+		const m = LINE.exec(line);
+		if (!m || m[4] !== "") return line;
+		const tr = translations.get(decode(m[2]));
+		return tr === undefined ? line : `${m[1]}"${m[2]}"${m[3]}${luaString(tr)}${m[5]}`;
 	});
 	return { text: out.join("\n"), counts, examples };
 }
