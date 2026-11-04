@@ -462,8 +462,9 @@ export function translate(expr, ctx = {}) {
 
 // ---- |complete ---------------------------------------------------------------
 
-// `|complete <expr>` -> the goal Polestar can check, or null (a task then).
-export function completeGoal(expr) {
+// `|complete <expr>` -> the goal Polestar can check, or null (a task then). `text`: the
+// line's text, where a spell to learn is named in quotes (`Train the "Example Spell" Ability`).
+export function completeGoal(expr, text = "") {
 	let ast;
 	try { ast = parse(expr); } catch { return null; }
 	if (!ast) return null;
@@ -472,7 +473,10 @@ export function completeGoal(expr) {
 		const s = strArg(ast.args[0]);
 		if ((name === "zone" || name === "subzone") && ast.args.length === 1 && s) return { kind: "enter", place: s };
 		// A spell or recipe to learn (Polestar's `learn`, at the nearest trainer).
-		if ((name === "knowspell" || name === "knowsrecipe") && ast.args.length === 1 && ast.args[0].op === "num") return { kind: "learn", spell: ast.args[0].v };
+		if ((name === "knowspell" || name === "knowsrecipe") && ast.args.length === 1 && ast.args[0].op === "num") {
+			const called = /"([^"]+)"/.exec(String(text));
+			return { kind: "learn", spell: ast.args[0].v, ...(called ? { name: called[1] } : {}) };
+		}
 		if (name === "hasprof" && s) {
 			const n = ast.args[1] ? (ast.args[1].op === "num" ? ast.args[1].v : null) : 1;
 			const skill = SKILLS.find((k) => k.toLowerCase() === s.toLowerCase());

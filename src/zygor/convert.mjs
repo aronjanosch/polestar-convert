@@ -302,7 +302,7 @@ function lineOf(l, ctx, zs) {
 	}
 	const cm = mod("complete");
 	if (cm) {
-		const goal = completeGoal(cm.args);
+		const goal = completeGoal(cm.args, l.text);
 		const drop = /^\s*not\s+haveq\((\d+)\)\s*$/.exec(cm.args);
 		// "Abandon Example Quest |complete not haveq(100)": Polestar's abandon checks the log itself.
 		if (!res.goals.length && drop && /^abandon\b/i.test(text) && ctx.data.quests[Number(drop[1])]) {
@@ -454,7 +454,7 @@ function convertStep(zs, zi, ctx) {
 			if (g) { st.way = parseGotoMod(g.args, ctx.data, ctx.lastPlace?.uiMap) || st.way; if (st.way && ctx.firstMap == null) ctx.firstMap = st.way.uiMap; if (st.way) ctx.lastPlace = ctx.stepPlace = st.way; }
 			for (const t of l.mods.filter((m) => m.name === "tip")) { const s = clean(t.args); if (s && lineOnly) st.notes.push({ text: s, only: lineOnly }); else if (s) st.tips.push(s); }
 			const cm = l.mods.find((m) => m.name === "complete");
-			if (cm) { const goal = completeGoal(cm.args); if (goal) st.goals.push({ ...goal, only: lineOnly, _cond: cm.args, ...(jumps.length ? { _jump: true } : {}), ...(l.mods.some((m) => m.name === "or") ? { _or: true } : {}) }); }
+			if (cm) { const goal = completeGoal(cm.args, l.text); if (goal) st.goals.push({ ...goal, only: lineOnly, _cond: cm.args, ...(jumps.length ? { _jump: true } : {}), ...(l.mods.some((m) => m.name === "or") ? { _or: true } : {}) }); }
 			continue;
 		}
 		const r = lineOf(l, ctx, zs);

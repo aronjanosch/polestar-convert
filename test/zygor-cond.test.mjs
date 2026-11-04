@@ -141,6 +141,7 @@ test("completeGoal", () => {
 	assert.deepEqual(completeGoal("subzone('Menethil Harbor')"), { kind: "enter", place: "Menethil Harbor" });
 	assert.deepEqual(completeGoal("knowspell(100)"), { kind: "learn", spell: 100 });
 	assert.deepEqual(completeGoal("knowsrecipe(101)"), { kind: "learn", spell: 101 });
+	assert.deepEqual(completeGoal("knowspell(100)", 'Train the "Example Spell" Ability'), { kind: "learn", spell: 100, name: "Example Spell" });
 	assert.equal(completeGoal("isdead"), null);
 });
 
