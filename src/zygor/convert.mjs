@@ -32,7 +32,7 @@ const READ = {
 	nearest: "condition dist/default (the nearest trainer): Polestar picks the nearest",
 };
 const FORMAT5 = new Set(["task", "destroy", "money", "enter", "cast", "abandon", "skill"]);
-const FORMAT5_WHEN = /^!?(dungeon|skill|money|cooldown|group|upgrade)\b/;
+const FORMAT5_WHEN = /^!?(dungeon|skill|money|cooldown|group|upgrade|knows)\b/;
 // The label as Polestar takes it (letters, digits, `-`, `_`).
 const labelOf = (text) => String(text || "").trim().replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || null;
 
