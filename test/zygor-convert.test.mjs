@@ -15,6 +15,7 @@ const data = {
 	npcs: {
 		201: { name: "Giver Bob", spawns: {}, rank: 0 },
 		203: { name: "Placed Giver", spawns: { 1: { pts: [[30, 70]] } }, rank: 0 },
+		204: { name: "Example Keeper", spawns: { 1: { pts: [[50, 50]] } }, rank: 0 },
 		301: { name: "Young Wolf", spawns: { 1: { pts: [[40, 40]] } }, rank: 0 },
 	},
 	items: { 401: { name: "Wolf Pelt", drops: { npc: { 301: 50 } } }, 402: { name: "Old Rag", drops: {} } },
@@ -238,6 +239,31 @@ test("the text of a vendor or trainer line is not repeated as a tip; a kill line
 	].join("\n"));
 	assert.doesNotMatch(r.text, /tip (Sell Items|Kill Young Wolf)/);
 	assert.match(r.text, /^  vendor 201$/m);
+});
+
+test("|gossip N picks that option at the step's talk, vendor or trainer before it, or on its own line", () => {
+	const r = conv([
+		"step",
+		"  talk Example Keeper##204",
+		"  Select _\"Invented option text.\"_ |gossip 100",
+		"step",
+		"  talk Example Keeper##204 |gossip 101",
+		"step",
+		"  talk Example Keeper##204",
+		"  Select _\"Invented option text.\"_ |gossip 102",
+		"  Sell Items |vendor Example Keeper##204",
+	].join("\n"));
+	assert.match(r.text, /^  talk 204 gossip 100$/m);
+	assert.match(r.text, /^  tip Select 'Invented option text\.'$/m);
+	assert.match(r.text, /^  talk 204 gossip 101$/m);
+	// The talk goes beside the vendor; its option goes to the vendor of the same NPC.
+	assert.match(r.text, /^  vendor 204 gossip 102$/m);
+});
+
+test("|gossip with no talk, vendor or trainer before it in its step is left out and counted", () => {
+	const r = conv("step\n  Select _\"Invented option text.\"_ |gossip 100\n  accept Invented Errand##101\n");
+	assert.doesNotMatch(r.text, /gossip/);
+	assert.equal(r.report.counts.get("|gossip without a talk, vendor or trainer before it (left out)"), 1);
 });
 
 test("a text line with a quest objective is that objective's goal; a heading ending in ':' names nothing", () => {

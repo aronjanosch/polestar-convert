@@ -461,6 +461,13 @@ function convertStep(zs, zi, ctx) {
 		if (r.goto && ctx.firstMap == null) ctx.firstMap = r.goto.uiMap;
 		if (r.goto) ctx.lastPlace = ctx.stepPlace = r.goto;
 		st.goals.push(...r.goals.map((x) => ({ ...x, only: x.only || "" })));
+		// `|gossip N` on a talk line or a "Select ..." line under it: the option at the step's NPC before it.
+		const gm = l.mods.find((m) => m.name === "gossip" && /^\d+$/.test(m.args));
+		if (gm) {
+			const at = st.goals.findLast((x) => ["talk", "vendor", "train"].includes(x.kind));
+			if (at) at.gossip = Number(gm.args);
+			else report.count("|gossip without a talk, vendor or trainer before it (left out)");
+		}
 		st.texts.push(...r.texts);
 		st.kills.push(...r.kills);
 		st.notes.push(...r.notes);
@@ -559,6 +566,11 @@ function finish(st, ctx) {
 	if (talkTo) for (const g of goals) if ((g.kind === "train" && g.profession || g.kind === "learn") && !g.npc) g.npc = talkTo.npc;
 	if (goals.some((g) => ["accept", "turnin", "vendor", "train"].includes(g.kind) || g.kind === "learn" && g.npc)) {
 		const before = goals.length;
+		// A dropped talk's gossip option goes to the vendor or trainer of the same NPC.
+		for (const t of goals) if (t.kind === "talk" && t.gossip) {
+			const to = goals.find((g) => ["vendor", "train"].includes(g.kind) && g.npc === t.npc && !g.gossip);
+			if (to) to.gossip = t.gossip;
+		}
 		goals = goals.filter((g) => g.kind !== "talk");
 		if (goals.length !== before) ctx.report.count("talk to a giver or vendor the step already names (dropped)");
 	}

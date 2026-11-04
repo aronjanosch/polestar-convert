@@ -114,6 +114,7 @@ export function render(guide, { report, slug, packId, next }) {
 		for (const k of s.skipto || []) out.push(`  skipto ${k.label} when ${k.when}`);
 		for (const g of s.goals) {
 			let line = `  ${goalText(g)}`;
+			if (g.gossip) line += ` gossip ${g.gossip}`;
 			if (g.group) line += g.group === true ? " group" : ` group ${g.group}`;
 			if (g.only) line += ` only ${g.only}`;
 			if (isOptional(g) && !keepAll) line += " optional";

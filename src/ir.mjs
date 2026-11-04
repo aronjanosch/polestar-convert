@@ -30,7 +30,7 @@
 //   level {level, xp?}  skill {skill, n}  task {text}  note {text}
 //   abandon {quest}  destroy {item}  cast {spell, name}  enter {place, at?}  goto {x, y, live, map?, r?, text?}
 //   sethome {location?} (none: the nearest inn)  hearth {location}  getfp {location}  fly {location}
-// Any goal may carry `group: N | true` (needs a group).
+// Any goal may carry `group: N | true` (needs a group); talk, vendor and train `gossip: <optionID>`.
 // `at` = {x, y, live, map?}: where the goal is, when the data does not know; `map`
 // when it is not the step's zone.
 

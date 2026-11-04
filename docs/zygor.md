@@ -45,6 +45,8 @@ that.
   the guide has not accepted before the copy is left out.
 - **Talk** to a giver or vendor the same step names is dropped: the accept,
   turn-in or vendor goal places the NPC.
+- **`|gossip N`** (on a talk line or a "Select ..." line under it) is `gossip N`
+  on the step's talk, vendor or train goal before it; the "Select" text stays a tip.
 - **`|confirm`** is a `task` at its `|goto`: Zygor holds the player there,
   named by the step's own text rather than Zygor's button label. A dungeon
   choice (`|confirm <Name>flag`) is dropped: Polestar asks in Options.
