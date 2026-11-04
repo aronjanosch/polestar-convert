@@ -108,7 +108,9 @@ function condOf(args, ctx, zs, line) {
 function questGoal(kind, ref, place, ctx) {
 	const { data, faction, report } = ctx;
 	const known = data.quests[ref.id];
-	if (known && !questOpenTo(data, known, faction, ctx.races.length ? ctx.races : null)) {
+	// The races the goal is for: its line's, else its step's, else the guide's.
+	const races = ctx.lineRaces || ctx.stepRaces || (ctx.races.length ? ctx.races : null);
+	if (known && !questOpenTo(data, known, faction, races)) {
 		report.count(`${kind} of a quest the data closes to these races (dropped)`);
 		return null;
 	}
@@ -277,7 +279,9 @@ function lineOf(l, ctx, zs) {
 		const map = ctx.pathMap ?? ctx.lastPlace?.uiMap;
 		for (const m of l.text.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)) if (map != null) res.path.push({ x: Number(m[1]), y: Number(m[2]), live: true, uiMap: map });
 	}
+	ctx.lineRaces = lc.only.race || null;
 	const verb = l.verb ? verbGoals(l, ctx, res.goto) : objectiveGoals(l, text, ctx);
+	ctx.lineRaces = null;
 	const goals = verb.goals;
 	// `|n`: Zygor counts the goal but never ticks it (a farming guide's herbs); the step's
 	// `|confirm` ends it.
@@ -429,6 +433,7 @@ function convertStep(zs, zi, ctx) {
 		return null;
 	}
 	ctx.curNo = zs.no;
+	ctx.stepRaces = sc.only.race || null;
 	ctx.stepPlace = null;
 	ctx.pathMap = null;
 	const st = { nearest: false, wayLines: [], uses: [], zi, no: zs.no, label: zs.label, starts: zs.starts, stops: zs.stops, goals: [], texts: [], kills: [], notes: [], tips: [], nexts: [], pre: [], path: [], way: null, only: sc.only, whens: sc.whens, alts: sc.alts };

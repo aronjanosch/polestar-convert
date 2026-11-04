@@ -654,3 +654,18 @@ test("a guide's levels from its suggested range when its name has none", () => {
 	assert.match(r.text, /^levels 15-25$/m);
 	assert.match(r.text, /^category Dungeons$/m);
 });
+
+test("a quest goal on a step or line for races the data closes the quest to is left out", () => {
+	const d = { ...data, races: { Orc: { Horde: { bit: 2 } }, Troll: { Horde: { bit: 128 } } },
+		quests: { ...data.quests, 103: { title: "Orc Errand", start: { npc: [203] }, end: { npc: [203] }, level: 3, minLevel: 1, objectives: [], races: 2 } } };
+	const r = convertGuide({ name: "Leveling Guides\\Invented Vale (1-4)", header: {}, steps: parseBody([
+		"step",
+		"  accept Orc Errand##103 |goto Invented Vale/0 30.2,71.7",
+		"  |only if Troll",
+		"step",
+		"  talk Placed Giver##203",
+		"  accept Orc Errand##103 |goto Invented Vale/0 30.2,71.7 |only if Orc",
+	].join("\n")) }, d, { report: new Report(), slug: "vale", packId: "mine", next: [], faction: "Horde" });
+	assert.equal(r.text.match(/accept 103/g).length, 1);
+	assert.match(r.text, /accept 103 only Orc/);
+});
