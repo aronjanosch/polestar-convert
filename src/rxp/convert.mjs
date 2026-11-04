@@ -11,7 +11,7 @@ import { bare, questOf } from "../ir.mjs";
 import { resolveObjective } from "../objective.mjs";
 
 const IGNORED = new Set([
-	"target", "mob", "unitscan", "itemcount", "macro", "timer",
+	"target", "mob", "unitscan", "itemcount", "macro",
 	"skipgossip", "skipgossipid", "disablecheckbox", "is", "item", "addquestitem",
 	"itemStat", "zone", "link", "line", "solo", "enabledungeon",
 ]);
@@ -774,6 +774,15 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			const area = /^\d+$/.test(id || "") ? areaOf(data, id) : null;
 			if (area && !completewith && !l.cond && !Number(flags)) { enterZone = enterZone || area.name; report.count(".subzone -> enter"); }
 			else report.count(".subzone (ignored)");
+		} else if (n === "timer") {
+			// `.timer 20,Example RP`: a countdown to sit through (Polestar 0.3.1's `wait`); it
+			// starts once the goals before it in the step are done.
+			const m = /^\s*(\d+)\s*(?:,\s*(.*))?$/.exec(String(l.args || ""));
+			const secs = m ? Number(m[1]) : 0;
+			if (secs >= 1 && secs <= 3600 && !completewith) {
+				add({ kind: "wait", seconds: secs, text: (m[2] || "").trim() || null }, l.cond);
+				report.count(".timer -> wait");
+			} else report.count(".timer (ignored)");
 		} else if (n === "goto" || n === "waypoint") {
 			// handled below
 		} else if (IGNORED.has(n)) {

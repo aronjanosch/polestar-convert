@@ -361,3 +361,20 @@ test("a goal's place is not the guide's last place on a dungeon detour", () => {
 	const body = ["step", "    >>Walk to the cave", "    .goto 1,70,70", "step", "    .dungeon WC", "    .complete 99,1 >>Kill Boss"].join("\n");
 	assert.equal(/complete 99[^\n]*@70,70/.test(mapText(body)), false);
 });
+
+test("RXP's .timer is Polestar's wait, after the goals before it", () => {
+	const g = parseGuide(`#name 1-6 Testville
+step
+    .turnin 1 >> Turn in A Thing
+    .timer 20,Example RP
+    .goto 1,10,10
+step
+    .timer 9000,Too Long
+    .goto 1,10,10
+`);
+	const text = convertGuide(g, data, { report: new Report(), slug: "testville", packId: "mine", next: [], before: new Set() }).text;
+	// The countdown follows the turn-in, in its step or the next.
+	assert.match(text, /turnin 1\n(\nstep\n)?  wait 20 "Example RP"/);
+	assert.doesNotMatch(text, /wait 9000/);
+	assert.equal(goalText({ kind: "wait", seconds: 30 }), "wait 30");
+});
