@@ -38,7 +38,7 @@ licence allows it. What you convert is your responsibility.`;
 
 const SITE = "https://aronjanosch.github.io/polestar-convert/";
 const SOURCE_NAMES = { rxp: "RestedXP", journey: "Journey", zygor: "Zygor" };
-const GUIDE_ADDONS = ["RXPGuides", "Journey", "ZygorGuidesViewerClassic"];
+const GUIDE_ADDONS = ["RXPGuides", "Journey", "ZygorGuidesViewerForever", "ZygorGuidesViewerClassic"];
 // Client folders by preference: the live client, then the beta Forever ran as.
 const CLIENTS = ["_forever_", "_classic_beta_"];
 

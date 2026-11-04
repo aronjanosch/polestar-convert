@@ -74,7 +74,7 @@ npx github:aronjanosch/polestar-convert --path "<WoW>" --locales zhCN --install
 ```sh
 npx github:aronjanosch/polestar-convert rxp --list "<WoW>/_forever_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml" --polestar polestar --pack my-pack
 npx github:aronjanosch/polestar-convert journey --dir "<WoW>/_forever_/Interface/AddOns/Journey" --polestar polestar --pack my-pack
-npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/AddOns/ZygorGuidesViewerClassic" --polestar polestar --pack my-pack
+npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/AddOns/ZygorGuidesViewerForever" --polestar polestar --pack my-pack
 ```
 
 ## 覆盖率

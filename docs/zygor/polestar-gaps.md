@@ -46,7 +46,7 @@ such a task into a tip (Polestar has no conditional tip).
 
 | Zygor | Polestar wish | today |
 |---|---|---|
-| `gossip` (`\|gossip N`, "Select ..." lines) | a goal the player checks by picking a gossip option | a tip |
+| `gossip` (`\|gossip N`, "Select ..." lines) | a goal the player checks by picking a gossip option | `gossip N` on the talk, vendor or train before it (picked for the player); the text a tip |
 | `\|learnspell` for pet abilities | `learn pet <spell>` | a task |
 | `bank` verb and `\|usebank` | a `has` predicate or goal that counts the bank too | tips |
 | `\|stablemaster`, `\|learnpetspell` | a pet goal (stable a pet, learn a pet spell) | tips |

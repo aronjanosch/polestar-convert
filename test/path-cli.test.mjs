@@ -26,7 +26,7 @@ test("addonsDirOf: the AddOns folder, the client folder or the World of Warcraft
 });
 
 test("addonsDirOf: of several clients with guide addons, _forever_ first, then _classic_beta_", () => {
-	const root = tree(["WoW/_classic_beta_/Interface/AddOns/Journey/", "WoW/_forever_/Interface/AddOns/ZygorGuidesViewerClassic/"]);
+	const root = tree(["WoW/_classic_beta_/Interface/AddOns/Journey/", "WoW/_forever_/Interface/AddOns/ZygorGuidesViewerForever/"]);
 	assert.equal(addonsDirOf(join(root, "WoW")), join(root, "WoW/_forever_/Interface/AddOns"));
 	const beta = tree(["WoW/_classic_beta_/Interface/AddOns/Journey/", "WoW/_classic_/Interface/AddOns/Other/"]);
 	assert.equal(addonsDirOf(join(beta, "WoW")), join(beta, "WoW/_classic_beta_/Interface/AddOns"));

@@ -13,7 +13,7 @@ The command line takes the game data and the compiler from this site too.
   `Interface/AddOns` (the World of Warcraft folder, a client folder, the AddOns
   folder or one addon's folder all work; of several clients `_forever_` comes
   first). Only the files under `RXPGuides/Guides/`, `Journey/data/Guides/` and
-  `ZygorGuidesViewerClassic/Guides-Classic/{Leveling,Dungeons,Professions,Reputations,Events}/`
+  `ZygorGuidesViewerForever/Guides-Forever/{Leveling,Dungeons,Professions,Reputations,Events}/` (or `ZygorGuidesViewerClassic/Guides-Classic/` of the older viewer)
   are passed on.
 - `web/worker.mjs` reads those files in the browser, fetches the game data from
   `polestar-data/`, runs `convertAddons`, then Polestar's compiler (`wasm/`, built

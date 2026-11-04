@@ -32,7 +32,7 @@ const READ = {
 	nearest: "condition dist/default (the nearest trainer): Polestar picks the nearest",
 };
 const FORMAT5 = new Set(["task", "destroy", "money", "enter", "cast", "abandon", "skill"]);
-const FORMAT5_WHEN = /^!?(dungeon|skill|money|cooldown|group|upgrade)\b/;
+const FORMAT5_WHEN = /^!?(dungeon|skill|money|cooldown|group|upgrade|knows)\b/;
 // The label as Polestar takes it (letters, digits, `-`, `_`).
 const labelOf = (text) => String(text || "").trim().replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || null;
 
@@ -108,7 +108,9 @@ function condOf(args, ctx, zs, line) {
 function questGoal(kind, ref, place, ctx) {
 	const { data, faction, report } = ctx;
 	const known = data.quests[ref.id];
-	if (known && !questOpenTo(data, known, faction, ctx.races.length ? ctx.races : null)) {
+	// The races the goal is for: its line's, else its step's, else the guide's.
+	const races = ctx.lineRaces || ctx.stepRaces || (ctx.races.length ? ctx.races : null);
+	if (known && !questOpenTo(data, known, faction, races)) {
 		report.count(`${kind} of a quest the data closes to these races (dropped)`);
 		return null;
 	}
@@ -277,7 +279,9 @@ function lineOf(l, ctx, zs) {
 		const map = ctx.pathMap ?? ctx.lastPlace?.uiMap;
 		for (const m of l.text.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)) if (map != null) res.path.push({ x: Number(m[1]), y: Number(m[2]), live: true, uiMap: map });
 	}
+	ctx.lineRaces = lc.only.race || null;
 	const verb = l.verb ? verbGoals(l, ctx, res.goto) : objectiveGoals(l, text, ctx);
+	ctx.lineRaces = null;
 	const goals = verb.goals;
 	// `|n`: Zygor counts the goal but never ticks it (a farming guide's herbs); the step's
 	// `|confirm` ends it.
@@ -302,7 +306,7 @@ function lineOf(l, ctx, zs) {
 	}
 	const cm = mod("complete");
 	if (cm) {
-		const goal = completeGoal(cm.args);
+		const goal = completeGoal(cm.args, l.text);
 		const drop = /^\s*not\s+haveq\((\d+)\)\s*$/.exec(cm.args);
 		// "Abandon Example Quest |complete not haveq(100)": Polestar's abandon checks the log itself.
 		if (!res.goals.length && drop && /^abandon\b/i.test(text) && ctx.data.quests[Number(drop[1])]) {
@@ -429,6 +433,7 @@ function convertStep(zs, zi, ctx) {
 		return null;
 	}
 	ctx.curNo = zs.no;
+	ctx.stepRaces = sc.only.race || null;
 	ctx.stepPlace = null;
 	ctx.pathMap = null;
 	const st = { nearest: false, wayLines: [], uses: [], zi, no: zs.no, label: zs.label, starts: zs.starts, stops: zs.stops, goals: [], texts: [], kills: [], notes: [], tips: [], nexts: [], pre: [], path: [], way: null, only: sc.only, whens: sc.whens, alts: sc.alts };
@@ -454,13 +459,20 @@ function convertStep(zs, zi, ctx) {
 			if (g) { st.way = parseGotoMod(g.args, ctx.data, ctx.lastPlace?.uiMap) || st.way; if (st.way && ctx.firstMap == null) ctx.firstMap = st.way.uiMap; if (st.way) ctx.lastPlace = ctx.stepPlace = st.way; }
 			for (const t of l.mods.filter((m) => m.name === "tip")) { const s = clean(t.args); if (s && lineOnly) st.notes.push({ text: s, only: lineOnly }); else if (s) st.tips.push(s); }
 			const cm = l.mods.find((m) => m.name === "complete");
-			if (cm) { const goal = completeGoal(cm.args); if (goal) st.goals.push({ ...goal, only: lineOnly, _cond: cm.args, ...(jumps.length ? { _jump: true } : {}), ...(l.mods.some((m) => m.name === "or") ? { _or: true } : {}) }); }
+			if (cm) { const goal = completeGoal(cm.args, l.text); if (goal) st.goals.push({ ...goal, only: lineOnly, _cond: cm.args, ...(jumps.length ? { _jump: true } : {}), ...(l.mods.some((m) => m.name === "or") ? { _or: true } : {}) }); }
 			continue;
 		}
 		const r = lineOf(l, ctx, zs);
 		if (r.goto && ctx.firstMap == null) ctx.firstMap = r.goto.uiMap;
 		if (r.goto) ctx.lastPlace = ctx.stepPlace = r.goto;
 		st.goals.push(...r.goals.map((x) => ({ ...x, only: x.only || "" })));
+		// `|gossip N` on a talk line or a "Select ..." line under it: the option at the step's NPC before it.
+		const gm = l.mods.find((m) => m.name === "gossip" && /^\d+$/.test(m.args));
+		if (gm) {
+			const at = st.goals.findLast((x) => ["talk", "vendor", "train"].includes(x.kind));
+			if (at) at.gossip = Number(gm.args);
+			else report.count("|gossip without a talk, vendor or trainer before it (left out)");
+		}
 		st.texts.push(...r.texts);
 		st.kills.push(...r.kills);
 		st.notes.push(...r.notes);
@@ -559,6 +571,11 @@ function finish(st, ctx) {
 	if (talkTo) for (const g of goals) if ((g.kind === "train" && g.profession || g.kind === "learn") && !g.npc) g.npc = talkTo.npc;
 	if (goals.some((g) => ["accept", "turnin", "vendor", "train"].includes(g.kind) || g.kind === "learn" && g.npc)) {
 		const before = goals.length;
+		// A dropped talk's gossip option goes to the vendor or trainer of the same NPC.
+		for (const t of goals) if (t.kind === "talk" && t.gossip) {
+			const to = goals.find((g) => ["vendor", "train"].includes(g.kind) && g.npc === t.npc && !g.gossip);
+			if (to) to.gossip = t.gossip;
+		}
 		goals = goals.filter((g) => g.kind !== "talk");
 		if (goals.length !== before) ctx.report.count("talk to a giver or vendor the step already names (dropped)");
 	}

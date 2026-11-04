@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+For Polestar 0.3.1: the page's compiler and data are Polestar 0.3.1's.
+
+- **Zygor's Forever viewer** (`ZygorGuidesViewerForever/Guides-Forever/`) is
+  found by `--path`, the page and `zygor --dir`; the older Classic viewer's
+  folder still works. Guides of its faction-free `Common` files are converted
+  without a faction.
+- **Zygor:** `|gossip` picks the NPC's gossip option (`gossip`), a known spell
+  or recipe is `when knows`, and a spell to learn in `|complete` is `learn`.
+  A quest goal on a step for other races than the quest's is left out.
+- **RestedXP:** `.timer` is a countdown in the step (`wait`).
+
 ## 0.3.0 (unreleased)
 
 Nothing to bring but your guides: no Polestar clone, no game data to build.

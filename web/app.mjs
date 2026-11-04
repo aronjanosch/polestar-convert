@@ -12,7 +12,7 @@ const NAMES = { rxp: "RestedXP", journey: "Journey", zygor: "Zygor" };
 // The languages of RestedXP's translations, by the locale names the page's data uses.
 const LOCALE_NAMES = { deDE: "Deutsch", esES: "Español", frFR: "Français", ptBR: "Português (Brasil)", zhCN: "中文 (简体)" };
 // The folders the converter reads from; the rest of the AddOns folder is not touched.
-const READS = ["rxpguides/guides/", "rxpguides/lang/", "journey/data/guides/", ...["leveling", "dungeons", "professions", "reputations", "events"].map((f) => `zygorguidesviewerclassic/guides-classic/${f}/`)];
+const READS = ["rxpguides/guides/", "rxpguides/lang/", "journey/data/guides/", ...["zygorguidesviewerforever/guides-forever/", "zygorguidesviewerclassic/guides-classic/"].flatMap((dir) => ["leveling", "dungeons", "professions", "reputations", "events"].map((f) => `${dir}${f}/`))];
 
 let picked = null; // { files: [[path, File]], sources }
 let siteNames = []; // the locales the page has names for (manifest.json `names`)
@@ -42,7 +42,7 @@ function show(sources, count) {
 	if (!sources.length) {
 		const li = document.createElement("li");
 		li.className = "none";
-		li.textContent = `No guide addon among ${count} files: pick the folder that holds RXPGuides, Journey or ZygorGuidesViewerClassic.`;
+		li.textContent = `No guide addon among ${count} files: pick the folder that holds RXPGuides, Journey or ZygorGuidesViewerForever.`;
 		list.append(li);
 	}
 	$("step-routes").setAttribute("aria-disabled", String(!sources.length));

@@ -139,12 +139,21 @@ test("completeGoal", () => {
 	assert.deepEqual(completeGoal("itemcount(5) >= 3"), { kind: "collect", item: 5, count: 3 });
 	assert.deepEqual(completeGoal("zone('Wetlands')"), { kind: "enter", place: "Wetlands" });
 	assert.deepEqual(completeGoal("subzone('Menethil Harbor')"), { kind: "enter", place: "Menethil Harbor" });
+	assert.deepEqual(completeGoal("knowspell(100)"), { kind: "learn", spell: 100 });
+	assert.deepEqual(completeGoal("knowsrecipe(101)"), { kind: "learn", spell: 101 });
+	assert.deepEqual(completeGoal("knowspell(100)", 'Train the "Example Spell" Ability'), { kind: "learn", spell: 100, name: "Example Spell" });
 	assert.equal(completeGoal("isdead"), null);
 });
 
 test("an OR of who-lists that differ in one kind is one list", () => {
 	assert.deepEqual(t("(Orc Hunter) or (Troll Hunter)").only, { race: ["Orc", "Troll"], class: ["Hunter"] });
 	assert.deepEqual(t("(Orc Hunter) or (Troll Mage)").dropped, ["or"]);
+});
+
+test("knowsrecipe and knowspell are Polestar's `knows`", () => {
+	assert.deepEqual(t("not knowsrecipe(101)").whens, ["!knows 101"]);
+	assert.deepEqual(t("knowspell(100)").whens, ["knows 100"]);
+	assert.deepEqual(t("knowspell(100)").dropped, []);
 });
 
 test("real-file oddities do not throw", () => {

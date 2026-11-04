@@ -219,6 +219,11 @@ function evalCall(e, read) {
 			const items = ids.map((id) => when(`turnedin ${id}`, `!turnedin ${id}`));
 			return items.length === 1 ? items[0] : { t: "and", items };
 		}
+		case "knowsrecipe": case "knowspell": {
+			// The spell or recipe is known (Polestar 0.3.1 `knows`).
+			if (ids.length !== 1 || ids[0] === null) return drop(name);
+			return when(`knows ${ids[0]}`, `!knows ${ids[0]}`);
+		}
 		case "readyq": {
 			// In the log and ready to turn in (Parser.lua: q.complete and q.inlog).
 			if (ids.length !== 1 || ids[0] === null) return drop(name);
@@ -457,8 +462,9 @@ export function translate(expr, ctx = {}) {
 
 // ---- |complete ---------------------------------------------------------------
 
-// `|complete <expr>` -> the goal Polestar can check, or null (a task then).
-export function completeGoal(expr) {
+// `|complete <expr>` -> the goal Polestar can check, or null (a task then). `text`: the
+// line's text, where a spell to learn is named in quotes (`Train the "Example Spell" Ability`).
+export function completeGoal(expr, text = "") {
 	let ast;
 	try { ast = parse(expr); } catch { return null; }
 	if (!ast) return null;
@@ -466,6 +472,11 @@ export function completeGoal(expr) {
 		const name = ast.name.toLowerCase();
 		const s = strArg(ast.args[0]);
 		if ((name === "zone" || name === "subzone") && ast.args.length === 1 && s) return { kind: "enter", place: s };
+		// A spell or recipe to learn (Polestar's `learn`, at the nearest trainer).
+		if ((name === "knowspell" || name === "knowsrecipe") && ast.args.length === 1 && ast.args[0].op === "num") {
+			const called = /"([^"]+)"/.exec(String(text));
+			return { kind: "learn", spell: ast.args[0].v, ...(called ? { name: called[1] } : {}) };
+		}
 		if (name === "hasprof" && s) {
 			const n = ast.args[1] ? (ast.args[1].op === "num" ? ast.args[1].v : null) : 1;
 			const skill = SKILLS.find((k) => k.toLowerCase() === s.toLowerCase());

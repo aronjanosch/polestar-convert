@@ -60,7 +60,7 @@ packs, reports and `diff.patch` stay in `--out` to read.
 
 ```sh
 node tools/compare.mjs main --list <RXPGuides/Guides/GuideList-forever.xml> [--out <dir>]
-node tools/compare.mjs main --journey <AddOns/Journey>   # or --zygor <AddOns/ZygorGuidesViewerClassic>
+node tools/compare.mjs main --journey <AddOns/Journey>   # or --zygor <AddOns/ZygorGuidesViewerForever>
 ```
 
 `--polestar-after <clone>` converts the "after" side against another clone's

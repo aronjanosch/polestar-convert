@@ -1,4 +1,4 @@
-// polestar-convert zygor --dir <ZygorGuidesViewerClassic> --polestar <clone> --pack <pack dir> [--only "<guide name or slug>"]
+// polestar-convert zygor --dir <ZygorGuidesViewerForever> --polestar <clone> --pack <pack dir> [--only "<guide name or slug>"]
 //
 // Reads the Classic guides of your own Zygor install (leveling, dungeons, professions,
 // reputations, events; for a faction without a full file, the free trial guides the
@@ -13,7 +13,7 @@ import { folderReader } from "../node/read.mjs";
 import { loadData } from "../data.mjs";
 import { gapReport } from "../core.mjs";
 
-const USAGE = 'usage: polestar-convert zygor --dir <ZygorGuidesViewerClassic folder> --polestar <clone> --pack <pack dir> [--only "<guide name or slug>"]';
+const USAGE = 'usage: polestar-convert zygor --dir <ZygorGuidesViewerForever folder> --polestar <clone> --pack <pack dir> [--only "<guide name or slug>"]';
 
 export async function run(a) {
 	if (!a.dir || !a.polestar || !a.pack) { console.error(USAGE); process.exit(2); }
@@ -22,7 +22,10 @@ export async function run(a) {
 	const guidesDir = join(a.pack, "guides");
 	if (!existsSync(guidesDir)) mkdirSync(guidesDir, { recursive: true });
 
-	const lua = await readZygor(folderReader(join(a.dir, "Guides-Classic")));
+	// The viewer's own guide folder: Guides-Forever, or Guides-Classic in the older viewer.
+	const sub = ["Guides-Forever", "Guides-Classic"].find((d) => existsSync(join(a.dir, d)));
+	if (!sub) { console.error(`no Guides-Forever or Guides-Classic folder in ${a.dir}`); process.exit(1); }
+	const lua = await readZygor(folderReader(join(a.dir, sub)));
 	const r = convertZygor(lua, data, { packId, only: a.only });
 	if (!r.guides.length) { console.error("no guide matches"); process.exit(1); }
 	for (const g of r.guides) {

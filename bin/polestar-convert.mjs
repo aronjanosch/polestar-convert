@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // polestar-convert --path <WoW folder> [--routes ...] [--locales ...] [--install]   (every guide addon found, to the addon folders; src/node/path-cli.mjs)
 // polestar-convert journey --dir <Journey> --polestar <clone> --pack <pack dir> [...]
-// polestar-convert zygor --dir <ZygorGuidesViewerClassic> --polestar <clone> --pack <pack dir> [--only "<guide>"]
+// polestar-convert zygor --dir <ZygorGuidesViewerForever> --polestar <clone> --pack <pack dir> [--only "<guide>"]
 // polestar-convert rxp --file <RXP guide .lua> | --list <GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<name>"] [--max-start N] [--self-found yes]
 //
 // Reads guides you own from your own install. --path makes the addon folders; the

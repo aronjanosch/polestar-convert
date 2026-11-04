@@ -5,12 +5,16 @@ your install, and where the result differs from playing them in Zygor. What
 Polestar would need for each gap: [zygor/polestar-gaps.md](zygor/polestar-gaps.md).
 The examples here are made up; no guide text is quoted.
 
-It reads the Classic guide files of each faction under `Guides-Classic/`:
-leveling (`Leveling/ZygorLeveling{Horde,Alliance}CLASSIC.lua`), dungeons
+It reads the Classic guide files of each faction under `Guides-Forever/` of
+`ZygorGuidesViewerForever` (or `Guides-Classic/` of the older
+`ZygorGuidesViewerClassic`): leveling
+(`Leveling/ZygorLeveling{Horde,Alliance,Common}CLASSIC.lua`), dungeons
 (`Dungeons/ZygorDungeon…`), professions (`Professions/ZygorProfessions…`),
 reputations (`Reputations/ZygorReputations…`) and events
 (`Events/ZygorEvents…`). For a faction whose full file of a family is not
 installed it reads the free trial file the viewer ships (`…CLASSICTrial.lua`).
+A `Common` file holds guides for either faction: they get no `faction` line and
+the slug prefix `n-` (`h-` and `a-` for the factions).
 Season of Discovery guides (shown only on that client) and the hidden startup
 wizard are left out.
 
@@ -41,6 +45,8 @@ that.
   the guide has not accepted before the copy is left out.
 - **Talk** to a giver or vendor the same step names is dropped: the accept,
   turn-in or vendor goal places the NPC.
+- **`|gossip N`** (on a talk line or a "Select ..." line under it) is `gossip N`
+  on the step's talk, vendor or train goal before it; the "Select" text stays a tip.
 - **`|confirm`** is a `task` at its `|goto`: Zygor holds the player there,
   named by the step's own text rather than Zygor's button label. A dungeon
   choice (`|confirm <Name>flag`) is dropped: Polestar asks in Options.

@@ -5,9 +5,10 @@ import { extractGuides, parseBody } from "./parse.mjs";
 import { convertGuide } from "./convert.mjs";
 import { Report } from "../ir.mjs";
 
-// The guide files under ZygorGuidesViewerClassic/Guides-Classic/: per family its folder
-// and file stem, one file per faction (`<stem>HordeCLASSIC.lua`). A side without its full
-// file reads the free trial file the viewer ships (`…CLASSICTrial.lua`), never both.
+// The guide files under the viewer's guide folder (ZYGOR_DIRS): per family its folder
+// and file stem, one file per faction (`<stem>HordeCLASSIC.lua`) and one for both
+// (`<stem>CommonCLASSIC.lua`, guides without a faction). A side without its full file
+// reads the free trial file the viewer ships (`…CLASSICTrial.lua`), never both.
 export const ZYGOR_FAMILIES = [
 	{ family: "Leveling", stem: "ZygorLeveling" },
 	{ family: "Dungeons", stem: "ZygorDungeon" },
@@ -15,13 +16,16 @@ export const ZYGOR_FAMILIES = [
 	{ family: "Reputations", stem: "ZygorReputations" },
 	{ family: "Events", stem: "ZygorEvents" },
 ];
-const SIDE_NAME = { horde: "Horde", alliance: "Alliance" };
-// Every file the converter may read, by its path under Guides-Classic/, full ones first.
+const SIDE_NAME = { horde: "Horde", alliance: "Alliance", common: "Common" };
+// The viewer's guide folder under Interface/AddOns, newest name first: the Forever viewer,
+// then the Classic one it was before.
+export const ZYGOR_DIRS = ["ZygorGuidesViewerForever/Guides-Forever/", "ZygorGuidesViewerClassic/Guides-Classic/"];
+// Every file the converter may read, by its path under the guide folder, full ones first.
 export const ZYGOR_PATHS = ZYGOR_FAMILIES.flatMap(({ family, stem }) => ["", "Trial"].flatMap((t) => Object.values(SIDE_NAME).map((side) => `${family}/${stem}${side}CLASSIC${t}.lua`)));
 export const ZYGOR_FILES = { horde: "ZygorLevelingHordeCLASSIC.lua", alliance: "ZygorLevelingAllianceCLASSIC.lua" };
 export const ZYGOR_TRIAL_FILES = { horde: "ZygorLevelingHordeCLASSICTrial.lua", alliance: "ZygorLevelingAllianceCLASSICTrial.lua" };
 
-// read(path under Guides-Classic/) -> file text or null. -> { <family>: { horde, alliance } }
+// read(path under the guide folder) -> file text or null. -> { <family>: { horde, alliance, common } }
 export async function readZygor(read) {
 	const lua = {};
 	for (const { family, stem } of ZYGOR_FAMILIES) {
@@ -36,6 +40,7 @@ export async function readZygor(read) {
 const SIDES = [
 	{ side: "h", faction: "Horde", key: "horde" },
 	{ side: "a", faction: "Alliance", key: "alliance" },
+	{ side: "n", faction: null, key: "common" },
 ];
 export const ZYGOR_SETTINGS = { hardcore: false, selfmade: false };
 
@@ -71,7 +76,7 @@ function wanted(g) {
 	return true;
 }
 
-// lua: { <family>: { horde, alliance } } file texts (readZygor; any may be empty), or the
+// lua: { <family>: { horde, alliance, common } } file texts (readZygor; any may be empty), or the
 // leveling files alone as { horde, alliance }. opts: { packId, only }.
 // -> { guides: [{ slug, text, stepsIn, stepsOut, format }], gaps, settings, report }
 export function convertZygor(lua, data, opts) {

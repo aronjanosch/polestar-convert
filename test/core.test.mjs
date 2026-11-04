@@ -191,7 +191,7 @@ const ADDONS = {
 	"RXPGuides/Guides/forever/A.lua": RXP_A,
 	"Journey/data/Guides/guides.html": JOURNEY["guides.html"],
 	"Journey/data/Guides/0001.html": JOURNEY["0001.html"],
-	"ZygorGuidesViewerClassic/Guides-Classic/Leveling/ZygorLevelingHordeCLASSIC.lua": ZYGOR_H,
+	"ZygorGuidesViewerForever/Guides-Forever/Leveling/ZygorLevelingHordeCLASSIC.lua": ZYGOR_H,
 };
 
 test("Zygor: the full leveling file of a side, else its free trial file", async () => {
@@ -210,6 +210,20 @@ test("Zygor: the full leveling file of a side, else its free trial file", async 
 	assert.ok(!asked.includes(`${dir}ZygorLevelingHordeCLASSICTrial.lua`) || b.zygor.guides.every((g) => g.text.includes("accept 1")));
 });
 
+test("Zygor: the older Classic viewer's folder still read; a Common file gives guides without a faction", async () => {
+	const data = await loadData(reader(FULL));
+	const names = await loadNames(reader(FULL), data);
+	const dir = "ZygorGuidesViewerClassic/Guides-Classic/Leveling/";
+	const files = { [`${dir}ZygorLevelingHordeCLASSIC.lua`]: ZYGOR_H, [`${dir}ZygorLevelingCommonCLASSIC.lua`]: ZYGOR_H };
+	assert.deepEqual(await findSources(reader(files)), ["zygor"]);
+	const r = await convertAddons(reader(files), data, names, { packId: "mine" });
+	const slugs = r.zygor.guides.map((g) => g.slug);
+	assert.deepEqual(slugs, ["h-testville-1-4", "h-testville-two-4-6", "n-testville-1-4", "n-testville-two-4-6"]);
+	const common = r.zygor.guides.find((g) => g.slug === "n-testville-1-4");
+	assert.doesNotMatch(common.text, /^faction /m);
+	assert.match(common.text, /^next mine\/n-testville-two-4-6$/m);
+});
+
 test("findSources: which guide addons the AddOns folder holds", async () => {
 	assert.deepEqual(await findSources(reader(ADDONS)), ["rxp", "journey", "zygor"]);
 	assert.deepEqual(await findSources(reader({ "Journey/data/Guides/guides.html": "x" })), ["journey"]);
@@ -226,7 +240,7 @@ test("convertAddons + packFiles: every source found into one set of pack files",
 		"guides/1-4-testville.guide", "guides/h-testville-1-4.guide", "guides/h-testville-two-4-6.guide", "guides/h01t-testville.guide",
 		"reports/journey-gaps.json", "reports/zygor-gaps.json",
 	]);
-	assert.match(files["reports/zygor-gaps.json"], /"source": "Zygor Guide Viewer Classic \(local install\)"/);
+	assert.match(files["reports/zygor-gaps.json"], /"source": "Zygor Guide Viewer \(local install\)"/);
 	const only = await convertAddons(reader(ADDONS), data, names, { packId: "mine", sources: ["journey"] });
 	assert.deepEqual(Object.keys(only), ["journey"]);
 });
