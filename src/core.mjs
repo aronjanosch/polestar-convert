@@ -4,17 +4,16 @@
 
 import { convertRxp, guideList } from "./rxp/run.mjs";
 import { convertJourney } from "./journey/run.mjs";
-import { convertZygor, readZygor, ZYGOR_PATHS } from "./zygor/run.mjs";
+import { convertZygor, readZygor, ZYGOR_PATHS, ZYGOR_DIRS } from "./zygor/run.mjs";
 
 export { ROUTES, rxpRoute } from "./rxp/run.mjs";
 export const SOURCES = ["rxp", "journey", "zygor"];
 
 const RXP_LIST = "RXPGuides/Guides/GuideList-forever.xml";
 const JOURNEY_DIR = "Journey/data/Guides/";
-const ZYGOR_DIR = "ZygorGuidesViewerClassic/Guides-Classic/";
-const REPORT_SOURCE = { journey: "Journey (local install)", zygor: "Zygor Guide Viewer Classic (local install)" };
+const REPORT_SOURCE = { journey: "Journey (local install)", zygor: "Zygor Guide Viewer (local install)" };
 
-const GUIDE_ADDONS = ["rxpguides", "journey", "zygorguidesviewerclassic"];
+const GUIDE_ADDONS = ["rxpguides", "journey", "zygorguidesviewerforever", "zygorguidesviewerclassic"];
 // Client folders by preference: the live client, then the beta Forever ran as.
 const CLIENTS = ["_forever_", "_classic_beta_"];
 
@@ -43,10 +42,14 @@ export async function findSources(read) {
 	const found = [];
 	if ((await read(RXP_LIST)) != null) found.push("rxp");
 	if ((await read(`${JOURNEY_DIR}guides.html`)) != null) found.push("journey");
-	for (const file of ZYGOR_PATHS) {
-		if ((await read(ZYGOR_DIR + file)) != null) { found.push("zygor"); break; }
-	}
+	if (await zygorDir(read)) found.push("zygor");
 	return found;
+}
+
+// The first of ZYGOR_DIRS that holds a guide file, or null.
+async function zygorDir(read) {
+	for (const dir of ZYGOR_DIRS) for (const file of ZYGOR_PATHS) if ((await read(dir + file)) != null) return dir;
+	return null;
 }
 
 // opts: { packId, sources (default: every one found), routes (RXP), selfFound (RXP),
@@ -69,7 +72,8 @@ export async function convertAddons(read, data, names, opts) {
 		}
 		if (source === "journey") runs.journey = await convertJourney((name) => read(JOURNEY_DIR + name), data, names, { packId: opts.packId, ah: opts.ah, groups: opts.groups });
 		if (source === "zygor") {
-			runs.zygor = convertZygor(await readZygor((path) => read(ZYGOR_DIR + path)), data, { packId: opts.packId });
+			const dir = await zygorDir(read);
+			runs.zygor = convertZygor(await readZygor((path) => read(dir + path)), data, { packId: opts.packId });
 		}
 	}
 	return runs;
