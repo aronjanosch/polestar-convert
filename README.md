@@ -105,13 +105,13 @@ npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/A
 
 ## Coverage
 
-How much of each original carries over, measured on 2026-10-23 against
-Polestar `next` 772b2065:
+How much of each original carries over, measured on 2026-11-04 against
+Polestar 0.3.1 (Journey: 2026-10-23, Polestar `next` 772b2065):
 
 | Source | Version | Steps carried without a recorded loss |
 |---|---|---|
-| RestedXP | 4.11.26 | **97 %** |
-| Zygor | 8.1 | **97 %** |
+| RestedXP | 4.11.30 | **97 %** |
+| Zygor | 1.6 (Forever viewer) | **97 %** |
 | Journey | 4.00.02 | **71 %** |
 
 A step counts when the run's reports note nothing for it (steps the original
