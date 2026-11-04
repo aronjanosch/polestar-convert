@@ -82,12 +82,12 @@ npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/A
 
 ## 覆盖率
 
-原版有多少内容被完整转换,2026-10-23 针对 Polestar `next` 772b2065 测得:
+原版有多少内容被完整转换,2026-11-04 针对 Polestar 0.3.1 测得(Journey:2026-10-23,Polestar `next` 772b2065):
 
 | 来源 | 版本 | 无记录损失地转换的步骤 |
 |---|---|---|
-| RestedXP | 4.11.26 | **97 %** |
-| Zygor | 8.1 | **97 %** |
+| RestedXP | 4.11.30 | **97 %** |
+| Zygor | 1.6(Forever 版查看器) | **97 %** |
 | Journey | 4.00.02 | **71 %** |
 
 报告里没有任何记录的步骤才算(原版对谁都不显示的步骤除外)。大多数记录是弱化而不是丢失:
