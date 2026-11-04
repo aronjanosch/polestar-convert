@@ -10,9 +10,13 @@
 
 [![MIT 许可证](https://img.shields.io/badge/许可证-MIT-e6ba66?style=flat-square&labelColor=232a3f)](../../LICENSE)
 [![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-339933?style=flat-square&logo=nodedotjs&logoColor=white&labelColor=232a3f)](https://nodejs.org/)
-[![Polestar 0.3.0+](https://img.shields.io/badge/Polestar-0.3.0%2B-94c9ff?style=flat-square&labelColor=232a3f)](https://github.com/fitzforge/polestar)
+[![Polestar 0.3.1+](https://img.shields.io/badge/Polestar-0.3.1%2B-94c9ff?style=flat-square&labelColor=232a3f)](https://github.com/fitzforge/polestar)
 [![魔兽世界:Forever](https://img.shields.io/badge/WoW-Forever-fabf4d?style=flat-square&labelColor=232a3f)](#快速开始)
 [![来源:RestedXP、Journey、Zygor](https://img.shields.io/badge/来源-RestedXP_·_Journey_·_Zygor-f16436?style=flat-square&labelColor=232a3f)](#快速开始)
+
+## [▶ 在浏览器里打开转换器](https://aronjanosch.github.io/polestar-convert/)
+
+**[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**:选择你的 `Interface/AddOns` 文件夹,直接得到插件。无需安装,不会上传任何内容。
 
 [快速开始](#快速开始) · [与原版的区别](#与原版的区别) · [中文翻译](#中文翻译) · [已知问题](#已知问题) · [常见问题](#常见问题) · [文档](#文档)
 
@@ -40,8 +44,7 @@ ID、名称和坐标都来自 Polestar 自己的游戏数据,再用 Polestar 自
 
 ## 快速开始
 
-需要魔兽世界:Forever,`Interface/AddOns` 里装有 **Polestar 0.3.0 或更新版本**
-(0.3.0 正式发布之前,请按 Polestar 的说明安装它的 `next` 分支),以及至少一个攻略插件:
+需要魔兽世界:Forever,`Interface/AddOns` 里装有 **Polestar 0.3.1 或更新版本**,以及至少一个攻略插件:
 RestedXP、Journey 或 Zygor。别的都不需要:不用克隆,也不用构建游戏数据。
 
 **在浏览器里:** 打开 **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
