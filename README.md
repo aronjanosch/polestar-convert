@@ -10,9 +10,13 @@
 
 [![MIT licence](https://img.shields.io/badge/licence-MIT-e6ba66?style=flat-square&labelColor=232a3f)](LICENSE)
 [![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-339933?style=flat-square&logo=nodedotjs&logoColor=white&labelColor=232a3f)](https://nodejs.org/)
-[![Polestar 0.3.0+](https://img.shields.io/badge/Polestar-0.3.0%2B-94c9ff?style=flat-square&labelColor=232a3f)](https://github.com/fitzforge/polestar)
+[![Polestar 0.3.1+](https://img.shields.io/badge/Polestar-0.3.1%2B-94c9ff?style=flat-square&labelColor=232a3f)](https://github.com/fitzforge/polestar)
 [![WoW: Forever](https://img.shields.io/badge/WoW-Forever-fabf4d?style=flat-square&labelColor=232a3f)](#quick-start)
 [![Sources: RestedXP, Journey, Zygor](https://img.shields.io/badge/sources-RestedXP_·_Journey_·_Zygor-f16436?style=flat-square&labelColor=232a3f)](#quick-start)
+
+## [▶ Open the converter in your browser](https://aronjanosch.github.io/polestar-convert/)
+
+**[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**: pick your `Interface/AddOns` folder, get the addon. Nothing to install, nothing uploaded.
 
 [Quick start](#quick-start) · [How it differs](#how-it-differs-from-the-original) · [Translations](#translations) · [Known gaps](#known-gaps) · [FAQ](#faq) · [Documentation](#documentation)
 
@@ -46,9 +50,8 @@ place, so you know what to look at.
 
 ## Quick start
 
-You need World of Warcraft: Forever, **Polestar 0.3.0 or newer** in its
-`Interface/AddOns` folder (until 0.3.0 is released, Polestar's `next` branch,
-installed as its README says) and at least one guide addon there: RestedXP,
+You need World of Warcraft: Forever, **Polestar 0.3.1 or newer** in its
+`Interface/AddOns` folder and at least one guide addon there: RestedXP,
 Journey or Zygor. Nothing else: no clone, no game data to build.
 
 **In your browser:** open **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,
