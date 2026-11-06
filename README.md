@@ -87,6 +87,25 @@ out, and named with the error; the rest of the addon is made. Restart the game
 completely: your guides show in Polestar's hub (`/polestar guides`) under
 Community guides.
 
+### Where the guide files must be
+
+The converter reads the guide files as plain text, the way the guide addon
+keeps them in `World of Warcraft/_forever_/Interface/AddOns`. It does not unlock
+or decode anything: guide files in another form cannot be converted. Pick the
+`AddOns` folder (or the World of Warcraft folder); it must hold:
+
+| Source | Folder under `Interface/AddOns` | What the converter looks for |
+| --- | --- | --- |
+| RestedXP | `RXPGuides/` | `Guides/GuideList-forever.xml` and the `.lua` guide files it names, each with `RegisterGuide([[ … ]])` blocks |
+| Journey | `Journey/` | `data/Guides/guides.html` and the guide pages beside it |
+| Zygor | `ZygorGuidesViewerForever/` | `Guides-Forever/Leveling/ZygorLevelingHordeCLASSIC.lua` and the like (dungeon, profession, reputation and event files too) |
+
+- Keep the folder names exactly as above, directly in `AddOns`, not in a
+  subfolder such as `AddOns/RXPGuides/RXPGuides`.
+- Pick a folder, never a single file.
+- A RestedXP guide file the list names but the folder lacks is reported as
+  missing; the other guides are still converted.
+
 ### Working on the converter
 
 The single commands write `.guide` files into a pack made with Polestar's
