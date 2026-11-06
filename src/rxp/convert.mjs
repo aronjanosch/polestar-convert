@@ -905,6 +905,14 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		return forceAlong || gs.length > 0 && gs.every((g) => ALONG_KINDS.has(g.kind) || ((g.kind === "use" || g.kind === "interact") && g.quest != null) || (countable && g.kind === "use"));
 	};
 	const allAlong = alongOf(goals);
+	// RXP's `.use` only puts the item on a button (textOnly): beside a goal that ends the step it
+	// is that goal's tool, optional, so the step ends with the goal, not with the item used.
+	// Alone it holds, as in RXP, where such a step waits for the player's tick; in an along step
+	// it stays the countable goals' tool (above).
+	const holders = goals.filter((g) => !g.optional && !["goto", "use", "note"].includes(g.kind));
+	const tools = new Set(!allAlong && holders.length ? goals.filter((g) => g.kind === "use" && g.quest == null && !g.optional) : []);
+	for (const g of tools) { g.optional = true; g.tool = true; }
+	if (tools.size) report.count(".use beside a goal that ends the step -> use, optional", tools.size);
 	// The way here: the waypoints of the steps done along the way before this one.
 	// Of the way, a goal with a place of its own keeps the last point and those on
 	// other maps (leaving a city); one without keeps every point. Repeats go.
@@ -948,7 +956,13 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	// An abandon applies only while the quest is in the log, as in RXP: a step that
 	// drops a quest the character never had, or took again later, would hold the
 	// route (Polestar 0.3.0 loops on it).
+	// A tool goes with the goals it serves: into their quest's own step when they all have one.
 	const orphanOf = (g) => {
+		if (!tools.has(g)) return questOrphan(g);
+		const ids = new Set(holders.map(questOrphan));
+		return ids.size === 1 ? [...ids][0] : null;
+	};
+	const questOrphan = (g) => {
 		if (g.kind === "abandon") return g.quest;
 		const id = questOf(g);
 		if (id == null) return null;

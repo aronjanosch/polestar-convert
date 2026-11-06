@@ -117,7 +117,8 @@ export function render(guide, { report, slug, packId, next }) {
 			if (g.gossip) line += ` gossip ${g.gossip}`;
 			if (g.group) line += g.group === true ? " group" : ` group ${g.group}`;
 			if (g.only) line += ` only ${g.only}`;
-			if (isOptional(g) && !keepAll) line += " optional";
+			// A tool (an item to use for the step's other goals) never holds the step, kept or not.
+			if ((isOptional(g) && !keepAll) || g.tool) line += " optional";
 			if (g.comment) line += ` -- ${g.comment}`;
 			out.push(line);
 		}
