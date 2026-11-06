@@ -127,10 +127,11 @@ function guidePaths(addons) {
 	return out;
 }
 
-// A folder this tool wrote for the pack: its TOC names the pack (or its texts).
-function ours(dir, id) {
+// A folder this tool wrote for the pack: its TOC names the pack (or its texts,
+// or the part of it one race loads).
+export function ours(dir, id) {
 	const toc = join(dir, `${basename(dir)}.toc`);
-	return existsSync(toc) && new RegExp(`^## X-Polestar-(Pack|Texts): ${id}\\s*$`, "m").test(readFileSync(toc, "utf8"));
+	return existsSync(toc) && new RegExp(`^## X-Polestar-(Pack|Texts|Part): ${id}\\s*$`, "m").test(readFileSync(toc, "utf8"));
 }
 
 export async function run(a) {
@@ -209,11 +210,10 @@ export async function run(a) {
 	// The folders: into the AddOns folder, replacing only folders this tool wrote for the pack.
 	const into = a.install ? addons : resolve(typeof a.out === "string" ? a.out : "polestar-addon");
 	const entries = addonEntries(r.folder, r.files);
-	for (const folder of new Set(Object.keys(entries).map((p) => p.split("/")[0]))) {
-		const dir = join(into, folder);
-		if (existsSync(dir) && !ours(dir, pack.id)) fail(`${dir} exists and is not this tool's addon for "${name}": move it away or pick another --name`);
-		rmSync(dir, { recursive: true, force: true });
-	}
+	// All folders are checked before any is removed, so a refusal leaves the old addon whole.
+	const dirs = [...new Set(Object.keys(entries).map((p) => p.split("/")[0]))].map((f) => join(into, f));
+	for (const dir of dirs) if (existsSync(dir) && !ours(dir, pack.id)) fail(`${dir} exists and is not this tool's addon for "${name}": move it away or pick another --name`);
+	for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
 	for (const [p, content] of Object.entries(entries)) {
 		mkdirSync(dirname(join(into, p)), { recursive: true });
 		writeFileSync(join(into, p), content);
