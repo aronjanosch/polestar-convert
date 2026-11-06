@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { addonsDirOf, listArg, idOf } from "../src/node/path-cli.mjs";
+import { addonsDirOf, listArg, idOf, ours } from "../src/node/path-cli.mjs";
 
 function tree(paths) {
 	const root = mkdtempSync(join(tmpdir(), "pc-path-"));
@@ -44,4 +44,14 @@ test("idOf: the addon's name as a pack id", () => {
 	assert.equal(idOf("My Guides"), "my-guides");
 	assert.equal(idOf("  Invented Vale: 1-60! "), "invented-vale-1-60");
 	assert.equal(idOf("测试"), "my-guides");
+});
+
+test("ours: a folder whose TOC names the pack, its texts or a race's part of it", () => {
+	const root = mkdtempSync(join(tmpdir(), "pc-ours-"));
+	const folder = (name, line) => { mkdirSync(join(root, name)); writeFileSync(join(root, name, `${name}.toc`), `## Title: X\n${line}\n`); return join(root, name); };
+	assert.equal(ours(folder("PolestarPack_Invented", "## X-Polestar-Pack: invented"), "invented"), true);
+	assert.equal(ours(folder("PolestarPack_Invented_deDE", "## X-Polestar-Texts: invented"), "invented"), true);
+	assert.equal(ours(folder("PolestarPack_Invented_Gnome", "## X-Polestar-Part: invented"), "invented"), true);
+	assert.equal(ours(folder("PolestarPack_Other", "## X-Polestar-Pack: other"), "invented"), false);
+	assert.equal(ours(folder("SomeAddon", "## Author: Someone"), "invented"), false);
 });

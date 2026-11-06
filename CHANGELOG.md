@@ -4,6 +4,9 @@
 
 For Polestar 0.3.1: the page's compiler and data are Polestar 0.3.1's.
 
+- **`--install` replaces the addon a race loads too**: the compiler's per-race
+  folders (`X-Polestar-Part`) count as the pack's own, and every folder is
+  checked before any is removed, so a refusal leaves the old addon whole.
 - **Zygor's Forever viewer** (`ZygorGuidesViewerForever/Guides-Forever/`) is
   found by `--path`, the page and `zygor --dir`; the older Classic viewer's
   folder still works. Guides of its faction-free `Common` files are converted
