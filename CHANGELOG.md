@@ -12,6 +12,10 @@ For Polestar 0.3.1: the page's compiler and data are Polestar 0.3.1's.
   or recipe is `when knows`, and a spell to learn in `|complete` is `learn`.
   A quest goal on a step for other races than the quest's is left out.
 - **RestedXP:** `.timer` is a countdown in the step (`wait`).
+- **A guide Polestar's compiler refuses is left out**, named with its errors
+  (`reports/left-out.txt` on the command line, a note on the page), and the
+  addon is made from the rest. A `next` to a guide left out is dropped, so the
+  guides before it stay; guides after it that need its quests are left out too.
 - **RestedXP:** `.use` beside a goal that ends the step is an optional `use`:
   the step ends with its objective, accept or hearth, not with a tick, and the
   item button stays. Before, such steps waited for the player to tick them.

@@ -158,6 +158,7 @@ function done(msg, pack, locale) {
 		notes.push(`${(counts.translated || 0).toLocaleString("en")} of ${total.toLocaleString("en")} RestedXP texts translated into ${LOCALE_NAMES[locale] ?? locale}.`);
 	}
 	if (msg.skipped && msg.skipped.length) notes.push(`${msg.skipped.length} translations Polestar would refuse were left out (English stays).`);
+	if (msg.dropped && msg.dropped.length) notes.push(`${msg.dropped.length} guide${msg.dropped.length === 1 ? " was" : "s were"} left out: Polestar's compiler refused ${msg.dropped.length === 1 ? "it" : "them"} (${msg.dropped.map((d) => `${d.source} ${d.slug}: ${d.message}`).join("; ")}).`);
 	if (msg.warnings) notes.push(`${msg.warnings} compiler warnings: they do not stop the addon.`);
 	$("lang-note").textContent = notes.join(" ");
 	$("lang-note").hidden = !notes.length;

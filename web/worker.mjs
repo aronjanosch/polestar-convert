@@ -44,6 +44,7 @@ self.onmessage = async ({ data: msg }) => {
 		self.postMessage({
 			type: "done", zip: bytes, entries: addonEntries(r.folder, r.files), folder: r.folder, summary, warnings: r.warnings,
 			translated: msg.locale ? r.translated[msg.locale]?.counts ?? null : null, skipped: r.skipped || [],
+			dropped: r.dropped.map(({ source, slug, errors }) => ({ source: NAMES[source], slug, message: errors[0].message })),
 		}, [bytes.buffer]);
 	} catch (e) {
 		self.postMessage({ type: "error", message: e && e.message ? e.message : String(e) });

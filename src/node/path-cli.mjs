@@ -185,6 +185,13 @@ export async function run(a) {
 		for (const e of r.errors.slice(0, 50)) console.error(`${e.file}${e.line ? `:${e.line}` : ""}: ${e.message}`);
 		fail(`Polestar's compiler found ${r.errors.length} errors: no addon written`);
 	}
+	if (r.dropped.length) {
+		// Each with the compiler's errors that kept it out, for the converter to be fixed.
+		const lines = r.dropped.flatMap((d) => [`${SOURCE_NAMES[d.source]}: ${d.slug}`, ...d.errors.map((e) => `  ${e.file}${e.line ? `:${e.line}` : ""}: ${e.message}`)]);
+		writeFileSync(join(reports, "left-out.txt"), lines.join("\n") + "\n");
+		console.log(`${r.dropped.length} guide${r.dropped.length === 1 ? "" : "s"} left out: Polestar's compiler refused them (${join(reports, "left-out.txt")})`);
+		for (const d of r.dropped) console.log(`  ${d.slug}: ${d.errors[0].message}${d.errors.length > 1 ? ` (+${d.errors.length - 1})` : ""}`);
+	}
 	// Per language: the counts, why texts did not pair (all guides) and each guide's.
 	const pairing = (t) => {
 		const sum = {};

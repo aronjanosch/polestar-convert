@@ -82,7 +82,8 @@ look at first. `--name "My Guides"` names the addon.
 Both ways make the same addon: Polestar's own compiler, run as WebAssembly,
 builds it from the converted guides, with the game data the page hosts
 ([GPLv3](#licence)). Compiler warnings (an elite to group up for, a target with
-no known spawn) are expected; only errors stop it. Restart the game
+no known spawn) are expected. A guide the compiler finds an error in is left
+out, and named with the error; the rest of the addon is made. Restart the game
 completely: your guides show in Polestar's hub (`/polestar guides`) under
 Community guides.
 
