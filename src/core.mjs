@@ -52,9 +52,25 @@ async function zygorDir(read) {
 	return null;
 }
 
+// The `## Version:` of an addon's TOC, without a leading "v", or null.
+export function tocVersion(toc) {
+	const m = /^## Version:\s*v?(\S+)\s*$/im.exec(toc || "");
+	return m ? m[1] : null;
+}
+
+// The pack's version from its sources' versions ({ rxp: "4.11.32", ... }): one source's
+// as it is, several as "rxp4.11.32+zygor1.6"; "0.1.0" when none is known or Polestar
+// would refuse it (one word of letters, digits, ".", "+" and "-", at most 32 long).
+export function packVersion(versions) {
+	const known = Object.entries(versions).filter(([, v]) => v);
+	const v = known.length === 1 ? known[0][1] : known.map(([s, v]) => s + v).join("+");
+	return /^[0-9A-Za-z][0-9A-Za-z.+-]{0,31}$/.test(v) ? v : "0.1.0";
+}
+
 // opts: { packId, sources (default: every one found), routes (RXP), selfFound (RXP),
 // ah, groups (Journey), progress (called with each source before it runs) }. -> { rxp?, journey?, zygor? }: each source's run; an RXP run
-// also lists the files its guide list names but the folder lacks (`missing`).
+// also lists the files its guide list names but the folder lacks (`missing`); each run
+// carries its addon's TOC version (`version`, or null).
 export async function convertAddons(read, data, names, opts) {
 	const want = opts.sources && opts.sources.length ? opts.sources : SOURCES;
 	const found = await findSources(read);
@@ -68,12 +84,18 @@ export async function convertAddons(read, data, names, opts) {
 				if (text == null) missing.push(path);
 				else files.push({ path, text });
 			}
-			runs.rxp = { ...convertRxp(files, data, { packId: opts.packId, routes: opts.routes, selfFound: opts.selfFound }), files, missing };
+			runs.rxp = { ...convertRxp(files, data, { packId: opts.packId, routes: opts.routes, selfFound: opts.selfFound, levelXp: names && names.levelXp }), files, missing };
+			runs.rxp.version = tocVersion(await read("RXPGuides/RXPGuides.toc"));
 		}
-		if (source === "journey") runs.journey = await convertJourney((name) => read(JOURNEY_DIR + name), data, names, { packId: opts.packId, ah: opts.ah, groups: opts.groups });
+		if (source === "journey") {
+			runs.journey = await convertJourney((name) => read(JOURNEY_DIR + name), data, names, { packId: opts.packId, ah: opts.ah, groups: opts.groups });
+			runs.journey.version = tocVersion(await read("Journey/Journey.toc"));
+		}
 		if (source === "zygor") {
 			const dir = await zygorDir(read);
 			runs.zygor = convertZygor(await readZygor((path) => read(dir + path)), data, { packId: opts.packId });
+			const folder = dir.split("/")[0];
+			runs.zygor.version = tocVersion(await read(`${folder}/${folder}.toc`));
 		}
 	}
 	return runs;

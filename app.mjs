@@ -42,7 +42,9 @@ function show(sources, count) {
 	if (!sources.length) {
 		const li = document.createElement("li");
 		li.className = "none";
-		li.textContent = `No guide addon among ${count} files: pick the folder that holds RXPGuides, Journey or ZygorGuidesViewerForever.`;
+		li.textContent = count === 1
+			? "One file picked: pick a folder, such as World of Warcraft/_forever_/Interface/AddOns (see “Where the guide files must be”)."
+			: `No guide addon among ${count} files: pick the folder that holds RXPGuides, Journey or ZygorGuidesViewerForever (see “Where the guide files must be”).`;
 		list.append(li);
 	}
 	$("step-routes").setAttribute("aria-disabled", String(!sources.length));
@@ -158,6 +160,7 @@ function done(msg, pack, locale) {
 		notes.push(`${(counts.translated || 0).toLocaleString("en")} of ${total.toLocaleString("en")} RestedXP texts translated into ${LOCALE_NAMES[locale] ?? locale}.`);
 	}
 	if (msg.skipped && msg.skipped.length) notes.push(`${msg.skipped.length} translations Polestar would refuse were left out (English stays).`);
+	if (msg.dropped && msg.dropped.length) notes.push(`${msg.dropped.length} guide${msg.dropped.length === 1 ? " was" : "s were"} left out: Polestar's compiler refused ${msg.dropped.length === 1 ? "it" : "them"} (${msg.dropped.map((d) => `${d.source} ${d.slug}: ${d.message}`).join("; ")}).`);
 	if (msg.warnings) notes.push(`${msg.warnings} compiler warnings: they do not stop the addon.`);
 	$("lang-note").textContent = notes.join(" ");
 	$("lang-note").hidden = !notes.length;

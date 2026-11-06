@@ -54,6 +54,9 @@ select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; b
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .routes { margin-left: 26px; }
+.where { margin: 10px 0; }
+.where summary { cursor: pointer; color: var(--muted); }
+.where ul { margin: 6px 0; padding-left: 20px; }
 .found { margin: 10px 0 0; padding: 0; list-style: none; }
 .found li { padding: 3px 0; }
 .found li::before { content: "✓ "; color: var(--ok); font-weight: 700; }
@@ -91,6 +94,18 @@ a { color: var(--accent); }
 	<h2><span class="n">1</span> Pick your AddOns folder</h2>
 	<p>Your client's <code>Interface/AddOns</code> folder, for example
 	<code>World of Warcraft/_forever_/Interface/AddOns</code>. The World of Warcraft folder works too.</p>
+	<details class="where">
+		<summary>Where the guide files must be</summary>
+		<p>The page reads the guide files as plain text, the way the guide addon keeps them. It does not unlock or decode
+		anything: guide files in another form cannot be converted. Directly in <code>Interface/AddOns</code>:</p>
+		<ul>
+			<li><strong>RestedXP:</strong> <code>RXPGuides/Guides/GuideList-forever.xml</code> and the <code>.lua</code> guide files it names</li>
+			<li><strong>Journey:</strong> <code>Journey/data/Guides/guides.html</code> and the guide pages beside it</li>
+			<li><strong>Zygor:</strong> <code>ZygorGuidesViewerForever/Guides-Forever/</code> with its <code>Leveling/</code> (and other) <code>.lua</code> files</li>
+		</ul>
+		<p>Keep the folder names as they are, not one more level deep (<code>AddOns/RXPGuides/RXPGuides</code>). Pick a folder,
+		never a single file.</p>
+	</details>
 	<input type="file" id="folder" webkitdirectory directory multiple class="visually-hidden">
 	<button type="button" class="secondary" id="pick">Choose folder …</button>
 	<ul class="found" id="found" aria-live="polite"></ul>
@@ -137,9 +152,11 @@ a { color: var(--accent); }
 	<p style="margin-top:14px"><a class="button" id="download" download>Download again</a>
 	<button type="button" class="secondary" id="install" hidden>Install into my AddOns folder</button></p>
 	<p id="install-status" aria-live="polite"></p>
-	<p>Unzip the ZIP into <code>World of Warcraft/_forever_/Interface/AddOns</code>. The guides are addon folders there,
-	and they need Polestar, which must be in the same folder. Restart the game completely; your guides show in
-	Polestar's hub (<code>/polestar guides</code>) under Community guides.</p>
+	<p>The ZIP holds plain addon folders (<code>PolestarPack_&lt;Name&gt;</code> and its language and race parts). Copy or move
+	them, as they are, into <code>World of Warcraft/_forever_/Interface/AddOns</code>, next to <code>Polestar</code>: unzip
+	straight into <code>AddOns</code>, not into an extra folder named after the ZIP. A new build replaces the old: delete the
+	old <code>PolestarPack_&lt;Name&gt;</code> folders first. Restart the game completely (<code>/reload</code> does not load
+	new addons); your guides show in Polestar's hub (<code>/polestar guides</code>) under Community guides.</p>
 </section>
 
 <section id="coverage">
