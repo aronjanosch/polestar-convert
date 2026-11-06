@@ -67,7 +67,7 @@ npx github:aronjanosch/polestar-convert --path "<WoW>" --locales zhCN --install
 
 两种方式生成的插件相同:由 Polestar 自己的编译器(以 WebAssembly 运行)用网站托管的游戏数据
 ([GPLv3](#许可证))从转换后的攻略生成。编译器的警告(需要组队的精英、没有已知刷新点的目标)是正常的,
-只有错误才会阻止生成。完全重启游戏后,你的攻略会出现在 Polestar 攻略中心(`/polestar guides`)的“社区攻略”里。
+编译器发现错误的攻略会被略过,并连同错误一起列出;插件的其余部分照常生成。完全重启游戏后,你的攻略会出现在 Polestar 攻略中心(`/polestar guides`)的“社区攻略”里。
 
 ### 开发转换器
 
