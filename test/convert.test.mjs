@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseGuide } from "../src/rxp/parse.mjs";
-import { skillWhen, spellNames, moneyWhen, cooldownWhen, convertGuide, friendlyKillText, headerRaces } from "../src/rxp/convert.mjs";
+import { skillWhen, spellNames, moneyWhen, cooldownWhen, convertGuide, friendlyKillText, headerRaces, guideShown } from "../src/rxp/convert.mjs";
 import { goalText, Report } from "../src/ir.mjs";
 import { innNamed } from "../src/data.mjs";
 import { alignFile, pairLanguage } from "../src/rxp/locale.mjs";
@@ -401,4 +401,42 @@ test("a use beside a goal that holds a #completewith step is its tool too; besid
 	assert.match(out, /^  use 10\b.*\boptional\b/m, out);
 	const along = stepsOf(["step", "    #completewith next", "    .use 10 >> Use the thing", "    .collect 10,3 >> Collect things", "step", "    .accept 1 >> Accept A"].join("\n"));
 	assert.doesNotMatch(along, /^  use 10\b.*\boptional\b/m, along);
+});
+
+test("a guide RXP does not list on Forever (another season, XP rate or phase, SoM) is not shown", () => {
+	const header = (...lines) => parseGuide(["#name T", ...lines, "step", "    .accept 1"].join("\n")).header;
+	assert.equal(guideShown(header("#classic", "#season 0,1")), true);
+	assert.equal(guideShown(header("#season 1")), false);
+	assert.equal(guideShown(header("#season 2")), false);
+	assert.equal(guideShown(header("#xprate >1.59")), false);
+	assert.equal(guideShown(header("#xprate <1.59")), true);
+	assert.equal(guideShown(header("#phase 1-2")), false);
+	assert.equal(guideShown(header("#som")), false);
+	assert.equal(guideShown(header("#era/som")), true);
+	// RXP keeps the first of a tag; a line for some characters only does not hide the guide.
+	assert.equal(guideShown(header("#season 0", "#season 2")), true);
+	assert.equal(guideShown(header("#season 2 << Druid")), true);
+	// A header condition nobody on Forever meets hides the guide, as RXP skips it.
+	assert.equal(guideShown(header("<<sod")), false);
+	assert.equal(guideShown(header("<< Horde")), true);
+});
+
+test("an endgame guide without quests to tell its levels is for level 60", () => {
+	const out = String(convertGuide(parseGuide(["#group RestedXP Endgame Guides", "#name Example Key", "step", "    .collect 10,1 >> Get the key"].join("\n")), fakeData(), { report: new Report(), slug: "t", packId: "chk" }).text);
+	assert.match(out, /^levels 60-60$/m);
+});
+
+test("an .xp L+N past Polestar's XP for the level is the next level", () => {
+	const conv = (line) => String(convertGuide(parseGuide("#name T\nstep\n    " + line), fakeData(), { report: new Report(), slug: "t", packId: "chk", levelXp: (l) => ({ 29: 44300 })[l] ?? null }).text);
+	assert.match(conv(".xp 29+44350 >> Grind"), /^  level 30$/m);
+	assert.match(conv(".xp 29+44300 >> Grind"), /^  level 30$/m);
+	assert.match(conv(".xp 29+31100 >> Grind"), /^  level 29\+31100$/m);
+});
+
+test("a quest the data closes to a step's faction is left out of that step in a guide for both", () => {
+	const data = fakeData();
+	data.races = { Human: { Alliance: { bit: 1 } }, Orc: { Horde: { bit: 2 } } };
+	data.quests[50] = { id: 50, title: "Example Errand", races: 1, level: 60 };
+	const out = String(convertGuide(parseGuide(["#name T", "step << Alliance", "    .accept 50 >> Accept it", "step << Horde", "    .accept 50 >> Accept it", "    .accept 1 >> Accept A"].join("\n")), data, { report: new Report(), slug: "t", packId: "chk" }).text);
+	assert.equal((out.match(/^  accept 50\b/gm) || []).length, 1, out);
 });

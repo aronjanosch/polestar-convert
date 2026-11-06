@@ -68,7 +68,7 @@ export async function convertAddons(read, data, names, opts) {
 				if (text == null) missing.push(path);
 				else files.push({ path, text });
 			}
-			runs.rxp = { ...convertRxp(files, data, { packId: opts.packId, routes: opts.routes, selfFound: opts.selfFound }), files, missing };
+			runs.rxp = { ...convertRxp(files, data, { packId: opts.packId, routes: opts.routes, selfFound: opts.selfFound, levelXp: names && names.levelXp }), files, missing };
 		}
 		if (source === "journey") runs.journey = await convertJourney((name) => read(JOURNEY_DIR + name), data, names, { packId: opts.packId, ah: opts.ah, groups: opts.groups });
 		if (source === "zygor") {

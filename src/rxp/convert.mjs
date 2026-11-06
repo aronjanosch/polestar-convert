@@ -47,6 +47,22 @@ for (const [prof, ids] of Object.entries({
 })) for (const id of ids) PROFESSION_SPELLS[id] = prof;
 const PROFESSION_BASE = new Set([2259, 2018, 7411, 4036, 2366, 2108, 2575, 8613, 3908, 3273, 2550, 7620]);
 const PROFESSIONS = new Set(["Mining", "Herbalism", "Skinning", "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Leatherworking", "Tailoring", "First Aid", "Cooking", "Fishing"]);
+// Whether RXP lists the guide on Forever (GuideWindow's IsGuideActive): its header's
+// `#season`, `#phase` and `#xprate` as variantShown reads them, no `#som`, and a header
+// `<<` some character meets (RXP skips the guide otherwise: `<<sod`). RXP keeps
+// the first line of a tag; a line with `<<` holds for some characters only and hides nothing here.
+export function guideShown(header) {
+	if (header.faction && parseCondition(header.faction).never) return false;
+	const seen = new Set();
+	for (const flag of header.flags || []) {
+		const [, name, args] = flag.match(/^(\S+)\s*(.*)$/) || [];
+		if (!name || args.includes("<<") || seen.has(name)) continue;
+		seen.add(name);
+		if (name === "som" || !variantShown({ name, args })) return false;
+	}
+	return true;
+}
+
 // RXP's variant tags: `#hardcore` steps only in hardcore mode; `#ssf` (buy at a
 // vendor) or `#ah` (look at the auction house) by RXP's self-found setting, off
 // by default, as here unless `selfFound`.
@@ -417,7 +433,10 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		const quest = goal.quest != null ? data.quests[goal.quest] : null;
 		const races = mine.race || cond.only.race || (ctx.races.length ? ctx.races : null);
 		if (goal.kind !== "accept" && ctx.races.length && mine.race && !mine.race.some((r) => ctx.races.includes(r))) { report.count("goal for races the guide is not for (dropped)"); return; }
-		if (quest &&!questOpenTo(data, quest, ctx.faction, races)) {
+		// A guide for both sides: the faction of the step or the line, when it names one.
+		const sides = mine.faction || cond.only.faction;
+		const faction = ctx.faction || (sides && sides.length === 1 ? sides[0] : null);
+		if (quest && !questOpenTo(data, quest, faction, races)) {
 			closed++;
 			report.count("goal for a quest the data closes to these races (dropped)");
 			report.note(ctx.name, stepNo, `quest ${goal.quest} (${quest.title}) is not open to ${ctx.faction || "these"} races in the data; ${goal.kind} left out`);
@@ -654,7 +673,11 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				// "level 48.5": whole percent only; one that rounds to 0 or 100 is a plain level.
 				const share = m[3] ? Math.round(Number(`0.${m[3]}`) * 100) : 0;
 				const level = m[3] && share >= 1 && share <= 99 ? Number(`${m[2]}.${m[3]}`) : Number(m[2]) + (share >= 100 ? 1 : 0);
-				add({ kind: "level", level, xp: m[4] ? Number(m[4]) : undefined }, l.cond);
+				// RXP may count XP by another table than Polestar's: an amount the level does not
+				// hold there is the next level.
+				const xp = m[4] ? Number(m[4]) : undefined, need = ctx.levelXp(Math.floor(level));
+				if (xp != null && need != null && xp >= need) { add({ kind: "level", level: Math.floor(level) + 1 }, l.cond); report.count(".xp L+N past Polestar's XP for the level -> next level"); }
+				else add({ kind: "level", level, xp }, l.cond);
 				// What the line says besides the level it names is the grind's text.
 				const said = plain(l.text);
 				if (said && !l.cond && !/^grind (to|until) (level )?[\d\s+\/.,]*(xp)?\.?$/i.test(plain(enText(l)))) tips.push(bare(said));
@@ -1105,7 +1128,7 @@ export function convertGuide(parsed, data, opts) {
 	const races = headerRaces(hc.race, faction);
 	// What the guide is for: inside it a condition counts as exact when it is a product there.
 	const scope = { class: hc.class || null, race: races.length ? races : null, faction: hc.faction || null };
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, scope, classes: hc.class || [], loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound) };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, scope, classes: hc.class || [], loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound), levelXp: opts.levelXp || (() => null) };
 	// A label no step of the guide defines: RXP never ends that step beside the route.
 	ctx.labels = new Set(parsed.steps.flatMap((s) => s.tags.filter((t) => t.name === "label").map((t) => labelOf(t.args))));
 	const steps = [];
@@ -1152,7 +1175,9 @@ export function convertGuide(parsed, data, opts) {
 		faction,
 		classes: hc.class || null,
 		races,
-		levels: enInfo.levels || levelsOf([...accepted].filter((id) => !before.has(id)), data) || (String(parsed.header.subgroup || "").match(/\b(\d+-\d+)\b/) || [])[1] || null,
+		levels: enInfo.levels || levelsOf([...accepted].filter((id) => !before.has(id)), data) || (String(parsed.header.subgroup || "").match(/\b(\d+-\d+)\b/) || [])[1]
+			// RXP's endgame guides (keys, attunements, gear sets) without a quest that tells: the level cap.
+			|| (/\bEndgame\b/i.test(String(parsed.header.group || "")) ? "60-60" : null),
 		zone,
 		defaultMap,
 		...menuPlace(parsed.header.group, parsed.header.subgroup),

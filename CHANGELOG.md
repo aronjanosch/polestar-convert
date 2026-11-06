@@ -16,6 +16,11 @@ For Polestar 0.3.1: the page's compiler and data are Polestar 0.3.1's.
   (`reports/left-out.txt` on the command line, a note on the page), and the
   addon is made from the rest. A `next` to a guide left out is dropped, so the
   guides before it stay; guides after it that need its quests are left out too.
+- **RestedXP:** guides RXP does not list on Forever (another season, XP rate
+  or phase, SoM, a header `<<` nobody meets) are not converted. `.xp L+N` past
+  Polestar's XP for the level is the next level; an endgame guide without
+  quests that tell its levels is for level 60; in a guide for both sides, a
+  quest the data closes to a step's side is left out of that step.
 - **RestedXP:** `.use` beside a goal that ends the step is an optional `use`:
   the step ends with its objective, accept or hearth, not with a tick, and the
   item button stays. Before, such steps waited for the player to tick them.

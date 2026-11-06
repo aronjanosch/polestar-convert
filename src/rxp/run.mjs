@@ -2,7 +2,7 @@
 // `.guide` texts out. The command line and the web page both run this.
 
 import { extractGuides, parseGuide } from "./parse.mjs";
-import { convertGuide, spellNames } from "./convert.mjs";
+import { convertGuide, spellNames, guideShown } from "./convert.mjs";
 import { planChain, expandIncludes } from "./chain.mjs";
 import { Report } from "../ir.mjs";
 
@@ -39,7 +39,7 @@ export function convertRxp(files, data, opts) {
 	// so a guide picked alone still knows what the guides before it accept.
 	const plan = planChain(parsed, report);
 	// `en`: the English guide whose plan a translated one takes.
-	const convert = (g, rep, next, en = g) => convertGuide(g, data, { report: rep, slug: plan.slug.get(en), packId: opts.packId, next, before: plan.before.get(en), spells, selfFound: !!opts.selfFound });
+	const convert = (g, rep, next, en = g) => convertGuide(g, data, { report: rep, slug: plan.slug.get(en), packId: opts.packId, next, before: plan.before.get(en), spells, selfFound: !!opts.selfFound, levelXp: opts.levelXp });
 	// A first pass with a report of its own: a guide left with no steps (every step a
 	// variant left out) is not written, nor one past `maxStart`.
 	const keep = (g) => {
@@ -50,7 +50,8 @@ export function convertRxp(files, data, opts) {
 		return lo > 0 && lo <= Number(opts.maxStart);
 	};
 	const routes = opts.routes && opts.routes.length ? new Set(opts.routes) : null;
-	const chosen = parsed.filter((g) => !plan.hidden.has(g) && (!opts.only || (g.header.name || "") === opts.only) && (!routes || routes.has(rxpRoute(g.header))) && keep(g));
+	const shown = (g) => guideShown(g.header) || (report.count("guide RXP does not list on Forever (season, phase, XP rate, SoM; not written)"), false);
+	const chosen = parsed.filter((g) => !plan.hidden.has(g) && (!opts.only || (g.header.name || "") === opts.only) && (!routes || routes.has(rxpRoute(g.header))) && shown(g) && keep(g));
 	const kept = new Set(chosen);
 
 	const guides = [], written = [];
