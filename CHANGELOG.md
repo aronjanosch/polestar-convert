@@ -4,6 +4,9 @@
 
 For Polestar 0.3.1: the page's compiler and data are Polestar 0.3.1's.
 
+- **The pack carries its sources' version**: the `## Version:` of the guide
+  addon's TOC (one source as it is, several as `rxp1.2.3+zygor1.6`), where it
+  was `0.1.0` before.
 - **`--install` replaces the addon a race loads too**: the compiler's per-race
   folders (`X-Polestar-Part`) count as the pack's own, and every folder is
   checked before any is removed, so a refusal leaves the old addon whole.

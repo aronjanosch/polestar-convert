@@ -244,3 +244,13 @@ test("convertAddons + packFiles: every source found into one set of pack files",
 	const only = await convertAddons(reader(ADDONS), data, names, { packId: "mine", sources: ["journey"] });
 	assert.deepEqual(Object.keys(only), ["journey"]);
 });
+
+test("tocVersion and packVersion: the pack carries its sources' versions", async () => {
+	const { tocVersion, packVersion } = await import("../src/core.mjs");
+	assert.equal(tocVersion("## Interface: 11508\n## Version: v1.2.3\n"), "1.2.3");
+	assert.equal(tocVersion("## Title: X\n"), null);
+	assert.equal(packVersion({ rxp: "1.2.3" }), "1.2.3");
+	assert.equal(packVersion({ rxp: "1.2.3", zygor: "1.6" }), "rxp1.2.3+zygor1.6");
+	assert.equal(packVersion({ journey: null }), "0.1.0");
+	assert.equal(packVersion({ rxp: "1.2 beta" }), "0.1.0");
+});

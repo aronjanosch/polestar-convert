@@ -12,6 +12,6 @@ export function packIdProblem(id) {
 
 // A new pack's pack.json, with the key order Polestar's `new` writes. The guides are
 // their authors' work, so no open licence: for the player's own use.
-export function packJson({ id, title, author }) {
-	return JSON.stringify({ id, title, author, version: "0.1.0", license: "Personal use: converted from guides you own" }, null, "\t") + "\n";
+export function packJson({ id, title, author, version = "0.1.0" }) {
+	return JSON.stringify({ id, title, author, version, license: "Personal use: converted from guides you own" }, null, "\t") + "\n";
 }

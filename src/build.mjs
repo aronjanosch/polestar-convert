@@ -5,7 +5,7 @@
 
 import { loadData, COMPILER_NAMES } from "./data.mjs";
 import { loadNames } from "./journey/names.mjs";
-import { convertAddons } from "./core.mjs";
+import { convertAddons, packVersion } from "./core.mjs";
 import { namesFrom } from "./i18n/names.mjs";
 import { rxpTranslations } from "./rxp/translations.mjs";
 import { packJson } from "./pack.mjs";
@@ -14,7 +14,8 @@ import { lintErrors } from "./addon.mjs";
 const NAMES = { rxp: "RestedXP", journey: "Journey", zygor: "Zygor" };
 
 // `paths`: the AddOns folder's paths, lowercase; `manifest`: polestar-data/manifest.json;
-// `Compiler`: the wasm module's class, initialised; `pack`: { id, title, author };
+// `Compiler`: the wasm module's class, initialised; `pack`: { id, title, author } (its
+// version is the sources' own, packVersion);
 // `opts`: convertAddons' ({ sources, routes, ... }); `locales`: RestedXP's languages to fill.
 // -> { runs, errors, warnings } when the compiler refuses the pack, else { runs, folder, files
 //    (packFiles' [name, content]), warnings, translated: { <locale>: counts and per guide },
@@ -34,7 +35,7 @@ export async function buildAddons({ read, paths, readData, manifest, Compiler, p
 	}
 	const compiler = new Compiler(JSON.stringify(texts), (await readData("tables/instances.json")) ?? "", (await readData("tables/areas.json")) ?? "");
 	compiler.setSpellNames((await readData("tables/spell-names.json")) ?? "[]");
-	const packDiags = JSON.parse(compiler.setPack(packJson(pack), null, manifest.iface));
+	const packDiags = JSON.parse(compiler.setPack(packJson({ ...pack, version: packVersion(Object.fromEntries(Object.entries(runs).map(([s, r]) => [s, r.version]))) }), null, manifest.iface));
 	const packErrors = lintErrors(packDiags);
 	if (packErrors.length) return { runs, errors: packErrors, warnings: packDiags.length - packErrors.length };
 	const fileOf = (g) => `guides/${g.slug}.guide`;
