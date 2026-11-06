@@ -85,6 +85,25 @@ npx github:aronjanosch/polestar-convert --path "<WoW>" --locales zhCN --install
 - 请选择文件夹,不要选择单个文件。
 - 列表中有但文件夹里缺少的 RestedXP 攻略文件会被报告为缺失;其他攻略照常转换。
 
+### 把插件放进游戏
+
+转换结果是几个普通的插件文件夹:`PolestarPack_<名称>`,以及(如有)`PolestarPack_<名称>_<语言>` 和
+`PolestarPack_<名称>_<种族>`。把它们原样复制或移动到 `World of Warcraft/_forever_/Interface/AddOns`,
+与 `Polestar` 放在一起:
+
+```
+Interface/AddOns/
+├── Polestar/
+├── PolestarPack_MyGuides/
+├── PolestarPack_MyGuides_zhCN/
+└── RXPGuides/        (来源插件,可以保留)
+```
+
+- 从 ZIP:直接解压到 `AddOns`,让文件夹落在那里,而不是多出一个以 ZIP 命名的文件夹。
+- 从 `./polestar-addon`(命令行未加 `--install`):复制其中的文件夹,而不是 `polestar-addon` 本身。
+- 新版本替换旧版本:先删除旧的 `PolestarPack_<名称>*` 文件夹,或让 `--install` 和网页的安装按钮来做。
+- 完全重启游戏(`/reload` 不会加载新插件)。
+
 ### 开发转换器
 
 单独的命令把 `.guide` 文件写进用 Polestar 的 `new` 新建的攻略包,供它的 `lint`、`playtest` 和 `play` 使用
