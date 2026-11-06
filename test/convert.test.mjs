@@ -378,3 +378,27 @@ step
 	assert.doesNotMatch(text, /wait 9000/);
 	assert.equal(goalText({ kind: "wait", seconds: 30 }), "wait 30");
 });
+
+test("a use beside a goal that ends the step is its tool: optional, as RXP's .use only shows the item", () => {
+	const out = stepsOf(["step", "    .accept 12 >> Accept B", "step", "    .complete 12,1 >> Do B", "    .use 10 >> Use the thing", "step", "    .turnin 12 >> Turn in B"].join("\n"));
+	assert.match(out, /^  use 10\b.*\boptional\b/m, out);
+	const alone = stepsOf(["step", "    .use 10 >> Use the thing", "step", "    .accept 1 >> Accept A"].join("\n"));
+	assert.match(alone, /^  use 10\b/m);
+	assert.doesNotMatch(alone, /^  use 10\b.*\boptional\b/m, alone);
+});
+
+test("a use beside the goal of a quest taken elsewhere goes with it into the quest's own step", () => {
+	const out = stepsOf(["step", "    .complete 901,1 >> Do A", "    .use 10 >> Use the thing", "step", "    .accept 1 >> Accept A"].join("\n"));
+	const parts = out.split(/^step/m).slice(1);
+	const withUse = parts.filter((p) => /^  use 10\b/m.test(p));
+	assert.equal(withUse.length, 1, out);
+	assert.match(withUse[0], /when onquest 901/, out);
+	assert.match(withUse[0], /^  complete 901\b/m, out);
+});
+
+test("a use beside a goal that holds a #completewith step is its tool too; beside countable goals it stays along", () => {
+	const out = stepsOf(["step", "    #completewith next", "    .accept 12 >> Accept B", "    .use 10 >> Use the thing", "step", "    .turnin 12 >> Turn in B"].join("\n"));
+	assert.match(out, /^  use 10\b.*\boptional\b/m, out);
+	const along = stepsOf(["step", "    #completewith next", "    .use 10 >> Use the thing", "    .collect 10,3 >> Collect things", "step", "    .accept 1 >> Accept A"].join("\n"));
+	assert.doesNotMatch(along, /^  use 10\b.*\boptional\b/m, along);
+});
