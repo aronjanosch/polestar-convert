@@ -106,6 +106,29 @@ or decode anything: guide files in another form cannot be converted. Pick the
 - A RestedXP guide file the list names but the folder lacks is reported as
   missing; the other guides are still converted.
 
+### Putting the addon into the game
+
+The result is a set of plain addon folders: `PolestarPack_<Name>`, plus
+`PolestarPack_<Name>_<language>` and `PolestarPack_<Name>_<race>` where the
+pack has them. Copy or move them, as they are, into
+`World of Warcraft/_forever_/Interface/AddOns`, next to `Polestar`:
+
+```
+Interface/AddOns/
+├── Polestar/
+├── PolestarPack_MyGuides/
+├── PolestarPack_MyGuides_deDE/
+└── RXPGuides/        (the source; may stay)
+```
+
+- From the ZIP: unzip it straight into `AddOns`, so the folders land there and
+  not in an extra folder named after the ZIP.
+- From `./polestar-addon` (command line without `--install`): copy the folders
+  inside it, not `polestar-addon` itself.
+- A new build replaces the old: delete the old `PolestarPack_<Name>*` folders
+  first, or let `--install` and the page's install button do it.
+- Restart the game completely (`/reload` does not load new addons).
+
 ### Working on the converter
 
 The single commands write `.guide` files into a pack made with Polestar's
