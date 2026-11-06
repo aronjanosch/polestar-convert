@@ -12,7 +12,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { convertRxp, guideList } from "../src/rxp/run.mjs";
 import { loadData } from "../src/data.mjs";
-import { folderReader, resolveLoose } from "../src/node/read.mjs";
+import { folderReader, resolveLoose, levelXpOf } from "../src/node/read.mjs";
 
 function args(argv) {
 	const out = { _: [] };
@@ -60,7 +60,7 @@ const files = a.list
 	? guideList(readFileSync(a.list, "utf8")).map((f) => resolveLoose(dirname(dirname(a.list)), f) || (console.error(`missing: ${f}`), null)).filter(Boolean)
 	: [a.file];
 const { guides, report } = convertRxp(files.map((f) => ({ path: f, text: readFileSync(f, "utf8") })), data,
-	{ packId, only: a.only, maxStart: a["max-start"], selfFound: a["self-found"] != null });
+	{ packId, only: a.only, maxStart: a["max-start"], selfFound: a["self-found"] != null, levelXp: ((t) => (t ? (l) => t[l] ?? null : null))(levelXpOf(a.polestar)) });
 if (!guides.length) { console.error("no guide matches"); process.exit(1); }
 for (const g of guides) {
 	writeFileSync(join(guidesDir, `${g.slug}.guide`), g.text);

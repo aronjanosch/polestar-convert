@@ -41,7 +41,12 @@ Read as RXP's own `applies()` (GuideLoader.lua) reads them:
   nothing: every character may run the others.
 - Steps and goals for races the guide is not for are left out (RXP's "You have
   selected a guide meant for Undead" in an Undead guide), and goals for quests
-  the data closes to the guide's races.
+  the data closes to the guide's races. In a guide for both sides, the step's
+  side counts.
+- A guide RXP does not list on Forever is not written: a header `#season`
+  without 0, `#phase` without 6, `#xprate` without 1, `#som`, or a header `<<`
+  nobody meets (`<<sod`), as GuideWindow's IsGuideActive reads them. A header
+  line with its own `<<` (`#season 2 << Druid`) hides nothing.
 
 ### Goals
 
@@ -64,6 +69,10 @@ Read as RXP's own `applies()` (GuideLoader.lua) reads them:
   zone takes an inn of the guide's side, the bound one first.
 - `.xp N` and `.xp N.F` are level goals; the skip form (`.xp <N`, `.xp L-N`) is
   `when level`. A grind step keeps RXP's last point as the place to go.
+  `.xp L+N` past the XP Polestar counts for level L (RXP may use another
+  table) is level L+1.
+- A guide without levels in its name or quests (an endgame key) in RXP's
+  endgame group is for level 60.
 - `.abandon`, `.destroy` and `.cast` are Polestar's `abandon`, `destroy` and
   `cast` goals, which check themselves. A spell's name comes from RXP's lines
   that cast it (`[Teleport: Moonglade]`). `.usespell` is a button in RXP that
