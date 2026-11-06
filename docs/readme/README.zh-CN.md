@@ -69,6 +69,22 @@ npx github:aronjanosch/polestar-convert --path "<WoW>" --locales zhCN --install
 ([GPLv3](#许可证))从转换后的攻略生成。编译器的警告(需要组队的精英、没有已知刷新点的目标)是正常的,
 编译器发现错误的攻略会被略过,并连同错误一起列出;插件的其余部分照常生成。完全重启游戏后,你的攻略会出现在 Polestar 攻略中心(`/polestar guides`)的“社区攻略”里。
 
+### 攻略文件必须放在哪里
+
+转换器以纯文本方式读取攻略文件,也就是攻略插件在 `World of Warcraft/_forever_/Interface/AddOns`
+里保存它们的样子。它不会解锁或解码任何内容:其他形式的攻略文件无法转换。选择 `AddOns` 文件夹
+(或魔兽世界文件夹),其中必须有:
+
+| 来源 | `Interface/AddOns` 下的文件夹 | 转换器查找的文件 |
+| --- | --- | --- |
+| RestedXP | `RXPGuides/` | `Guides/GuideList-forever.xml` 以及其中列出的 `.lua` 攻略文件,每个都含有 `RegisterGuide([[ … ]])` 块 |
+| Journey | `Journey/` | `data/Guides/guides.html` 以及旁边的攻略页面 |
+| Zygor | `ZygorGuidesViewerForever/` | `Guides-Forever/Leveling/ZygorLevelingHordeCLASSIC.lua` 等(还有副本、专业、声望和活动文件) |
+
+- 文件夹名称必须与上表完全一致,并直接位于 `AddOns` 下,不要多套一层(例如 `AddOns/RXPGuides/RXPGuides`)。
+- 请选择文件夹,不要选择单个文件。
+- 列表中有但文件夹里缺少的 RestedXP 攻略文件会被报告为缺失;其他攻略照常转换。
+
 ### 开发转换器
 
 单独的命令把 `.guide` 文件写进用 Polestar 的 `new` 新建的攻略包,供它的 `lint`、`playtest` 和 `play` 使用

@@ -42,7 +42,9 @@ function show(sources, count) {
 	if (!sources.length) {
 		const li = document.createElement("li");
 		li.className = "none";
-		li.textContent = `No guide addon among ${count} files: pick the folder that holds RXPGuides, Journey or ZygorGuidesViewerForever.`;
+		li.textContent = count === 1
+			? "One file picked: pick a folder, such as World of Warcraft/_forever_/Interface/AddOns (see “Where the guide files must be”)."
+			: `No guide addon among ${count} files: pick the folder that holds RXPGuides, Journey or ZygorGuidesViewerForever (see “Where the guide files must be”).`;
 		list.append(li);
 	}
 	$("step-routes").setAttribute("aria-disabled", String(!sources.length));

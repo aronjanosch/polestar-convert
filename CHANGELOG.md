@@ -4,6 +4,9 @@
 
 For Polestar 0.3.1: the page's compiler and data are Polestar 0.3.1's.
 
+- **Where the guide files must be**: README (EN, zhCN) and the page say which
+  folder and file each source's guides are read from, as plain text; picking a
+  single file says so.
 - **The pack carries its sources' version**: the `## Version:` of the guide
   addon's TOC (one source as it is, several as `rxp1.2.3+zygor1.6`), where it
   was `0.1.0` before.
