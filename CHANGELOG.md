@@ -4,6 +4,10 @@
 
 For Polestar 0.3.1: the page's compiler and data are Polestar 0.3.1's.
 
+- **RestedXP:** keep instructions attached to `.goto`, `.waypoint` and known-item
+  `.use` commands, including class-specific and translated text. Travel notes
+  carried into the next step now retain their directions instead of only coordinates.
+
 - **Putting the addon into the game**: README (EN, zhCN) and the page say to
   copy or move the pack's folders as they are into `Interface/AddOns`.
 - **Where the guide files must be**: README (EN, zhCN) and the page say which

@@ -470,6 +470,20 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		if (goal.kind === "abandon") { ctx.maybeTaken.add(goal.quest); ctx.surelyTaken.delete(goal.quest); }
 	};
 
+	// Inline directions matter just as much as standalone >> lines. Keep them
+	// in the same path so class limits, carried travel notes and split steps agree.
+	const instruction = (l) => {
+		const t = plain(l.text);
+		if (!t) return;
+		const groups = l.cond ? groupsOf(l.cond) : [];
+		if (!l.cond || groups.some((g) => !onlyText(g))) { tips.push(bare(t)); pendingTips.push(bare(t)); }
+		else {
+			for (const g of groups) {
+				const o = onlyText(g);
+				if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
+			}
+		}
+	};
 	const consumed = new Set();
 	for (let li = 0; li < step.lines.length; li++) {
 		if (consumed.has(li)) continue;
@@ -478,13 +492,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			const t = plain(l.text);
 			if (!t) continue;
 			if ((l.text || "").includes("chatbubble")) continue; // "Talk to X": accept/turnin say it
-			if (!l.cond) { tips.push(bare(t)); pendingTips.push(bare(t)); }
-			else {
-				for (const g of groupsOf(l.cond)) {
-					const o = onlyText(g);
-					if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
-				}
-			}
+			instruction(l);
 			continue;
 		}
 		if (l.kind === "note") {
@@ -657,7 +665,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			}
 		} else if (n === "use") {
 			const id = Number(l.args.split(",")[0]);
-			if (data.items[id]) add({ kind: "use", item: id }, l.cond);
+			if (data.items[id]) { instruction(l); add({ kind: "use", item: id }, l.cond); }
 			else { add({ kind: "task", text: plain(l.text) || "Use item " + id }, l.cond); formatNeeds = 5; }
 		} else if (n === "xp") {
 			// RXP: ".xp <12,1" skips the step while below level 12 (second number = skip);
@@ -807,7 +815,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				report.count(".timer -> wait");
 			} else report.count(".timer (ignored)");
 		} else if (n === "goto" || n === "waypoint") {
-			// handled below
+			instruction(l); // Coordinates are handled below; keep their explanation too.
 		} else if (IGNORED.has(n)) {
 			report.count(`.${n} (ignored)`);
 		} else {
@@ -821,7 +829,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		goals.push({ kind: "enter", place: enterZone, at: at(last), only: "" });
 		formatNeeds = Math.max(formatNeeds, 5);
 	}
-	if (!completewith && goals.length && goals.every((g) => g.kind === "note")) {
+	if (!completewith && !gotos.some((g) => g.uiMap) && goals.length && goals.every((g) => g.kind === "note")) {
 		for (const g of goals) g.kind = "task";
 		formatNeeds = 5;
 		report.count("instruction-only step -> task");
@@ -849,7 +857,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			|| (l.name === "itemcount" && l.args.includes("<")) || (l.name === "xp" && !/,\s*1\s*$/.test(l.args))));
 		const fights = goals.some((g) => ["kill", "collect", "complete", "interact"].includes(g.kind));
 		const way = gotos.filter((g) => g.uiMap && !g.noArrow);
-		if (!goals.length && (tips.length || notes.length)) {
+		if (goals.every((g) => g.kind === "note") && (tips.length || notes.length)) {
 			for (const t of [...tips, ...notes]) goals.push({ kind: "note", text: t, only: "" });
 			if (!title) title = tips[0] || notes[0];
 			tips.length = 0;
@@ -903,7 +911,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	}
 	// A grind step (`level` goals only) keeps RXP's last point as the place to go to.
 	const grindOnly = goals.length > 0 && goals.every((g) => g.kind === "level") && !completewith;
-	if ((!goals.length && !notes.length || grindOnly) && gotos.length) {
+	if ((goals.every((g) => g.kind === "note") && !notes.length || grindOnly) && gotos.length) {
 		const g = gotos[gotos.length - 1];
 		if (g.uiMap) usedMaps.push(g.uiMap);
 		goals.unshift({ kind: "goto", x: g.x, y: g.y, live: g.live, text: tips[0] && !grindOnly ? shorten(tips[0], 80) : undefined, only: "" });
