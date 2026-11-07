@@ -866,7 +866,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			|| (l.name === "itemcount" && l.args.includes("<")) || (l.name === "xp" && !/,\s*1\s*$/.test(l.args))));
 		const fights = goals.some((g) => ["kill", "collect", "complete", "interact"].includes(g.kind));
 		const way = gotos.filter((g) => g.uiMap && !g.noArrow);
-		if (goals.every((g) => g.kind === "note") && (tips.length || notes.length)) {
+		if (goals.every((g) => inlineNotes.has(g)) && (tips.length || notes.length)) {
 			for (const t of [...tips, ...notes]) {
 				const note = { kind: "note", text: t, only: "" };
 				goals.push(note);

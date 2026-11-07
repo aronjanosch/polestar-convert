@@ -60,6 +60,21 @@ step
 	assert.ok(actual.indexOf('note "First cross') < actual.indexOf('note "Then enter'), actual);
 });
 
+test("standalone explanations beside existing conditional notes gain no extra manual gate", () => {
+	const actual = convert(`step
+    #completewith next
+    .goto 1,20,20
+    >>Existing work << Hunter
+    >>Extra explanation
+    .mob Boar
+step
+    .accept 1
+`);
+	assert.match(actual, /task "Existing work"/);
+	assert.match(actual, /Extra explanation/);
+	assert.doesNotMatch(actual, /task "Extra explanation"/);
+});
+
 for (const condition of ["", " << Mage", " << Warrior/Hunter"]) {
 	test(`inline instructions preserve a complete quest sequence${condition}`, () => {
 		const body = `step${condition}
