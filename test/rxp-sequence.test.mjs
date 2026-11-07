@@ -17,6 +17,36 @@ const convert = (body) => convertGuide(parseGuide("#name 1-3 Test vale\n" + body
 const objectives = (text) => text.split("\n").map((line) => line.trim())
 	.filter((line) => /^(accept|turnin|collect|use|when|only|along|label|skipto)\b/.test(line));
 
+for (const extra of [".money <0.01", ".itemcount 11,<6", ".mob Boar", ""]) {
+	test(`inline travel instructions do not create manual work beside the route: ${extra}`, () => {
+		const body = `step
+    #completewith next
+    .goto 1,20,20,12 >>Travel toward the keeper
+    ${extra}
+step
+    .accept 1
+`;
+		const actual = convert(body);
+		assert.match(actual, /Travel toward the keeper/);
+		assert.doesNotMatch(actual, /^\s+task /m);
+		assert.deepEqual(objectives(actual), objectives(convert(body.replace(/ >>[^\n]*/g, ""))));
+	});
+}
+
+test("inline text does not become an extra task beside existing farming instructions", () => {
+	const actual = convert(`step
+    #completewith next
+    .goto 1,20,20,12 >>Enter the cave
+    .itemcount 11,<6
+    >>Gather supplies
+step
+    .accept 1
+`);
+	assert.match(actual, /task "Gather supplies"/);
+	assert.match(actual, /Enter the cave/);
+	assert.doesNotMatch(actual, /task "Enter the cave"/);
+});
+
 for (const condition of ["", " << Mage", " << Warrior/Hunter"]) {
 	test(`inline instructions preserve a complete quest sequence${condition}`, () => {
 		const body = `step${condition}

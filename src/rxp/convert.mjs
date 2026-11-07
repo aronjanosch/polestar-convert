@@ -472,15 +472,24 @@ function buildOne(step, stepNo, data, ctx, cond) {
 
 	// Inline directions matter just as much as standalone >> lines. Keep them
 	// in the same path so class limits, carried travel notes and split steps agree.
+	const inlineTips = new Set(), standaloneTips = new Set(), inlineNotes = new WeakSet();
 	const instruction = (l) => {
 		const t = plain(l.text);
 		if (!t) return;
 		const groups = l.cond ? groupsOf(l.cond) : [];
-		if (!l.cond || groups.some((g) => !onlyText(g))) { tips.push(bare(t)); pendingTips.push(bare(t)); }
+		if (!l.cond || groups.some((g) => !onlyText(g))) {
+			tips.push(bare(t)); pendingTips.push(bare(t));
+			(l.kind === "cmd" ? inlineTips : standaloneTips).add(bare(t));
+		}
 		else {
 			for (const g of groups) {
 				const o = onlyText(g);
-				if (o) { goals.push({ kind: "note", text: t, only: o }); report.count("class-specific text -> note only"); }
+				if (o) {
+					const note = { kind: "note", text: t, only: o };
+					goals.push(note);
+					if (l.kind === "cmd") inlineNotes.add(note);
+					report.count("class-specific text -> note only");
+				}
 			}
 		}
 	};
@@ -858,7 +867,11 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		const fights = goals.some((g) => ["kill", "collect", "complete", "interact"].includes(g.kind));
 		const way = gotos.filter((g) => g.uiMap && !g.noArrow);
 		if (goals.every((g) => g.kind === "note") && (tips.length || notes.length)) {
-			for (const t of [...tips, ...notes]) goals.push({ kind: "note", text: t, only: "" });
+			for (const t of [...tips, ...notes]) {
+				const note = { kind: "note", text: t, only: "" };
+				goals.push(note);
+				if (inlineTips.has(t) && !standaloneTips.has(t) && !notes.includes(t)) inlineNotes.add(note);
+			}
 			if (!title) title = tips[0] || notes[0];
 			tips.length = 0;
 			notes.length = 0;
@@ -887,7 +900,16 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			ctx.path = [];
 		}
 		if (goals.length && textOnly) {
-			if (farm) {
+			// Restoring a command's explanation must not manufacture manual work.
+			// Carry these notes to the next route step; only standalone instructions
+			// participate in the pre-existing farming/reminder heuristic below.
+			for (let i = goals.length - 1; i >= 0; i--) {
+				if (!inlineNotes.has(goals[i])) continue;
+				const [g] = goals.splice(i, 1);
+				ctx.pendingNotes.unshift({ ...g, only: g.only || only });
+			}
+			if (!goals.length) title = "";
+			else if (farm) {
 				const placed = gotos.filter((g) => g.uiMap);
 				const spot = at(placed[Math.floor((placed.length - 1) / 2)]);
 				for (const g of goals) { g.kind = "task"; g.at = spot; }
