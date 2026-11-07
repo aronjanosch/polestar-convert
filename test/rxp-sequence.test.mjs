@@ -47,6 +47,19 @@ step
 	assert.doesNotMatch(actual, /task "Enter the cave"/);
 });
 
+test("consecutive inline travel instructions retain their source order", () => {
+	const actual = convert(`step
+    #completewith next
+    .goto 1,20,20 >>First cross the bridge
+step
+    #completewith next
+    .goto 1,30,30 >>Then enter the tunnel
+step
+    .accept 1
+`);
+	assert.ok(actual.indexOf('note "First cross') < actual.indexOf('note "Then enter'), actual);
+});
+
 for (const condition of ["", " << Mage", " << Warrior/Hunter"]) {
 	test(`inline instructions preserve a complete quest sequence${condition}`, () => {
 		const body = `step${condition}

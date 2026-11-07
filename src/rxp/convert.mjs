@@ -903,11 +903,13 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			// Restoring a command's explanation must not manufacture manual work.
 			// Carry these notes to the next route step; only standalone instructions
 			// participate in the pre-existing farming/reminder heuristic below.
+			const carriedInline = [];
 			for (let i = goals.length - 1; i >= 0; i--) {
 				if (!inlineNotes.has(goals[i])) continue;
 				const [g] = goals.splice(i, 1);
-				ctx.pendingNotes.unshift({ ...g, only: g.only || only });
+				carriedInline.unshift({ ...g, only: g.only || only });
 			}
+			ctx.pendingNotes.push(...carriedInline);
 			if (!goals.length) title = "";
 			else if (farm) {
 				const placed = gotos.filter((g) => g.uiMap);
