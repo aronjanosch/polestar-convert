@@ -140,6 +140,77 @@ function fakeData() {
 	return { quests: {}, npcs, zones: {}, frames: {}, items, races: {}, objects: {}, journal: new Map(), inns: [], flights: [], hasProfessions: false, npcByName };
 }
 const guideText = (body) => convertGuide(parseGuide("#name T\n" + body), fakeData(), { report: new Report(), slug: "t", packId: "chk" });
+
+test("inline travel and item instructions survive into the destination step", () => {
+	const text = mapText(`step
+    #completewith next
+    .goto 1,20,20,5 >>Walk to the pale ground beside the bridge
+step
+    .goto 1,20,20
+    .use 10 >>|cRXP_WARN_Stand on the pale ground|r and use the tool
+    .collect 10,1
+`);
+	assert.match(text, /Walk to the pale ground beside the bridge/);
+	assert.match(text, /Stand on the pale ground and use the tool/);
+	assert.match(text, /use 10[^\n]*optional/);
+	assert.match(text, /collect 10/);
+	assert.doesNotMatch(text, /RXP_WARN/);
+});
+
+test("inline instructions keep their class restriction", () => {
+	const text = mapText(`step
+    .goto 1,20,20 >>Follow the northern ledge << Mage
+    .use 10 >>Stand beside the marker << Mage
+    .collect 10,1
+`);
+	assert.match(text, /note .*Follow the northern ledge.*only Mage/);
+	assert.match(text, /note .*Stand beside the marker.*only Mage/);
+});
+
+test("unknown items keep their task text without a duplicate instruction", () => {
+	const text = mapText("step\n    .use 999 >>Try the unfamiliar tool\n");
+	assert.equal((text.match(/Try the unfamiliar tool/g) || []).length, 1);
+});
+
+test("mixed class and unrestricted travel instructions both carry forward", () => {
+	const text = mapText("step\n    #completewith next\n    .goto 1,20,20 >>Walk across the bridge\n    .goto 1,30,30 >>Follow the ledge << Mage\nstep\n    .collect 10,1\n");
+	assert.match(text, /Walk across the bridge/);
+	assert.match(text, /note .*Follow the ledge.*only Mage/);
+});
+
+test("inline instructions whose conditions hold for everyone are retained", () => {
+	for (const condition of ["!sod", "forever"]) {
+		const text = mapText(`step\n    .goto 1,20,20 >>Walk across the bridge << ${condition}\n    .use 10 >>Stand at the marker << ${condition}\n    .collect 10,1\n`);
+		assert.match(text, /Walk across the bridge/);
+		assert.match(text, /Stand at the marker/);
+	}
+});
+
+test("class-specific inline directions do not replace arrival with a manual task", () => {
+	const text = mapText("step\n    .goto 1,20,20 >>Walk across the bridge << Mage\n");
+	assert.match(text, /goto 20,20/);
+	assert.match(text, /note .*Walk across the bridge.*only Mage/);
+	assert.doesNotMatch(text, /\btask\b/);
+});
+
+test("inline waypoint instructions retain their full text", () => {
+	const instruction = "Follow the narrow trail around the large boulder and wait beside the small wooden marker before using the tool.";
+	const text = mapText(`step\n    .waypoint 1,20,20 >>${instruction}\n    .use 10\n    .collect 10,1\n`);
+	assert.ok(text.includes(instruction));
+});
+
+test("translated inline travel and use instructions pair with English", () => {
+	const en = parseGuide("#name T\nstep\n    #completewith next\n    .goto 1,20,20 >>Walk beside the bridge\nstep\n    .use 10 >>Stand beside the marker\n    .collect 10,1\n");
+	const tr = parseGuide("#name T\nstep\n    #completewith next\n    .goto 1,20,20 >>Marchez près du pont\nstep\n    .use 10 >>Restez près du repère\n    .collect 10,1\n");
+	const [aligned] = alignFile([en], [tr], new Report());
+	const convert = (guide) => convertGuide(guide, { ...fakeData(), zones: { 1: { name: "Testville" } }, frames: { forever: {}, era: { 1: { left: 100, right: 0, top: 100, bottom: 0 } } } }, { report: new Report(), slug: "t", packId: "chk" }).text;
+	const report = new Report();
+	const translated = convert(aligned.guide);
+	assert.match(translated, /Marchez près du pont/);
+	assert.match(translated, /Restez près du repère/);
+	pairRendered(convert(en), translated, report);
+	assert.equal(report.counts.size, 0, [...report.counts.keys()].join(", "));
+});
 const goalsOf = (out) => String(out.text || out).split("\n").map((l) => l.trim()).filter((l) => /^(train|buy|vendor|task|note|when)\b/.test(l));
 
 test("two trainers: each .train takes the target written beside it", () => {
