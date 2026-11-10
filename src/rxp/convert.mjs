@@ -544,6 +544,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			if (hit && hit.obj.type === "kill") add({ kind: "kill", npc: hit.obj.id, quest: Number(m[1]), oi: hit.index, text: friendlyKillText(hit.obj, quest, ctx.faction, l, data) }, l.cond);
 			else if (hit && hit.obj.type === "item") add({ kind: "collect", item: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
 			else if (hit && hit.obj.type === "object") add({ kind: "interact", object: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
+			else if (hit && hit.obj.type === "talk") add({ kind: "talk", npc: hit.obj.id, quest: Number(m[1]), oi: hit.index }, l.cond);
 			else { add({ kind: "complete", quest: Number(m[1]) }, l.cond); report.count("objective not matched by name; whole quest used"); report.note(ctx.name, stepNo, "objective not matched by name; whole quest used", `${l.args} ${l.comment || ""}`); }
 		} else if (n === "collect") {
 			const [item, count, qid] = l.args.split(",").map((s) => s.trim());

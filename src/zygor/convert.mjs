@@ -22,7 +22,7 @@ const PLACED = new Set(["accept", "turnin", "talk", "vendor", "train", "buy"]);
 // Kinds a Zygor step fights or farms for: the points of such a step are rounds Polestar finds itself.
 const FARM = new Set(["kill", "collect", "interact"]);
 // Kinds that name a quest's objective or turn-in: they need the quest in the log.
-const QUEST_KINDS = new Set(["collect", "kill", "interact", "complete", "turnin"]);
+const QUEST_KINDS = new Set(["collect", "kill", "talk", "interact", "complete", "turnin"]);
 // Conditions read as something Polestar has (src/zygor/cond.mjs), as the report counts them.
 const READ = {
 	walking: "condition walking: holds off a flight (Classic has no flying mount)",
@@ -154,15 +154,19 @@ function verbGoals(l, ctx, place) {
 			return { goals: gs, shown: false };
 		}
 		case "talk": {
-			if (first && data.npcs[first.id]) return got({ kind: "talk", npc: first.id });
-			return none;
+			if (!first || !data.npcs[first.id]) return none;
+			// `|q Q/n` on a speak-with objective of this NPC: the talk counts that quest-log line.
+			const objs = (quest && quest.objectives) || [];
+			const hit = objs.findIndex((o) => o.type === "talk" && o.id === first.id);
+			if (hit >= 0) return got({ kind: "talk", npc: first.id, quest: questId, oi: hit + 1 });
+			return got({ kind: "talk", npc: first.id });
 		}
 		case "kill": {
 			// Without a quest, a kill is a farming line: the text shows, Polestar finds the spots.
 			if (!first || !quest || !(quest.objectives || []).length) return none;
 			const npcIds = ids.map((r) => r.id);
 			const objs = quest.objectives;
-			let hit = objs.findIndex((o) => o.type === "kill" && npcIds.includes(o.id));
+			let hit = objs.findIndex((o) => (o.type === "kill" || o.type === "talk") && npcIds.includes(o.id));
 			hit = hit >= 0 ? { obj: objs[hit], index: hit + 1 } : resolveObjective(quest, first.name, null);
 			if (!hit) {
 				report.note(ctx.name, ctx.curNo, `kill of quest ${questId} not matched by name; whole quest used`, l.text);
@@ -171,6 +175,7 @@ function verbGoals(l, ctx, place) {
 			const o = hit.obj;
 			if (o.type === "item") return got({ kind: "collect", item: o.id, quest: questId, oi: hit.index });
 			if (o.type === "object") return got({ kind: "interact", object: o.id, quest: questId, oi: hit.index });
+			if (o.type === "talk") return got({ kind: "talk", npc: o.id, quest: questId, oi: hit.index });
 			return got({ kind: "kill", npc: o.id, quest: questId, oi: hit.index });
 		}
 		case "collect": case "buy": case "expcollect": {
@@ -243,6 +248,7 @@ function objectiveGoals(l, text, ctx) {
 	if (o.type === "item") return { goals: [{ kind: "collect", item: o.id, quest: questId, oi: hit.index }], shown: false };
 	if (o.type === "object") return { goals: [{ kind: "interact", object: o.id, quest: questId, oi: hit.index }], shown: false };
 	if (o.type === "kill") return { goals: [{ kind: "kill", npc: o.id, quest: questId, oi: hit.index }], shown: false };
+	if (o.type === "talk") return { goals: [{ kind: "talk", npc: o.id, quest: questId, oi: hit.index }], shown: false };
 	// An event (escort, explore): Polestar counts it with the whole quest.
 	return { goals: [{ kind: "complete", quest: questId }], shown: false };
 }
@@ -558,25 +564,27 @@ function finish(st, ctx) {
 	// A profession's trainer is the NPC the step talks to (Polestar names one when it has no professions data).
 	// Several trainers, one per race (`talk A |only if Human`, `talk B |only if Dwarf`): a train
 	// or learn per trainer, for its races; one for everyone else is left to Polestar's nearest.
-	const talks = goals.filter((g) => g.kind === "talk");
+	// A talk that counts a quest objective is work of its own, never a trainer or a giver's talk.
+	const plainTalk = (g) => g.kind === "talk" && g.quest == null;
+	const talks = goals.filter(plainTalk);
 	if (!st.nearest && talks.length > 1 && talks.every((t) => t.only)) {
 		const out = [];
 		for (const g of goals) {
 			if ((g.kind === "train" && g.profession || g.kind === "learn") && !g.npc) out.push(...talks.map((t) => ({ ...g, npc: t.npc, only: t.only })));
 			else out.push(g);
 		}
-		if (out.length !== goals.length) { goals = out.filter((g) => g.kind !== "talk"); ctx.report.count("trainers per race -> a train or learn per trainer"); }
+		if (out.length !== goals.length) { goals = out.filter((g) => !plainTalk(g)); ctx.report.count("trainers per race -> a train or learn per trainer"); }
 	}
-	const talkTo = st.nearest || talks.length > 1 ? null : goals.find((g) => g.kind === "talk");
+	const talkTo = st.nearest || talks.length > 1 ? null : talks[0];
 	if (talkTo) for (const g of goals) if ((g.kind === "train" && g.profession || g.kind === "learn") && !g.npc) g.npc = talkTo.npc;
 	if (goals.some((g) => ["accept", "turnin", "vendor", "train"].includes(g.kind) || g.kind === "learn" && g.npc)) {
 		const before = goals.length;
 		// A dropped talk's gossip option goes to the vendor or trainer of the same NPC.
-		for (const t of goals) if (t.kind === "talk" && t.gossip) {
+		for (const t of goals) if (plainTalk(t) && t.gossip) {
 			const to = goals.find((g) => ["vendor", "train"].includes(g.kind) && g.npc === t.npc && !g.gossip);
 			if (to) to.gossip = t.gossip;
 		}
-		goals = goals.filter((g) => g.kind !== "talk");
+		goals = goals.filter((g) => !plainTalk(g));
 		if (goals.length !== before) ctx.report.count("talk to a giver or vendor the step already names (dropped)");
 	}
 	// A standing with a faction Polestar names otherwise ("Stormwind City": "Stormwind"); one it

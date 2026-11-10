@@ -85,7 +85,7 @@ dependencies = [
 [[package]]
 name = "forge-core"
 version = "0.2.0"
-source = "git+https://github.com/fitzforge/polestar?rev=002be708db6a2f2fc48627b249ce1c409264a651#002be708db6a2f2fc48627b249ce1c409264a651"
+source = "git+https://github.com/fitzforge/polestar?rev=bf23c61a5d1f1b58f0edbd4ad7411aa6910938c1#bf23c61a5d1f1b58f0edbd4ad7411aa6910938c1"
 dependencies = [
  "rustc-hash",
  "serde",
@@ -96,7 +96,7 @@ dependencies = [
 [[package]]
 name = "forge-guide"
 version = "0.2.0"
-source = "git+https://github.com/fitzforge/polestar?rev=002be708db6a2f2fc48627b249ce1c409264a651#002be708db6a2f2fc48627b249ce1c409264a651"
+source = "git+https://github.com/fitzforge/polestar?rev=bf23c61a5d1f1b58f0edbd4ad7411aa6910938c1#bf23c61a5d1f1b58f0edbd4ad7411aa6910938c1"
 dependencies = [
  "flate2",
  "forge-core",

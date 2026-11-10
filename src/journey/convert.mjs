@@ -193,7 +193,7 @@ function refsOf(group) {
 }
 
 // A quest's objective goals: the one numbered `n` (game quest-log order, as
-// Polestar numbers them), all of them for `n` null; a kill/collect/interact goal
+// Polestar numbers them), all of them for `n` null; a kill/talk/collect/interact goal
 // each, or `complete Q` when the data has none of that kind.
 function objectiveGoals(q, n, data, refs, ctx, stepNo) {
 	const quest = data.quests[q];
@@ -203,6 +203,7 @@ function objectiveGoals(q, n, data, refs, ctx, stepNo) {
 		if (o.type === "kill") return { kind: "kill", npc: o.id, quest: q, oi: i + 1 };
 		if (o.type === "item") return { kind: "collect", item: o.id, quest: q, oi: i + 1 };
 		if (o.type === "object") return { kind: "interact", object: o.id, quest: q, oi: i + 1 };
+		if (o.type === "talk") return { kind: "talk", npc: o.id, quest: q, oi: i + 1 };
 		return null;
 	};
 	if (n == null) {
@@ -212,7 +213,7 @@ function objectiveGoals(q, n, data, refs, ctx, stepNo) {
 	}
 	let i = n - 1;
 	const o = objs[i];
-	const named = (x) => x && ((x.type === "kill" && refs.npcs.has(x.id)) || (x.type === "item" && refs.items.has(x.id)) || (x.type === "object" && refs.objects.has(x.id)));
+	const named = (x) => x && (((x.type === "kill" || x.type === "talk") && refs.npcs.has(x.id)) || (x.type === "item" && refs.items.has(x.id)) || (x.type === "object" && refs.objects.has(x.id)));
 	if (!o) {
 		gapNote(ctx, stepNo, `quest ${q} has no objective ${n} in the data; whole quest used`);
 		return [{ kind: "complete", quest: q }];

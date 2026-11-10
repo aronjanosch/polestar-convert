@@ -45,7 +45,7 @@ export function goalText(g) {
 	switch (g.kind) {
 		case "accept": case "turnin": case "complete":
 			return `${g.kind} ${g.quest}${g.title ? " " + q(g.title) : ""}${atText(g.at)}${g.item ? " item " + g.item : ""}`;
-		case "talk": return `talk ${g.npc}${atText(g.at)}`;
+		case "talk": return `talk ${g.npc}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${atText(g.at)}`;
 		case "kill": return `kill ${g.npc}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${g.text ? " " + q(g.text) : ""}${atText(g.at)}`;
 		case "interact": return `interact ${g.object}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${atText(g.at)}`;
 		case "learn": return `learn ${g.spell}${g.name ? " " + q(g.name) : ""}${g.npc ? " npc " + g.npc : ""}`;
@@ -80,7 +80,7 @@ export function goalText(g) {
 
 // The quest a goal depends on being in the log (turn-in, complete, objectives), or null.
 export function questOf(g) {
-	return ["turnin", "complete", "kill", "collect", "interact"].includes(g.kind) && g.quest != null ? g.quest : null;
+	return ["turnin", "complete", "kill", "talk", "collect", "interact"].includes(g.kind) && g.quest != null ? g.quest : null;
 }
 
 export class Report {
