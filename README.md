@@ -10,7 +10,7 @@
 
 [![MIT licence](https://img.shields.io/badge/licence-MIT-e6ba66?style=flat-square&labelColor=232a3f)](LICENSE)
 [![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-339933?style=flat-square&logo=nodedotjs&logoColor=white&labelColor=232a3f)](https://nodejs.org/)
-[![Polestar 0.3.1+](https://img.shields.io/badge/Polestar-0.3.1%2B-94c9ff?style=flat-square&labelColor=232a3f)](https://github.com/fitzforge/polestar)
+[![Polestar 0.3.5+](https://img.shields.io/badge/Polestar-0.3.5%2B-94c9ff?style=flat-square&labelColor=232a3f)](https://github.com/fitzforge/polestar)
 [![WoW: Forever](https://img.shields.io/badge/WoW-Forever-fabf4d?style=flat-square&labelColor=232a3f)](#quick-start)
 [![Sources: RestedXP, Journey, Zygor](https://img.shields.io/badge/sources-RestedXP_·_Journey_·_Zygor-f16436?style=flat-square&labelColor=232a3f)](#quick-start)
 
@@ -50,7 +50,7 @@ place, so you know what to look at.
 
 ## Quick start
 
-You need World of Warcraft: Forever, **Polestar 0.3.1 or newer** in its
+You need World of Warcraft: Forever, **Polestar 0.3.5 or newer** in its
 `Interface/AddOns` folder and at least one guide addon there: RestedXP,
 Journey or Zygor. Nothing else: no clone, no game data to build.
 

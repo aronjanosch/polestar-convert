@@ -440,3 +440,11 @@ test("a quest the data closes to a step's faction is left out of that step in a 
 	const out = String(convertGuide(parseGuide(["#name T", "step << Alliance", "    .accept 50 >> Accept it", "step << Horde", "    .accept 50 >> Accept it", "    .accept 1 >> Accept A"].join("\n")), data, { report: new Report(), slug: "t", packId: "chk" }).text);
 	assert.equal((out.match(/^  accept 50\b/gm) || []).length, 1, out);
 });
+
+test("an objective that is speaking with someone becomes `talk <npc> quest Q.O`", () => {
+	const d = fakeData();
+	d.quests[12] = { id: 12, title: "B", start: { npc: [4] }, end: { npc: [4] }, objectives: [{ type: "talk", id: 5, count: 1, text: "Oliver" }] };
+	const out = String(convertGuide(parseGuide("#name T\nstep\n    .accept 12\nstep\n    .complete 12,1 --Speak with Oliver\nstep\n    .turnin 12\n"), d, { report: new Report(), slug: "t", packId: "chk" }).text);
+	assert.match(out, /^  talk 5 quest 12\.1$/m);
+	assert.doesNotMatch(out, /complete 12/);
+});

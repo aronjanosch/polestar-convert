@@ -2,8 +2,14 @@
 
 ## Unreleased
 
-For Polestar 0.3.1: the page's compiler and data are Polestar 0.3.1's.
+For Polestar 0.3.5: the page's compiler and data are Polestar 0.3.5's.
 
+- **Polestar 0.3.5**: the page's compiler and game data move from 0.3.1 to
+  0.3.5. Its quest data lists speaking with someone as a `talk` objective;
+  RestedXP's `.complete`, Zygor's `talk … |q Q/n` and objective text lines and
+  Journey's objectives now write `talk <npc> quest Q.O` for it, which Polestar
+  checks off as that quest-log line. Such a talk stays in a step that also
+  accepts or hands in a quest.
 - **Putting the addon into the game**: README (EN, zhCN) and the page say to
   copy or move the pack's folders as they are into `Interface/AddOns`.
 - **Where the guide files must be**: README (EN, zhCN) and the page say which

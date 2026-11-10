@@ -669,3 +669,14 @@ test("a quest goal on a step or line for races the data closes the quest to is l
 	assert.equal(r.text.match(/accept 103/g).length, 1);
 	assert.match(r.text, /accept 103 only Orc/);
 });
+
+test("a talk line or text line on a speak-with objective becomes `talk <npc> quest Q.N`", () => {
+	const withTalk = { ...data, quests: { ...data.quests, 104: { title: "Invented Message", start: { npc: [203] }, end: { npc: [203] }, level: 3, minLevel: 1,
+		objectives: [{ type: "talk", id: 204, count: 1, text: "Example Keeper" }] } } };
+	const run = (body) => convertGuide({ name: "Leveling Guides\\Invented Vale (1-4)", header: {}, steps: parseBody(body) }, withTalk,
+		{ report: new Report(), slug: "vale", packId: "mine", next: [], faction: "Horde" }).text;
+	assert.match(run("step\n  talk Example Keeper##204 |q 104/1\n"), /^  talk 204 quest 104\.1/m);
+	assert.match(run("step\n  Speak with the Example Keeper |q 104/1\n"), /^  talk 204 quest 104\.1/m);
+	// Beside a hand-in it stays: only a talk that counts nothing is dropped at a giver.
+	assert.match(run("step\n  turnin Second Errand##102\n  talk Example Keeper##204 |q 104/1\n"), /^  talk 204 quest 104\.1/m);
+});
