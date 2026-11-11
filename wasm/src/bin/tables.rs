@@ -20,7 +20,7 @@ fn main() {
 fn run(clone: &Path, out: &Path) -> Result<(), String> {
 	let sources = clone.join("data/sources");
 	let data = forge_guide::data::load_data(&clone.join("data/forever"))?;
-	let spells: Vec<serde_json::Value> = forge_guide::tokens::read_spell_names(&data).into_iter().map(|(n, id)| serde_json::json!([n, id])).collect();
+	let spells: Vec<serde_json::Value> = forge_guide::tokens::read_spell_names(&data).into_iter().map(|(n, id, mask)| serde_json::json!([n, id, mask])).collect();
 	std::fs::create_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
 	let write = |name: &str, text: String| std::fs::write(out.join(name), text).map_err(|e| format!("{name}: {e}"));
 	write("instances.json", stringify(&forge_guide::solo::load_instances(&sources), None))?;

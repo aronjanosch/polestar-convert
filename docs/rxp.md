@@ -183,7 +183,7 @@ comes from a catalog of RXP's text-only steps, some read by hand:
   it", and passing it would leave the quest to the guide's later `.abandon`.
 - **Play style:** not self-found by default (`#ah` kept, `#ssf` dropped;
   `--self-found yes` keeps `#ssf` and drops `#ah`); softcore, 1× XP, Season 0
-  and phase 6 are fixed. Group steps are kept: the player
+  and phase 5 (RXP's setting for Forever, before Naxxramas) are fixed. Group steps are kept: the player
   chooses them in Polestar (`when group`).
 
 ## Known gaps

@@ -94,7 +94,7 @@ step(join(wasm, "target", "release", "tables"), [clone, tablesDir], repo);
 const tableFiles = ["instances.json", "areas.json", "spell-names.json"].map((f) => `tables/${f}`);
 for (const f of tableFiles) if (!existsSync(join(dataDir, f))) fail(`the tables binary wrote no ${f}`);
 
-// Names: per locale, the pack's Names.lua, the Locales file as L.lua and the three client
+// Names: per locale, the pack's Names.lua, its interface strings as L.lua and the three client
 // tables in that language from the newest Forever build that holds all of them. A locale
 // the clone lacks any of is skipped.
 const NAME_LOCALES = ["deDE", "esES", "frFR", "ptBR", "zhCN"];
@@ -119,7 +119,8 @@ for (const locale of NAME_LOCALES) {
 	const addon = join(clone, "addon", `Polestar_${locale}`);
 	const wanted = [
 		[join(addon, "Names.lua"), "Names.lua"],
-		[join(clone, "addon", "Polestar", "Locales", `${locale}.lua`), "L.lua"],
+		// The interface strings: Polestar_<locale>/Interface.lua from 0.3.7, Polestar/Locales before.
+		[[join(addon, "Interface.lua"), join(clone, "addon", "Polestar", "Locales", `${locale}.lua`)].find((f) => existsSync(f)), "L.lua"],
 		...NAME_TABLES.map((t) => [build && join(wagoCache, build, locale, `${t}.csv`), `${t}.csv`]),
 	];
 	const missing = wanted.filter(([from]) => !from || !existsSync(from)).map(([, to]) => to);

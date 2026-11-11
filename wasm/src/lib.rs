@@ -79,7 +79,7 @@ impl Compiler {
 		Ok(Compiler { data, manifest: V::obj(), license: None, iface: String::new(), guides: Vec::new() })
 	}
 
-	/// The client's spell names the compiler's texts read: JSON [[name, id], ...].
+	/// The client's spell names the compiler's texts read: JSON [[name, id, classMask], ...] (classMask 0: every guide may use the name).
 	#[wasm_bindgen(js_name = setSpellNames)]
 	pub fn set_spell_names(&mut self, json: &str) -> Result<(), JsValue> {
 		let v = parse(json, "spell names")?;

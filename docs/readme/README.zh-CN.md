@@ -10,7 +10,7 @@
 
 [![MIT 许可证](https://img.shields.io/badge/许可证-MIT-e6ba66?style=flat-square&labelColor=232a3f)](../../LICENSE)
 [![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-339933?style=flat-square&logo=nodedotjs&logoColor=white&labelColor=232a3f)](https://nodejs.org/)
-[![Polestar 0.3.5+](https://img.shields.io/badge/Polestar-0.3.5%2B-94c9ff?style=flat-square&labelColor=232a3f)](https://github.com/fitzforge/polestar)
+[![Polestar 0.3.7+](https://img.shields.io/badge/Polestar-0.3.7%2B-94c9ff?style=flat-square&labelColor=232a3f)](https://github.com/fitzforge/polestar)
 [![魔兽世界:Forever](https://img.shields.io/badge/WoW-Forever-fabf4d?style=flat-square&labelColor=232a3f)](#快速开始)
 [![来源:RestedXP、Journey、Zygor](https://img.shields.io/badge/来源-RestedXP_·_Journey_·_Zygor-f16436?style=flat-square&labelColor=232a3f)](#快速开始)
 
@@ -44,7 +44,7 @@ ID、名称和坐标都来自 Polestar 自己的游戏数据,再用 Polestar 自
 
 ## 快速开始
 
-需要魔兽世界:Forever,`Interface/AddOns` 里装有 **Polestar 0.3.5 或更新版本**,以及至少一个攻略插件:
+需要魔兽世界:Forever,`Interface/AddOns` 里装有 **Polestar 0.3.7 或更新版本**,以及至少一个攻略插件:
 RestedXP、Journey 或 Zygor。别的都不需要:不用克隆,也不用构建游戏数据。
 
 **在浏览器里:** 打开 **[aronjanosch.github.io/polestar-convert](https://aronjanosch.github.io/polestar-convert/)**,

@@ -67,13 +67,15 @@ export function guideShown(header) {
 // vendor) or `#ah` (look at the auction house) by RXP's self-found setting, off
 // by default, as here unless `selfFound`.
 const dropTags = (selfFound) => new Set(["hardcore", "hardcoreserver", "som", selfFound ? "ah" : "ssf"]);
-// RXP's client variants as it reads them on Forever: season 0, phase 6, XP rate 1.
+// RXP's client variants as it reads them on Forever: season 0, phase 5 (RXP's
+// PhaseCheck sets Forever to the phase before Naxxramas), XP rate 1.
+const FOREVER_PHASE = 5;
 function variantShown(tag) {
 	const arg = String(tag.args || "").replace(/<<.*$/, "").trim();
 	if (tag.name === "season") return arg.split(/[,;\s]+/).map(Number).includes(0);
 	if (tag.name === "phase") {
 		const m = arg.match(/^(\d+)(?:-(\d+))?$/);
-		return !m || (6 >= Number(m[1]) && (m[2] == null || 6 <= Number(m[2])));
+		return !m || (FOREVER_PHASE >= Number(m[1]) && (m[2] == null || FOREVER_PHASE <= Number(m[2])));
 	}
 	if (tag.name === "xprate") {
 		const m = arg.match(/^([<>]?)\s*(\d+\.?\d*)(?:-(\d+\.?\d*))?/);

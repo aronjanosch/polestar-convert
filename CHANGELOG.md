@@ -2,8 +2,14 @@
 
 ## Unreleased
 
-For Polestar 0.3.5: the page's compiler and data are Polestar 0.3.5's.
+For Polestar 0.3.7: the page's compiler and data are Polestar 0.3.7's.
 
+- **Polestar 0.3.7**: the page's compiler moves to 0.3.7; its client tables
+  give each spell name its class mask, so a class guide's texts name its own
+  spells.
+- **RestedXP on Forever is phase 5**: RestedXP now reads Forever as the phase
+  before Naxxramas, so steps tagged `#phase 6` are left out and steps tagged
+  up to phase 5 are kept, as RestedXP shows them.
 - **Polestar 0.3.5**: the page's compiler and game data move from 0.3.1 to
   0.3.5. Its quest data lists speaking with someone as a `talk` objective;
   RestedXP's `.complete`, Zygor's `talk … |q Q/n` and objective text lines and
