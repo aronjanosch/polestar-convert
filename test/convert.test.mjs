@@ -411,6 +411,10 @@ test("a guide RXP does not list on Forever (another season, XP rate or phase, So
 	assert.equal(guideShown(header("#xprate >1.59")), false);
 	assert.equal(guideShown(header("#xprate <1.59")), true);
 	assert.equal(guideShown(header("#phase 1-2")), false);
+	// RXP sets Forever to phase 5 (pre-Naxxramas): phase 6 alone is hidden, up to 5 is shown.
+	assert.equal(guideShown(header("#phase 6")), false);
+	assert.equal(guideShown(header("#phase 1-5")), true);
+	assert.equal(guideShown(header("#phase 4-6")), true);
 	assert.equal(guideShown(header("#som")), false);
 	assert.equal(guideShown(header("#era/som")), true);
 	// RXP keeps the first of a tag; a line for some characters only does not hide the guide.
