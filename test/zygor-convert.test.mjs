@@ -11,6 +11,9 @@ const data = {
 		101: { title: "Invented Errand", start: { npc: [203] }, end: { npc: [201] }, level: 3, minLevel: 1,
 			objectives: [{ type: "kill", id: 301, text: "Young Wolves" }, { type: "item", id: 401, text: "Wolf Pelts" }] },
 		102: { title: "Second Errand", start: { npc: [201] }, end: { npc: [201] }, level: 4, minLevel: 2, objectives: [] },
+		// An escort: its one objective is an event, with no NPC.
+		103: { title: "Escort Errand", start: { npc: [201] }, end: { npc: [201] }, level: 4, minLevel: 2,
+			objectives: [{ type: "event", id: null, count: null, text: "Help Bob escape the vale." }] },
 	},
 	npcs: {
 		201: { name: "Giver Bob", spawns: {}, rank: 0 },
@@ -679,4 +682,15 @@ test("a talk line or text line on a speak-with objective becomes `talk <npc> que
 	assert.match(run("step\n  Speak with the Example Keeper |q 104/1\n"), /^  talk 204 quest 104\.1/m);
 	// Beside a hand-in it stays: only a talk that counts nothing is dropped at a giver.
 	assert.match(run("step\n  turnin Second Errand##102\n  talk Example Keeper##204 |q 104/1\n"), /^  talk 204 quest 104\.1/m);
+});
+
+test("a kill whose quest has only an event objective counts the whole quest, not `kill null`", () => {
+	const r = conv([
+		"step",
+		"  accept Escort Errand##103 |goto Invented Vale/0 30.2,71.7",
+		"step",
+		"  kill Young Wolf##301 |q 103/2 |goto Invented Vale/0 41.6,47.7",
+	].join("\n"));
+	assert.doesNotMatch(r.text, /kill null/);
+	assert.match(r.text, /^  complete 103/m);
 });

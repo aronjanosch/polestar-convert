@@ -170,7 +170,7 @@ impl Compiler {
 			ok.get(&locale).set("pack", pack);
 			ok.get(&locale).set("guides", guides);
 		}
-		let files = build_pack_files(&self.guides, &self.manifest, &self.data, self.license.as_deref(), &ok, &[], &self.iface, Vec::new());
+		let files = build_pack_files(&self.guides, &self.manifest, &self.data, self.license.as_deref(), &ok, &[], &[], &self.iface, Vec::new());
 		let out: Vec<Value> = files
 			.into_iter()
 			.map(|(name, c)| match c {

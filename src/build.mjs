@@ -64,8 +64,9 @@ export async function buildAddons({ read, paths, readData, manifest, Compiler, p
 
 // Compiles `guides` ([[path, text]]), leaving out every guide the compiler finds an error
 // in and compiling the rest again, until none is left with one: a guide may fail only
-// without one left out (a chain it continues). A `next` to a guide left out goes, so the
-// guides before it stay. An error in no guide stops it.
+// without one left out (a chain it continues). A `next` to a guide left out goes (of a
+// choice `next a, b` only that guide), so the guides before it stay. An error in no guide
+// stops it.
 // -> { kept, dropped: [{ file, errors }], errors (those that stop it), warnings }
 export function compileKeeping(compiler, guides) {
 	let kept = guides;
@@ -80,6 +81,11 @@ export function compileKeeping(compiler, guides) {
 		const bad = new Set(errors.map((e) => e.file));
 		for (const [p] of kept) if (bad.has(p)) dropped.push({ file: p, errors: errors.filter((e) => e.file === p) });
 		const gone = new Set(dropped.map((d) => d.file.replace(/^guides\/|\.guide$/g, "")));
-		kept = kept.filter(([p]) => !bad.has(p)).map(([p, text]) => [p, text.replace(/^next \S+\/(\S+)[^\n]*\n?/gm, (line, slug) => (gone.has(slug) ? "" : line))]);
+		kept = kept.filter(([p]) => !bad.has(p)).map(([p, text]) => [p, text.replace(/^next ([^\n]*)(\n?)/gm, (line, list, nl) => {
+			// `next a, b` (a choice): only the guides left out go, the line when none is left.
+			const ids = list.split(/,\s*/);
+			const left = ids.filter((id) => !gone.has(id.replace(/^\S+\//, "").split(/\s/)[0]));
+			return left.length === ids.length ? line : left.length ? `next ${left.join(", ")}${nl}` : "";
+		})]);
 	}
 }

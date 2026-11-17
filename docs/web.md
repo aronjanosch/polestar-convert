@@ -73,6 +73,17 @@ node tools/pages.mjs --polestar <checkout>       # writes out/pages
 cd out/pages && python3 -m http.server 8765      # try it at http://127.0.0.1:8765/
 ```
 
+Without a source cache, leave out `--offline`: `data build` fetches what it
+reads into `<checkout>/data/sources`, and `forge data sources --root <checkout>
+--only builders` fetches what `travel` and `codex` read. Since Polestar 0.4.0,
+`professions` stops without Polestar's private Forever TDB extract (no trainer
+recipe has a price); take the published page's `data/forever/professions.json`
+into the checkout instead. `tools/pages.mjs` also reads the Classic Era
+`WMOAreaTable.csv` and, for the names, `AreaTable`, `UiMap` and `SpellName` per
+language under `data/sources/wago/<Forever build>/<locale>/`; fetch a missing
+one from `https://wago.tools/db2/<Table>/csv?build=<build>&locale=<locale>`
+(no `&locale` for the Era table).
+
 `sources.json` in the built page must name no web source. Publishing puts
 `out/pages` on the `gh-pages` branch as one commit (the data stays out of
 `main`'s history):

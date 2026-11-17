@@ -176,7 +176,9 @@ function verbGoals(l, ctx, place) {
 			if (o.type === "item") return got({ kind: "collect", item: o.id, quest: questId, oi: hit.index });
 			if (o.type === "object") return got({ kind: "interact", object: o.id, quest: questId, oi: hit.index });
 			if (o.type === "talk") return got({ kind: "talk", npc: o.id, quest: questId, oi: hit.index });
-			return got({ kind: "kill", npc: o.id, quest: questId, oi: hit.index });
+			if (o.type === "kill") return got({ kind: "kill", npc: o.id, quest: questId, oi: hit.index });
+			// An event (escort, explore; no NPC): Polestar counts it with the whole quest.
+			return got({ kind: "complete", quest: questId });
 		}
 		case "collect": case "buy": case "expcollect": {
 			if (!first || !data.items[first.id]) return none;

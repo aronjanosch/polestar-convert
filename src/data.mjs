@@ -49,6 +49,7 @@ export async function loadData(read) {
 
 	const npcByName = new Map();
 	for (const npc of Object.values(npcs)) {
+		if (!npc.name) continue; // a few QuestieDB NPCs have no name: nothing finds them by one
 		const key = npc.name.toLowerCase();
 		if (!npcByName.has(key)) npcByName.set(key, []);
 		npcByName.get(key).push(npc);
