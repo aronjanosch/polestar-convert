@@ -19,7 +19,7 @@ native = ["forge-guide/native"]
 
 [dependencies]
 # Polestar's compiler, pinned: the page's game data comes from the same commit.
-forge-guide = { git = "https://github.com/fitzforge/polestar", rev = "89c62f73905df2f2218ff791bfe9b4671ab7ea29", default-features = false }
+forge-guide = { git = "https://github.com/fitzforge/polestar", rev = "c85dd863d1628c8d6b5e7d233428710334cd72d6", default-features = false }
 rustc-hash = "2"
 serde_json = "1"
 

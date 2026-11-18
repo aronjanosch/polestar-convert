@@ -53,6 +53,13 @@ test("loadData without the optional files", async () => {
 	assert.equal(data.journal.size, 0);
 });
 
+test("loadData passes over an NPC without a name (QuestieDB lists a few)", async () => {
+	const npcs = { 201: { name: "Bob", spawns: {} }, 202: { name: null, spawns: {} }, 203: { name: "", spawns: {} } };
+	const data = await loadData(reader({ ...DATA, "data/forever/npcs.json": JSON.stringify(npcs) }));
+	assert.equal(data.npcs[202].name, null);
+	assert.deepEqual([...data.npcByName.keys()], ["bob"]);
+});
+
 test("readTable reads CSV text; none gives an empty table", () => {
 	assert.deepEqual(readTable('ID,Name\n1,"a ""b"""\n', "ID", ["Name"]).get(1), { Name: 'a "b"' });
 	assert.equal(readTable(null, "ID", ["Name"]).size, 0);

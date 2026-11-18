@@ -2,8 +2,21 @@
 
 ## Unreleased
 
-For Polestar 0.3.7: the page's compiler and data are Polestar 0.3.7's.
+For Polestar 0.4.1: the page's compiler and data are Polestar 0.4.1's.
 
+- **Polestar 0.4.1**: the page's compiler and game data move to 0.4.1, built
+  with QuestieDB 1.1.2. Its data names the quest targets the game only knows by
+  a placeholder ("Credit", "… (DND)") by their quest-log line, so the
+  Teldrassil Lunar Pendant and Felwood moonwell steps compile again, and with
+  them the guides after them. Checked with RestedXP 4.11.36 and Zygor
+  1.6.37640: every Zygor guide is kept.
+- **A choice of next guides keeps the ones left**: when the compiler leaves
+  out one guide of `next a, b`, only that one goes from the line; before, the
+  line stayed and the guide before it was left out too.
+- **Zygor:** a `kill … |q Q/n` whose quest's objective is an event (an escort)
+  counts the whole quest (`complete Q`), not a kill of no one.
+- **NPCs without a name** in the quest data (QuestieDB lists a few) no longer
+  stop the converter.
 - **Polestar 0.3.7**: the page's compiler moves to 0.3.7; its client tables
   give each spell name its class mask, so a class guide's texts name its own
   spells.
