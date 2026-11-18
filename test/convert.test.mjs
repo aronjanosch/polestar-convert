@@ -330,6 +330,11 @@ test("a goto naming its map by number is a point on that map", () => {
 	assert.deepEqual(gotosOf(mapText(WALK.join("\n"))), ['goto 70,70 "Walk to the mill" era']);
 });
 
+test("a world point off its map is left out, not written outside 0-100", () => {
+	const text = mapText(["step", "    #completewith next", "    .goto 1/0,150,30", "    .goto 1/0,30,30", "    >>Go east", "step", "    >>Talk", "    .goto 1/0,20,20"].join("\n"));
+	assert.deepEqual(gotosOf(text).map((l) => l.split(" ")[1]), ["70,70", "80,80"]);
+});
+
 test("a #completewith step with a goal of its own carries no points on", () => {
 	const text = mapText(["step", "    #completewith next", "    .goto 1,20,20", "    .goto 1,30,30", "    >>Buy water", "    .vendor 4", ...WALK].join("\n"));
 	assert.equal(gotosOf(text).some((l) => /^goto (20|30),/.test(l)), false);

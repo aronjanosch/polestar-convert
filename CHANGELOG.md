@@ -9,7 +9,15 @@ For Polestar 0.4.1: the page's compiler and data are Polestar 0.4.1's.
   a placeholder ("Credit", "… (DND)") by their quest-log line, so the
   Teldrassil Lunar Pendant and Felwood moonwell steps compile again, and with
   them the guides after them. Checked with RestedXP 4.11.36 and Zygor
-  1.6.37640: every Zygor guide is kept.
+  1.6.37640: every guide is kept (526 RestedXP, 753 Zygor).
+- **RestedXP's Skyborne guides**: RXP 4.11.36 runs `Forever` into 96 step
+  and comment lines of `RestedXP-Skyborne.lua` (`Foreverstep << Horde
+  Shaman`); they are read as the steps they are meant to be, so Zephras Isle
+  converts and the Horde route after it is no longer left out. The report
+  counts them.
+- **RestedXP:** a `.goto` world point off its own map (RXP gives the same
+  place on the next map beside it) is left out instead of written below 0%;
+  Swamp of Sorrows 38-39 and the Alliance route after it are kept.
 - **A choice of next guides keeps the ones left**: when the compiler leaves
   out one guide of `next a, b`, only that one goes from the line; before, the
   line stayed and the guide before it was left out too.

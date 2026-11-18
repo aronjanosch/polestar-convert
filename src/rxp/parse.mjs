@@ -33,7 +33,13 @@ export function parseGuide(body) {
 	const header = { flags: [] };
 	const steps = [];
 	let step = null;
-	for (const rawLine of body.split(/\r?\n/)) {
+	for (let rawLine of body.split(/\r?\n/)) {
+		// RXP 4.11.36's Skyborne file runs `Forever` into its step and comment lines
+		// ("Foreverstep << Horde Shaman"): read them as the steps they are meant to be.
+		if (/^\s*Forever(step\b|--)/.test(rawLine)) {
+			rawLine = rawLine.replace(/^(\s*)Forever/, "$1");
+			header.runIn = (header.runIn || 0) + 1;
+		}
 		// RXP drops `--` to the end of the line before it parses anything.
 		const cut = rawLine.indexOf("--");
 		const comment = cut >= 0 ? rawLine.slice(cut + 2).trim() : null;

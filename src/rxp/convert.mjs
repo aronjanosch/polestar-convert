@@ -108,6 +108,8 @@ function parseGoto(args, data, ctx) {
 		uiMap = Number(world[1]);
 		const z = worldToZone(data, uiMap, x, y);
 		if (!z) { ctx.report.count("goto: map without frame"); return null; }
+		// A point off its map (RXP gives the same place on the neighbouring map next): no percentages.
+		if (z.x < 0 || z.x > 100 || z.y < 0 || z.y > 100) { ctx.report.count("goto: world point off its map (dropped)"); return null; }
 		return { uiMap, x: z.x, y: z.y, live: z.live, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0" };
 	}
 	// Zone percentages on the map RXP names (or numbers), in the Era frame RXP writes them in.
@@ -1101,6 +1103,7 @@ export function headerRaces(races, faction) {
 
 export function convertGuide(parsed, data, opts) {
 	const { report, slug, packId } = opts;
+	if (parsed.header.runIn) report.count("line run into `Forever` (Foreverstep): read as the step", parsed.header.runIn);
 	// RXP's `#displayname` is the name it shows (the name itself can be an internal key).
 	// One with a condition ("<< Paladin") names it for some characters only: not the title.
 	// A translated guide's English header (`en`) gives the zone and levels.
