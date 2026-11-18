@@ -84,7 +84,7 @@ export async function convertAddons(read, data, names, opts) {
 				if (text == null) missing.push(path);
 				else files.push({ path, text });
 			}
-			runs.rxp = { ...convertRxp(files, data, { packId: opts.packId, routes: opts.routes, selfFound: opts.selfFound, levelXp: names && names.levelXp }), files, missing };
+			runs.rxp = { ...convertRxp(files, data, { packId: opts.packId, routes: opts.routes, selfFound: opts.selfFound, levelXp: names && names.levelXp, spellName: names && names.spell }), files, missing };
 			runs.rxp.version = tocVersion(await read("RXPGuides/RXPGuides.toc"));
 		}
 		if (source === "journey") {
