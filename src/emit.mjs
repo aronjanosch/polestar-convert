@@ -104,8 +104,14 @@ export function render(guide, { report, slug, packId, next }) {
 		// step keeps its goals, and the player skips it by hand as in RXP.
 		const held = s.goals.filter((g) => g.kind !== "note");
 		const qs = new Set(held.map(questOf).filter((q) => q != null));
-		const keepAll = !along && held.length > 0 && held.every(isOptional) && !held.every((g) => g.kind === "goto") && qs.size <= 1 && !held.some((g) => g.kind === "turnin");
-		if (keepAll) {
+		// Only the players who chose a dungeon or a group see a `when dungeon`/`when group` step:
+		// its goals (elites, the way there) are what they came for, along or not. A turn-in stays
+		// optional (the quest may not be done), so does a step a later one completes.
+		const chosen = (s.whens || []).some((w) => /^(dungeon|group) /.test(w));
+		const chosenAll = chosen && !optional && held.length > 0 && held.every((g) => g.optional) && !held.some((g) => g.kind === "turnin");
+		const keepAll = chosenAll || (!along && held.length > 0 && held.every(isOptional) && !held.every((g) => g.kind === "goto") && qs.size <= 1 && !held.some((g) => g.kind === "turnin"));
+		if (chosenAll) report.count("step only a dungeon's or group's players see, optional goals only -> goals hold");
+		else if (keepAll) {
 			report.count("step of optional goals only -> goals kept (skip by hand)");
 			// Kept for a quest the player may not have: shown only while on it.
 			const [q] = qs;

@@ -18,6 +18,10 @@ For Polestar 0.4.1: the page's compiler and data are Polestar 0.4.1's.
 - **RestedXP:** a `.goto` world point off its own map (RXP gives the same
   place on the next map beside it) is left out instead of written below 0%;
   Swamp of Sorrows 38-39 and the Alliance route after it are kept.
+- **Dungeon and group steps lead the way**: in a step only the players who
+  chose a dungeon or a group see (`when dungeon`, `when group`), optional
+  goals (elites, the way there) hold, so the step shows its arrow instead of
+  being passed at once; a turn-in stays optional. RestedXP: 191 such steps.
 - **A choice of next guides keeps the ones left**: when the compiler leaves
   out one guide of `next a, b`, only that one goes from the line; before, the
   line stayed and the guide before it was left out too.

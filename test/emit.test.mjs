@@ -90,3 +90,19 @@ test("a long heading is cut at a word with an ellipsis, a short one is left alon
 	assert.ok(cut.length <= 63 && cut.endsWith("...") && long.startsWith(cut.slice(0, -3)));
 	assert.equal(cut, "Be careful as Scarred Crag Boars cast Charge, which only...");
 });
+
+test("in a step only a dungeon's or a group's players see, optional goals hold; a turn-in stays optional", () => {
+	const kills = [{ kind: "kill", npc: 3, quest: 9, oi: 1, optional: true, only: "" }, { kind: "kill", npc: 4, quest: 8, oi: 1, optional: true, only: "" }];
+	const along = run([
+		step({ title: "Kill", whens: ['dungeon "Razorfen Downs"'], completesWith: "camp", allAlong: true, goals: kills }),
+		step({ label: "camp", goals: [{ kind: "turnin", quest: 9, only: "" }] }),
+	]);
+	assert.match(along.text, /^  kill 3 quest 9\.1$/m);
+	assert.match(along.text, /^  kill 4 quest 8\.1$/m);
+	const way = run([step({ whens: ["group 550"], goals: [{ kind: "goto", x: 51.9, y: 64.7, live: true, optional: true, only: "" }] })]);
+	assert.doesNotMatch(way.text, /optional/);
+	const solo = run([step({ goals: kills })]);
+	assert.match(solo.text, /^  kill 3 quest 9\.1 optional$/m);
+	const turnin = run([step({ whens: ['dungeon "Gnomeregan"', "onquest 2924"], goals: [{ kind: "turnin", quest: 2924, optional: true, only: "" }] })]);
+	assert.match(turnin.text, /^  turnin 2924 optional$/m);
+});
