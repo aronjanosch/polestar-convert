@@ -22,3 +22,10 @@ test("`<<` needs no space and cuts at the first one", () => {
 	assert.equal(n.text, "Kill them");
 	assert.equal(n.cond, "Warrior/Rogue");
 });
+
+test("a step line run into `Forever` (RXP 4.11.36's Skyborne file) is still a step", () => {
+	const g = parseGuide("#name T\nForeverstep\n    .accept 1\nForever-- a comment\nForeverstep << Horde Shaman\n    .accept 2\n");
+	assert.equal(g.steps.length, 2);
+	assert.equal(g.steps[1].cond, "Horde Shaman");
+	assert.equal(g.header.runIn, 3);
+});
