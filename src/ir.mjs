@@ -44,12 +44,13 @@ const nameText = (g) => (g.itemName ? ` ${q(g.itemName)}` : "");
 export function goalText(g) {
 	switch (g.kind) {
 		case "accept": case "turnin": case "complete":
-			return `${g.kind} ${g.quest}${g.title ? " " + q(g.title) : ""}${atText(g.at)}${g.item ? " item " + g.item : ""}`;
+			return `${g.kind} ${g.quest}${g.title ? " " + q(g.title) : ""}${atText(g.at)}${g.item ? " item " + g.item : ""}${g.direct ? " direct" : ""}`;
 		case "talk": return `talk ${g.npc}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${atText(g.at)}`;
 		case "kill": return `kill ${g.npc}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${g.text ? " " + q(g.text) : ""}${atText(g.at)}`;
 		case "interact": return `interact ${g.object}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${atText(g.at)}`;
 		case "learn": return `learn ${g.spell}${g.name ? " " + q(g.name) : ""}${g.npc ? " npc " + g.npc : ""}`;
 		case "rep": return `rep ${q(g.faction)} ${g.standing}`;
+		case "buff": return `buff ${g.spell}${g.name ? " " + q(g.name) : ""}${g.off ? " off" : ""}`;
 		case "money": return `money ${g.copper}`;
 		case "collect":
 			if (g.quest != null && g.oi != null) return `collect ${g.item}${nameText(g)} quest ${g.quest}.${g.oi}${atText(g.at)}`;

@@ -457,3 +457,37 @@ test("an objective that is speaking with someone becomes `talk <npc> quest Q.O`"
 	assert.match(out, /^  talk 5 quest 12\.1$/m);
 	assert.doesNotMatch(out, /complete 12/);
 });
+
+// Polestar 0.4.1's goals: an aura, a standing, a gossip option, a daily hand-in.
+const newGoals = (body) => convertGuide(parseGuide("#name T\n" + body), {
+	...fakeData(),
+	quests: { 7: { title: "Daily", start: { npc: [4] }, end: { npc: [4] }, level: 50, minLevel: 50, objectives: [{ type: "item", id: 10, count: 6, text: "Stiletto" }] } },
+	factions: { 576: { id: 576, name: "Timbermaw Hold" } },
+}, { report: new Report(), slug: "t", packId: "chk", spellName: (id) => ({ 5697: "Unending Breath", 9991: "Some Aura" })[id] || null }).text;
+
+test(".aura with text is a buff goal named by the client's table; without text it skips the step while the aura is on", () => {
+	assert.match(newGoals("step\n    .aura 5697 >> Buff yourself with |T136148:0|t[Unending Breath]"), /^  buff 5697 "Unending Breath"$/m);
+	assert.match(newGoals("step\n    .aura -5697 >> Click it off"), /^  buff 5697 "Unending Breath" off$/m);
+	assert.match(newGoals("step\n    .aura 5697\n    .accept 7 >> Accept Daily"), /^  when !buff 5697$/m);
+	assert.match(newGoals("step\n    .aura -9991\n    .accept 7 >> Accept Daily"), /^  when buff 9991$/m);
+	// A spell the table does not name: no goal (the compiler would refuse the guide).
+	assert.doesNotMatch(newGoals("step\n    .aura 7178 >> Use your [Draught of Water Breathing]"), /buff/);
+});
+
+test(".reputation is a rep goal, or with its skip flag a rep condition", () => {
+	assert.match(newGoals("step\n    .reputation 576,unfriendly"), /^  rep "Timbermaw Hold" Unfriendly$/m);
+	assert.match(newGoals("step\n    .reputation 576,neutral,1500"), /^  rep "Timbermaw Hold" Neutral\+1500$/m);
+	// Skipped unless at least Friendly (`<0`, skip flag): shown to those who are.
+	assert.match(newGoals("step\n    .reputation 576,friendly,<0,1\n    .accept 7 >> Accept Daily"), /^  when rep "Timbermaw Hold" Friendly$/m);
+	// Skipped once Friendly: shown to those below.
+	assert.match(newGoals("step\n    .reputation 576,friendly,0,1\n    .accept 7 >> Accept Daily"), /^  when !rep "Timbermaw Hold" Friendly$/m);
+	assert.doesNotMatch(newGoals("step\n    .reputation 999,friendly"), /rep /);
+});
+
+test(".gossipoption picks the option at the step's target; .dailyturnin is a hand-in", () => {
+	assert.match(newGoals("step\n    .gossipoption 95406 >> Talk to Oliver Dwor to start the escort\n    .target Oliver Dwor"), /^  talk 4[^\n]* gossip 95406$/m);
+	const daily = newGoals("step\n    .dailyturnin 7 >> Turn in Daily");
+	assert.match(daily, /^  turnin 7 direct\b/m);
+	assert.doesNotMatch(daily, /when onquest 7/);
+	assert.match(daily, /^  when has 10 x6$/m);
+});

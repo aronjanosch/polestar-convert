@@ -39,7 +39,7 @@ export function convertRxp(files, data, opts) {
 	// so a guide picked alone still knows what the guides before it accept.
 	const plan = planChain(parsed, report);
 	// `en`: the English guide whose plan a translated one takes.
-	const convert = (g, rep, next, en = g) => convertGuide(g, data, { report: rep, slug: plan.slug.get(en), packId: opts.packId, next, before: plan.before.get(en), spells, selfFound: !!opts.selfFound, levelXp: opts.levelXp });
+	const convert = (g, rep, next, en = g) => convertGuide(g, data, { report: rep, slug: plan.slug.get(en), packId: opts.packId, next, before: plan.before.get(en), spells, spellName: opts.spellName, selfFound: !!opts.selfFound, levelXp: opts.levelXp });
 	// A first pass with a report of its own: a guide left with no steps (every step a
 	// variant left out) is not written, nor one past `maxStart`.
 	const keep = (g) => {

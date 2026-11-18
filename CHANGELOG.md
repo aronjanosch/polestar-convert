@@ -18,6 +18,17 @@ For Polestar 0.4.1: the page's compiler and data are Polestar 0.4.1's.
 - **RestedXP:** a `.goto` world point off its own map (RXP gives the same
   place on the next map beside it) is left out instead of written below 0%;
   Swamp of Sorrows 38-39 and the Alliance route after it are kept.
+- **RestedXP: Polestar 0.4.1's goals** (pack format 11):
+  - `.aura` with text is a `buff` goal (a negative id: `buff … off`), named
+    by the client's spell table (the line's `[Name]` may be the item that
+    gives the aura); without text the step is skipped while the aura is on
+    (`when !buff`, or `when buff` for a negative id).
+  - `.reputation` is a `rep` goal (`Neutral+1500` for points into a standing),
+    or with its skip flag a `when rep` / `when !rep` condition.
+  - `.gossipoption` is a `talk` to the step's target that picks that gossip
+    option (`gossip`).
+  - `.dailyturnin` of one quest is `turnin … direct`, shown while the bags hold
+    the quest's items when the step does nothing else.
 - **Dungeon and group steps lead the way**: in a step only the players who
   chose a dungeon or a group see (`when dungeon`, `when group`), optional
   goals (elites, the way there) hold, so the step shows its arrow instead of

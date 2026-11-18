@@ -117,6 +117,31 @@ function parseGoto(args, data, ctx) {
 	return { uiMap: numbered ?? zoneIdNamed(data, mapPart), x, y, live: false, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0", zoneText: mapPart };
 }
 
+// RXP's standings, 1-8 (addon.repStandingID).
+const STANDINGS = ["Hated", "Hostile", "Unfriendly", "Neutral", "Friendly", "Honored", "Revered", "Exalted"];
+
+// `.reputation <faction>,<standing>[,<value>[,<skip>]]` -> { faction (the data's name), standing
+// ("Friendly", "Neutral+1500"), reached (true: at least that; false: RXP's `<`), skip }, or null
+// when Polestar cannot say it: a faction the data lacks, a share of the bar (0 < value < 1) or a
+// distance below the standing (value < 0).
+function repOf(args, data) {
+	const [fid, str, value, skip] = String(args || "").split(",").map((x) => x.trim());
+	const faction = data.factions && data.factions[Number(fid)];
+	const sm = String(str || "").replace(/\s/g, "").match(/^(<?)([a-z]+|[1-8])([+]\d+)?$/i);
+	if (!faction || !faction.name || !sm) return null;
+	const idx = /^\d$/.test(sm[2]) ? Number(sm[2]) : STANDINGS.findIndex((x) => x.toLowerCase() === sm[2].toLowerCase()) + 1;
+	if (!(idx >= 1)) return null;
+	let reached = sm[1] !== "<", points = sm[3] ? Number(sm[3]) : 0;
+	if (value != null && value !== "") {
+		const vm = value.replace(/\s/g, "").match(/^(<?)(-?\d+(?:\.\d+)?)$/);
+		if (!vm) return null;
+		reached = vm[1] !== "<";
+		points = Number(vm[2]);
+	}
+	if (points !== 0 && !(points >= 1 && Number.isInteger(points))) return null;
+	return { faction: faction.name, standing: STANDINGS[idx - 1] + (points ? `+${points}` : ""), reached, skip: skip != null && skip !== "" };
+}
+
 // `.abandon <quest>`, `.destroy <item>[,count]`, `.cast <spell>` and `.usespell <spell>`
 // as Polestar goals (pack format 5), or null when Polestar cannot check it: a quest or
 // item not in its data, a spell no RXP line names (the caller then falls back to a task).
@@ -504,7 +529,9 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			}
 			continue;
 		}
-		const n = l.name;
+		// `.dailyturnin Q` hands in a repeatable quest as `.turnin` does (several quests: left as unknown).
+		const n = l.name === "dailyturnin" && /^\s*\d+\s*$/.test(l.args) ? "turnin" : l.name;
+		if (l.name === "dailyturnin" && n === "turnin") report.count(".dailyturnin -> turnin direct");
 		// RXP's `.turnin -214`: the line is skipped while the quest is not in the log
 		// (`skipIfMissing`), so it never holds the step: its goals are optional.
 		negLine = /^-\d/.test(l.args);
@@ -531,6 +558,8 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				add({ kind: n, quest: lineQuestId, title, at: at(placeFor(li)) }, l.cond);
 				report.note(ctx.name, stepNo, `quest ${lineQuestId} unknown to the data; quoted by name`, l.text);
 			}
+			// A daily hand-in never enters the log: handed in straight from the giver's window.
+			if (l.name === "dailyturnin" && goals.length > goalsBefore) goals[goals.length - 1].direct = true;
 			const said = plain(l.text).replace(/^(accept|turn in)\s+/i, "");
 			if (goals.length > goalsBefore) goalTitle.set(goals[goals.length - 1], said);
 			if (!title) { title = said; titleGoal = goals[goals.length - 1]; }
@@ -811,6 +840,38 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				add({ kind: "wait", seconds: secs, text: (m[2] || "").trim() || null }, l.cond);
 				report.count(".timer -> wait");
 			} else report.count(".timer (ignored)");
+		} else if (n === "aura") {
+			// `.aura <spell> >> text`: have the aura (a negative id: be rid of it), Polestar's `buff`.
+			// Without text RXP skips the step once that holds: `when !buff`. A duration, stack
+			// count or another unit has no Polestar form.
+			const m = String(l.args || "").trim().match(/^(-?)(\d+)$/);
+			const id = m ? Number(m[2]) : 0, off = !!(m && m[1]);
+			if (!id) report.count(".aura with a duration, stacks or unit (ignored)");
+			else if (plain(l.text)) {
+				// The aura's name from the client's table: the line's `[Name]` may be the item that gives it.
+				const name = ctx.spellName && ctx.spellName(id);
+				if (!name) report.count(".aura of a spell the client's table does not name (ignored)");
+				else { add({ kind: "buff", spell: id, name, off: off || undefined }, l.cond); formatNeeds = Math.max(formatNeeds, 11); report.count(".aura -> buff"); }
+			} else if (l.cond) report.count(".aura skip form on a class line (ignored)");
+			else { whens.push(`${off ? "" : "!"}buff ${id}`); formatNeeds = Math.max(formatNeeds, 11); report.count(".aura skip form -> when !buff"); }
+		} else if (n === "reputation") {
+			const r = repOf(l.args, data);
+			if (!r) report.count(".reputation not expressible (ignored)");
+			else if (r.skip) {
+				// Skipped once the standing is (operator) or is not (`<`) reached: shown to the others.
+				if (l.cond) report.count(".reputation skip form on a class line (ignored)");
+				else { whens.push(`${r.reached ? "!" : ""}rep ${JSON.stringify(r.faction)} ${r.standing}`); formatNeeds = Math.max(formatNeeds, 11); report.count(".reputation skip form -> when rep"); }
+			} else if (!r.reached) report.count(".reputation below a standing (ignored)");
+			else { add({ kind: "rep", faction: r.faction, standing: r.standing }, l.cond); formatNeeds = Math.max(formatNeeds, r.standing.includes("+") ? 11 : 5); report.count(".reputation -> rep"); }
+		} else if (n === "gossipoption") {
+			// Pick the gossip option at the step's target: a `talk` to it that picks the option.
+			const gossip = Number(String(l.args || "").split(",")[0]);
+			const t = targets.find((x) => condsMeet(x.cond, l.cond));
+			const npc = t && ((t.id && data.npcs[t.id]) || findNpc(data, t.name, mapId, firstPt).npc);
+			const same = npc && goals.find((g) => ["talk", "vendor", "train"].includes(g.kind) && g.npc === npc.id && !g.gossip);
+			if (!(gossip > 0) || !npc) report.count(".gossipoption without a known target (ignored)");
+			else if (same) { same.gossip = gossip; report.count(".gossipoption -> gossip on the step's talk"); }
+			else { add({ kind: "talk", npc: npc.id, gossip }, l.cond); report.count(".gossipoption -> talk, gossip"); }
 		} else if (n === "goto" || n === "waypoint") {
 			// handled below
 		} else if (IGNORED.has(n)) {
@@ -992,6 +1053,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	};
 	const questOrphan = (g) => {
 		if (g.kind === "abandon") return g.quest;
+		if (g.direct) return null; // never in the log: nothing to wait for
 		const id = questOf(g);
 		if (id == null) return null;
 		// RXP shows a `.turnin -Q` only while Q is in the log: unless this guide takes Q, so does Polestar.
@@ -1001,6 +1063,17 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		const unsure = ctx.maybeTaken.has(id) && !ctx.surelyTaken.has(id) && !goals.some((a) => a.kind === "accept" && a.quest === id);
 		return !ctx.seen.has(id) || unsure ? id : null;
 	};
+	// A daily hand-in takes its items from the bags: a step that does nothing else is for the
+	// players who carry them (RXP: "if you don't have any, skip this step").
+	if (goals.every((g) => g.direct || ["note", "task", "goto"].includes(g.kind))) {
+		for (const g of goals.filter((x) => x.direct)) {
+			for (const o of ((data.quests[g.quest] || {}).objectives || []).filter((x) => x.type === "item" && x.id)) {
+				if (whens.some((w) => new RegExp(`^has ${o.id}\\b`).test(w))) continue;
+				whens.push(`has ${o.id} x${o.count || 1}`);
+				report.count("daily hand-in: shown while the bags hold its items");
+			}
+		}
+	}
 	const orphanGoals = goals.filter((g) => orphanOf(g));
 	const base = {
 		stepNo, title: title || tips[0] || notes[0] || null, only: cond.only, goals, tips: [...eliteTips, ...tips], notes, whens, maps: usedMaps, loop: isLoop ? placeable : [],
@@ -1134,7 +1207,7 @@ export function convertGuide(parsed, data, opts) {
 	const races = headerRaces(hc.race, faction);
 	// What the guide is for: inside it a condition counts as exact when it is a product there.
 	const scope = { class: hc.class || null, race: races.length ? races : null, faction: hc.faction || null };
-	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), faction, races, scope, classes: hc.class || [], loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound), levelXp: opts.levelXp || (() => null) };
+	const ctx = { report, name: parsed.header.name || slug, titles, accepted, ownSeen: new Set(), seen: new Set(before), spells: opts.spells || spellNames([parsed]), spellName: opts.spellName || null, faction, races, scope, classes: hc.class || [], loose: new Set(), maybeTaken: new Set(), surelyTaken: new Set(), lastPlace: null, path: [], pendingNotes: [], bind: null, drop: dropTags(opts.selfFound), levelXp: opts.levelXp || (() => null) };
 	// A label no step of the guide defines: RXP never ends that step beside the route.
 	ctx.labels = new Set(parsed.steps.flatMap((s) => s.tags.filter((t) => t.name === "label").map((t) => labelOf(t.args))));
 	const steps = [];
