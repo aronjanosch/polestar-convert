@@ -517,7 +517,7 @@ test("a profession: rank trained, recipe learned at the trainer, skill reached; 
 	assert.match(r.text, /^  train Tailoring Journeyman npc 201$/m);
 	assert.match(r.text, /^  learn 9001 "Example Shirt" npc 201$/m);
 	assert.doesNotMatch(r.text, /talk 201/);
-	assert.match(r.text, /step\n  when !skill Tailoring 80\n  tip Or buy them\.\n  collect 402 x20\n/);
+	assert.match(r.text, /step\n  when !skill Tailoring 80\n  tip Or buy them\.\n  collect 402 x20 anywhere\n/);
 	assert.match(r.text, /tip Create 10 Example Shirts\n  skill "Tailoring" 80/);
 });
 

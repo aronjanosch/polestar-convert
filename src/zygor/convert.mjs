@@ -7,7 +7,7 @@
 import { translate, completeGoal, crossAlts, tidy, negWhen } from "./cond.mjs";
 import { refs } from "./parse.mjs";
 import { onlyText, andOnly, canon, RACES, CLASSES } from "../cond.mjs";
-import { zoneIdNamed, zoneName, questEndPlaced, questOpenTo, journalPlace, innNamed, flightNamed, goalPlaced, soldTo, factionNamed } from "../data.mjs";
+import { zoneIdNamed, zoneName, questEndPlaced, questOpenTo, journalPlace, innNamed, flightNamed, goalPlaced, soldTo, factionNamed, itemSourcedOn } from "../data.mjs";
 import { resolveObjective } from "../objective.mjs";
 import { render } from "../emit.mjs";
 
@@ -897,6 +897,18 @@ export function convertGuide(guide, data, opts) {
 	// The zone: the first goto of the guide, else the first step's map, else the guide's own zone or its capital.
 	const capital = zoneIdNamed(data, faction === "Alliance" ? "Stormwind City" : "Orgrimmar");
 	const defaultMap = ctx.firstMap ?? (steps.find((s) => s.maps.length) || {}).maps?.[0] ?? zoneIdNamed(data, title) ?? capital;
+	// A bag count with no place of its own and no source on the step's map (materials, cloth
+	// to hand in): Polestar's arrow would lead to some source far away; it is counted anywhere.
+	let stepMap = defaultMap;
+	for (const s of steps) {
+		if (s.maps.length) stepMap = s.maps[0];
+		if (stepMap == null || s.loop.length) continue;
+		for (const g of s.goals) {
+			if (g.kind !== "collect" || g.quest != null || g.at || itemSourcedOn(data, g.item, stepMap)) continue;
+			g.anywhere = true;
+			report.count("bag count with no source on this map -> collect anywhere");
+		}
+	}
 	const zone = defaultMap != null ? zoneName(data, defaultMap) : null;
 	const guideOut = {
 		name: guide.name,

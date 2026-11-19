@@ -5,7 +5,7 @@
 
 import { parseCondition, andOnly, onlyText, condsMeet, onlyMeet, CLASSES, playersOf, condFor } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
-import { baseItemSoldBy, goalPlaced, worldToZone, zoneName, areaOf, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, areaNamed, flightNamed } from "../data.mjs";
+import { baseItemSoldBy, goalPlaced, worldToZone, zoneName, areaOf, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, areaNamed, flightNamed, itemSourcedOn } from "../data.mjs";
 import { render, shorten } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 import { resolveObjective } from "../objective.mjs";
@@ -117,7 +117,10 @@ function parseGoto(args, data, ctx) {
 	}
 	// Zone percentages on the map RXP names (or numbers), in the Era frame RXP writes them in.
 	const numbered = /^\d+$/.test(mapPart) && data.zones[Number(mapPart)] ? Number(mapPart) : null;
-	return { uiMap: numbered ?? zoneIdNamed(data, mapPart), x, y, live: false, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0", zoneText: mapPart };
+	const map = numbered ?? zoneIdNamed(data, mapPart);
+	// A map Era never had (Zephras Isle) has one frame: Forever's.
+	const eraless = map != null && data.frames && data.frames.era && !data.frames.era[map] && data.frames.forever && data.frames.forever[map];
+	return { uiMap: map, x, y, live: !!eraless, r: parts[3] != null ? parseFloat(parts[3]) : null, noArrow: parts[3] === "0" || parts[4] === "0", zoneText: mapPart };
 }
 
 // RXP's standings, 1-8 (addon.repStandingID).
@@ -1110,6 +1113,15 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				report.count("daily hand-in: shown while the bags hold its items");
 			}
 		}
+	}
+	// A bag count with no place of its own and no source on this map (cloth to save up, a
+	// material to buy): RXP shows no arrow for it, and Polestar's would lead to some source
+	// far away. It is counted wherever the player is.
+	const stepMap = mapId || (ctx.lastPlace || {}).uiMap;
+	if (stepMap && !isLoop) for (const g of goals) {
+		if (g.kind !== "collect" || g.quest != null || g.at || itemSourcedOn(data, g.item, stepMap)) continue;
+		g.anywhere = true;
+		report.count("bag count with no source on this map -> collect anywhere");
 	}
 	const orphanGoals = goals.filter((g) => orphanOf(g));
 	const base = {

@@ -195,6 +195,16 @@ export function goalPlaced(data, goal) {
 	return false;
 }
 
+// Whether item `item` has a source on map `map`: a dropping NPC or object spawned
+// there, or a vendor of it.
+export function itemSourcedOn(data, item, map) {
+	const on = (e) => !!(e && e.spawns && e.spawns[map]);
+	const it = data.items[item] || {};
+	const drops = it.drops || {};
+	return Object.keys(drops.npc || {}).some((id) => on(data.npcs[id])) || Object.keys(drops.object || {}).some((id) => on(data.objects[id]))
+		|| (it.vendors || []).some((id) => on(data.npcs[id]));
+}
+
 // Whether the data places the NPC or object a quest starts or ends at
 // (`start`/`end`): a giver inside a dungeon has no spawn on any map.
 export function questEndPlaced(data, ends) {
