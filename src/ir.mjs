@@ -62,7 +62,7 @@ export function goalText(g) {
 			if (g.profession) return `train ${g.profession.includes(" ") && !g.rank ? q(g.profession) : g.profession}${g.rank ? " " + g.rank : ""}${g.npc ? " npc " + g.npc : ""}`;
 			if (g.class) return "train class";
 			return `train ${g.npc}`;
-		case "use": return `use ${g.item}${atText(g.at)}`;
+		case "use": return `use ${g.item}${g.quest != null ? ` quest ${g.quest}.${g.oi}` : ""}${atText(g.at)}`;
 		case "level": return `level ${g.level}${g.xp != null ? "+" + g.xp : ""}`;
 		case "skill": return `skill ${q(g.skill)} ${g.n}`;
 		case "task": return `task ${q(g.text)}${atText(g.at)}`;
@@ -81,7 +81,7 @@ export function goalText(g) {
 
 // The quest a goal depends on being in the log (turn-in, complete, objectives), or null.
 export function questOf(g) {
-	return ["turnin", "complete", "kill", "talk", "collect", "interact"].includes(g.kind) && g.quest != null ? g.quest : null;
+	return ["turnin", "complete", "kill", "talk", "collect", "interact", "use"].includes(g.kind) && g.quest != null ? g.quest : null;
 }
 
 export class Report {

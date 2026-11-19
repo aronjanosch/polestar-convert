@@ -134,10 +134,24 @@ export function innNamed(data, name, pt, faction = null, prefer = null) {
 		const fit = own.length ? own : list;
 		return fit.find((i) => prefer && i.location === prefer) || closest(fit, pt);
 	};
-	const byName = data.inns.filter((i) => i.location.toLowerCase() === want || (i.names || []).some((n) => n.toLowerCase() === want));
+	const namesOf = (i) => [i.location, ...(i.names || [])].map((n) => n.toLowerCase());
+	const byName = data.inns.filter((i) => namesOf(i).includes(want));
 	if (byName.length) return pick(byName);
-	const zoneIds = Object.entries(data.zones).filter(([, z]) => String(z.name).toLowerCase() === want).map(([id]) => Number(id));
-	return pick(data.inns.filter((i) => zoneIds.includes(i.map)));
+	const bare = (t) => String(t).toLowerCase().replace(/^the\s+/, "");
+	const zoneIds = Object.entries(data.zones).filter(([, z]) => bare(z.name) === bare(want)).map(([id]) => Number(id));
+	const inZone = data.inns.filter((i) => zoneIds.includes(i.map));
+	if (inZone.length) return pick(inZone);
+	// RXP shortens: "Theramore" for Theramore Isle, "Menethil" for Menethil Harbor.
+	return pick(data.inns.filter((i) => namesOf(i).some((n) => n.startsWith(want + " "))));
+}
+
+// The area (zone or subzone) of the client's table named `name`, as the table spells
+// it, or null.
+export function areaNamed(data, name) {
+	const want = String(name || "").trim().toLowerCase().replace(/^the\s+/, "");
+	if (!want || !data.areas) return null;
+	for (const a of data.areas.values()) if (String(a.name).toLowerCase().replace(/^the\s+/, "") === want) return a.name;
+	return null;
 }
 
 // The flight point RXP names ("Crossroads", "Redridge Mountains", "Azshara")

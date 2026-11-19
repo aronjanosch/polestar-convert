@@ -66,7 +66,10 @@ Read as RXP's own `applies()` (GuideLoader.lua) reads them:
   auction house) is a `collect`.
 - `.fly` and `.fp` find their flight point by the start of a zone's or point's
   name (Redridge, Stonetalon) and by the line's text. A hearth or home named by
-  zone takes an inn of the guide's side, the bound one first.
+  zone takes an inn of the guide's side, the bound one first. A hearth's place
+  is read without RXP's words after it ("Gadgetzan. Buy drink"), by the start
+  of an inn's name too ("Theramore", "Menethil"); a starting area, where no inn
+  stands (Coldridge Valley, Shadowglen), is `enter` that area.
 - `.xp N` and `.xp N.F` are level goals; the skip form (`.xp <N`, `.xp L-N`) is
   `when level`. A grind step keeps RXP's last point as the place to go.
   `.xp L+N` past the XP Polestar counts for level L (RXP may use another
@@ -147,8 +150,9 @@ comes from a catalog of RXP's text-only steps, some read by hand:
 |---|---|---|
 | text + a farming signal (`.mob`, `.money`, `.itemcount <N`, an `.xp` target) | a step of its own: `task` to tick, `@` the middle of RXP's points | "Loot until 50 copper" |
 | text + arrow points only (no `,0`) | the way into the next step; the text a `note` there | "Enter the cave" |
-| text alone | `task` under *Along the way* up to and through X | "Save up your Linen Cloth" |
-| countable goals (kill, collect, objectives, buys; a `.use` beside them is their tool) | `along` up to and through X | kills beside the next step |
+| text alone | a `note` in the next step (Polestar lists no notes under *Along the way*, and a `task` there never checks off) | "Save up your Linen Cloth" |
+| text alone, under a `when` (a level, an item, a dungeon) | a step of its own with a `task` to tick: a note cannot carry the `when` | "Start looking for a group" |
+| countable goals (kill, collect, objectives, buys; a `.use` beside them is their tool, bound to the objective it serves: `use <item> quest Q.O`) | `along` up to and through X | kills beside the next step |
 | goals that check themselves (fly, hearth, vendor, cast, destroy, abandon) | a step that holds | "Destroy the Hearthstone" |
 
 - **Up to and through X:** the label goes on the step after X (`<label>-end`,
