@@ -29,6 +29,17 @@ For Polestar 0.4.1: the page's compiler and data are Polestar 0.4.1's.
     option (`gossip`).
   - `.dailyturnin` of one quest is `turnin … direct`, shown while the bags hold
     the quest's items when the step does nothing else.
+- **RestedXP: reminders, tools and hearths that check off** (#26): Polestar
+  checks a `task` in an `along` step only on the step the route is on, so it
+  never checked off. A `#completewith` reminder ("Be careful of the guards")
+  is now a note in the next step; one under a `when` (a level, an item, a
+  dungeon) a step of its own to tick. A `.use` beside the quest objective it
+  serves is bound to it (`use <item> quest Q.O`) and is done with it. A
+  hearth's place is read without RXP's words after it ("Gadgetzan. Buy
+  drink"), by the start of an inn's name ("Theramore", "Menethil"), and a
+  starting area, where no inn stands, is `enter` that area. Against RestedXP
+  4.11.36: 928 `along` task warnings to none, 174 `along` use warnings to 62,
+  81 hearth warnings to none; every guide kept.
 - **Dungeon and group steps lead the way**: in a step only the players who
   chose a dungeon or a group see (`when dungeon`, `when group`), optional
   goals (elites, the way there) hold, so the step shows its arrow instead of

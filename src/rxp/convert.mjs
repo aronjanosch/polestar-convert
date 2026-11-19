@@ -5,7 +5,7 @@
 
 import { parseCondition, andOnly, onlyText, condsMeet, onlyMeet, CLASSES, playersOf, condFor } from "../cond.mjs";
 import { plain, parseName } from "./parse.mjs";
-import { baseItemSoldBy, goalPlaced, worldToZone, zoneName, areaOf, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, flightNamed } from "../data.mjs";
+import { baseItemSoldBy, goalPlaced, worldToZone, zoneName, areaOf, zoneIdNamed, findNpc, questOpenTo, questEndPlaced, journalPlace, eliteOf, innNamed, areaNamed, flightNamed } from "../data.mjs";
 import { render, shorten } from "../emit.mjs";
 import { bare, questOf } from "../ir.mjs";
 import { resolveObjective } from "../objective.mjs";
@@ -22,6 +22,9 @@ const TASK_TEXT = { stable: "Stable your pet" };
 // every decision on words reads the English and only the shown text is translated.
 const enText = (l) => (l.en ?? l.text) || "";
 // A label as Polestar takes it: letters, digits, `-` and `_`.
+// "Gadgetzan. Buy level 45 drink if needed", "the Undercity", "Southshore if you are far
+// away" -> the place alone.
+const placeOf = (text) => String(text || "").replace(/(?:[.,;:!(]|\s+(?:if|after|when|once|unless|otherwise|or|and|to|for)\s).*$/i, "").replace(/^the\s+/i, "").trim() || null;
 const labelOf = (text) => String(text || "").trim().replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || null;
 // RXP's quest conditions on a step -> Polestar's `when` predicate and its `!`.
 // RXP skips the step unless one of the quests named holds.
@@ -797,10 +800,19 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			ctx.bind = inn ? inn.location : null;
 			report.count(inn ? ".home -> sethome" : ".home -> sethome nearest");
 		} else if (n === "hs" && ((plain(enText(l)).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1] || ctx.bind)) {
-			const name = (plain(enText(l)).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1];
+			const name = placeOf((plain(enText(l)).match(/Hearth(?:stone)? to (.+?)\.?$/i) || [])[1]);
 			const inn = name ? innNamed(data, name, null, ctx.faction, ctx.bind) : null;
-			add({ kind: "hearth", location: inn ? inn.location : name || ctx.bind }, l.cond);
-			report.count(".hs -> hearth");
+			const area = !inn && name ? areaNamed(data, name) : null;
+			if (area) {
+				// A starting area: a new character's hearth is bound there, and no inn stands
+				// there for `hearth` to know. Being there is what the step asks.
+				add({ kind: "enter", place: area, only: "" }, l.cond);
+				formatNeeds = Math.max(formatNeeds, 5);
+				report.count(".hs to an area without an inn -> enter");
+			} else {
+				add({ kind: "hearth", location: inn ? inn.location : name || ctx.bind }, l.cond);
+				report.count(".hs -> hearth");
+			}
 		} else if (n === "usespell" && goals.some((g) => g.kind === "cast" && g.spell === Number(l.args.split(",")[0]))) {
 			report.count(".usespell beside its .cast (dropped)");
 		} else if (nativeGoal(n, l, data, ctx.spells)) {
@@ -908,7 +920,6 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	//   Along the way (Polestar lists no notes there);
 	// - goals: along as they are. Only arrow points of steps that neither farm nor
 	//   fight are a way to walk; the rest are rounds Polestar finds spots for itself.
-	let forceAlong = false;
 	if (completewith) {
 		const only = onlyText(cond.only);
 		const farm = step.lines.some((l) => l.kind === "cmd" && (l.name === "mob" || l.name === "money"
@@ -955,10 +966,17 @@ function buildOne(step, stepNo, data, ctx, cond) {
 				ctx.pendingNotes.push(...goals.map((g) => ({ ...g, only: g.only || only })));
 				goals.length = 0;
 				report.count("along text: way -> note in the next step");
+			} else if (!whens.length) {
+				// Polestar lists no notes under Along the way, and a task there never checks off:
+				// the reminder is read where the route goes next.
+				ctx.pendingNotes.push(...goals.map((g) => ({ ...g, only: g.only || only })));
+				goals.length = 0;
+				report.count("along text: reminder -> note in the next step");
 			} else {
+				// A note cannot carry the step's `when`: the reminder for the characters it is
+				// for is a step of its own, held until ticked, as RXP shows it until then.
 				for (const g of goals) g.kind = "task";
-				forceAlong = true;
-				report.count("along text: reminder -> task in Along the way");
+				report.count("along text: reminder for some characters -> task step");
 			}
 			formatNeeds = 5;
 		}
@@ -987,11 +1005,28 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		if (ask) { whens.push(`group ${q}`); formatNeeds = Math.max(formatNeeds, 5); report.count(".group, one quest -> when group"); }
 		else report.count(".group -> group, optional");
 	}
+	// RXP's `.use` beside the quest objective it serves (the trap for the bear, the
+	// bramble for the corpses): bound to that objective, it is done with it, in an along
+	// step too, where a bare use never checks off. The step's one objective, or the one
+	// right after the use. Elsewhere only a use right before its objective's collect: beside
+	// other goals that end the step a use is their optional tool (below).
+	const objectives = goals.filter((g) => ["kill", "collect", "interact", "talk"].includes(g.kind) && g.quest != null && g.oi != null);
+	const oneObjective = new Set(objectives.map((g) => `${g.quest}.${g.oi}`)).size === 1;
+	goals.forEach((g, i) => {
+		if (g.kind !== "use" || g.quest != null || g.optional || !objectives.length) return;
+		const next = goals.slice(i + 1).find((x) => x.kind !== "goto" && x.kind !== "note" && x.kind !== "use");
+		const target = !completewith ? (next && next.kind === "collect" && objectives.includes(next) ? next : null)
+			: oneObjective ? objectives[0] : objectives.includes(next) ? next : null;
+		if (!target) return;
+		g.quest = target.quest;
+		g.oi = target.oi;
+		report.count(".use beside a quest objective -> use quest Q.O");
+	});
 	// A `use` without a quest beside countable goals of a step beside the route (kill, collect,
 	// complete) is the tool for them, not a goal that checks itself: the step stays along.
 	const alongOf = (gs) => {
 		const countable = completewith && gs.some((g) => ["kill", "collect", "complete"].includes(g.kind));
-		return forceAlong || gs.length > 0 && gs.every((g) => ALONG_KINDS.has(g.kind) || ((g.kind === "use" || g.kind === "interact") && g.quest != null) || (countable && g.kind === "use"));
+		return gs.length > 0 && gs.every((g) => ALONG_KINDS.has(g.kind) || ((g.kind === "use" || g.kind === "interact") && g.quest != null) || (countable && g.kind === "use"));
 	};
 	const allAlong = alongOf(goals);
 	// RXP's `.use` only puts the item on a button (textOnly): beside a goal that ends the step it
@@ -1019,6 +1054,8 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		const near = way.filter((p) => !here || p.uiMap === here || p.seq === ctx.seq - 1);
 		if (near.length < way.length) report.count("waypoint on another map from further back (not carried on)", way.length - near.length);
 		way = near;
+		// A point where a goal of the step already leads the arrow is no way there.
+		way = way.filter((p) => !goals.some((g) => g.at && g.at.x === p.x && g.at.y === p.y));
 		goals.unshift(...way.map((p) => ({ kind: "goto", x: p.x, y: p.y, live: p.live, map: p.uiMap, r: p.r > 0 ? p.r : undefined, only: p.only, optional: true })));
 		report.count("waypoints -> path into the next step", way.length);
 		ctx.path = [];

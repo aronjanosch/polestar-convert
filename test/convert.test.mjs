@@ -491,3 +491,34 @@ test(".gossipoption picks the option at the step's target; .dailyturnin is a han
 	assert.doesNotMatch(daily, /when onquest 7/);
 	assert.match(daily, /^  when has 10 x6$/m);
 });
+
+const convWith = (extra, body) => convertGuide(parseGuide("#name 1-6 Testville\n" + body), { ...data, ...extra }, { report: new Report(), slug: "t", packId: "mine", next: [], before: new Set() }).text;
+
+test("a hearth names the inn without RXP's words after it, by the start of its name, or a starting area by being there", () => {
+	const inns = [{ location: "Gadgetzan", names: [], map: 1, c: 1, x: 10, y: 10 }, { location: "Deepwater Tavern", names: ["Menethil Harbor"], map: 1, c: 0, x: 10, y: 10 }];
+	const areas = new Map([[132, { name: "Coldridge Valley", parent: 1 }]]);
+	const hs = (line) => convWith({ inns, areas }, ["step", "    .goto 1,10,10", "    >>Walk", "step", `    .hs >>${line}`, "step", "    .accept 1 >> Accept A Thing"].join("\n"));
+	assert.match(hs("Hearth to Gadgetzan. Buy level 45 drink if needed"), /^  hearth "Gadgetzan"$/m);
+	assert.match(hs("Hearth to Menethil if you wish to travel"), /^  hearth "Deepwater Tavern"$/m);
+	const start = hs("Hearth to Coldridge Valley");
+	assert.match(start, /^  enter "Coldridge Valley"$/m, start);
+	assert.doesNotMatch(start, /^  hearth/m);
+});
+
+test("a #completewith reminder is a note in the next step; one under a when is a step of its own to tick", () => {
+	const plain = convWith({}, ["step", "    #completewith next", "    +Be careful of the guards", "step", "    .accept 1 >> Accept A Thing"].join("\n"));
+	assert.doesNotMatch(plain, /^  along/m, plain);
+	assert.match(plain, /accept 1[^\n]*\n(  [^\n]*\n)*  note "Be careful of the guards"/, plain);
+	const gated = convWith({}, ["step", "    #completewith next", "    .xp <5,1", "    +Start looking for a group", "step", "    .accept 1 >> Accept A Thing"].join("\n"));
+	assert.doesNotMatch(gated, /^  along/m, gated);
+	assert.match(gated, /^  task "Start looking for a group"$/m, gated);
+});
+
+test("a use beside the one objective of an along step is bound to it", () => {
+	const quests = { ...data.quests, 2: { title: "Bears", start: { npc: [201] }, end: { npc: [201] }, level: 2, minLevel: 1, objectives: [{ type: "kill", id: 202, count: 1, text: "Bear" }] } };
+	const npcs = { ...data.npcs, 202: { name: "Bear", spawns: { 1: { pts: [[20, 20]] } }, rank: 0 } };
+	const items = { 10: { name: "Trap" } };
+	const out = convWith({ quests, npcs, items }, ["step", "    .accept 2 >> Accept Bears", "step", "    #completewith Done", "    .complete 2,1 >> Trap a bear", "    .use 10 >> Use the trap", "step", "    .goto 1,30,30", "    >>Walk", "step", "    #label Done", "    .turnin 2 >> Turn in Bears"].join("\n"));
+	assert.match(out, /^  along/m, out);
+	assert.match(out, /^  use 10 quest 2\.1\b/m, out);
+});
