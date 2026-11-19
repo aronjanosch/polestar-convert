@@ -70,6 +70,10 @@ Read as RXP's own `applies()` (GuideLoader.lua) reads them:
   is read without RXP's words after it ("Gadgetzan. Buy drink"), by the start
   of an inn's name too ("Theramore", "Menethil"); a starting area, where no inn
   stands (Coldridge Valley, Shadowglen), is `enter` that area.
+- A `.collect` bag count with no place of its own and no source (dropper,
+  object, vendor) on the step's map is `collect … anywhere`: counted, no arrow,
+  as in RXP. Not in a `loop` step, which needs a goal to search for.
+- Zone points on a map with no Era frame (Zephras Isle) are Forever's.
 - `.xp N` and `.xp N.F` are level goals; the skip form (`.xp <N`, `.xp L-N`) is
   `when level`. A grind step keeps RXP's last point as the place to go.
   `.xp L+N` past the XP Polestar counts for level L (RXP may use another

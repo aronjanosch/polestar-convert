@@ -522,3 +522,11 @@ test("a use beside the one objective of an along step is bound to it", () => {
 	assert.match(out, /^  along/m, out);
 	assert.match(out, /^  use 10 quest 2\.1\b/m, out);
 });
+
+test("a bag count with no source on the step's map is counted anywhere; one sourced there keeps its arrow", () => {
+	const items = { 30: { name: "Wool Cloth", drops: { npc: { 202: 20 } } }, 31: { name: "Boar Meat", drops: { npc: { 201: 30 } } } };
+	const npcs = { ...data.npcs, 202: { name: "Far Away", spawns: { 9: { pts: [[1, 1]] } }, rank: 0 } };
+	const out = convWith({ items, npcs }, ["step", "    .goto 1,10,10", "    >>Save your cloth", "    .collect 30,20", "    .collect 31,5"].join("\n"));
+	assert.match(out, /^  collect 30 x20 anywhere$/m, out);
+	assert.match(out, /^  collect 31 x5$/m, out);
+});

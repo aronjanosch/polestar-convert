@@ -54,7 +54,7 @@ export function goalText(g) {
 		case "money": return `money ${g.copper}`;
 		case "collect":
 			if (g.quest != null && g.oi != null) return `collect ${g.item}${nameText(g)} quest ${g.quest}.${g.oi}${atText(g.at)}`;
-			return `collect ${g.item}${nameText(g)} x${g.count || 1}${atText(g.at)}`;
+			return `collect ${g.item}${nameText(g)} x${g.count || 1}${g.anywhere ? " anywhere" : atText(g.at)}`;
 		case "buy": return `buy ${g.item}${nameText(g)} x${g.count || 1} ${g.npc ? "npc " + g.npc : "nearest"}`;
 		case "vendor": return g.npc ? `vendor ${g.npc}` : "vendor nearest";
 		case "train":

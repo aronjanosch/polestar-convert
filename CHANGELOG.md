@@ -29,6 +29,13 @@ For Polestar 0.4.1: the page's compiler and data are Polestar 0.4.1's.
     option (`gossip`).
   - `.dailyturnin` of one quest is `turnin … direct`, shown while the bags hold
     the quest's items when the step does nothing else.
+- **Bag counts without a source nearby** (RestedXP and Zygor): a `collect`
+  of an item to save up or buy (cloth, materials) with no place of its own and
+  no source on the step's map is `collect … anywhere`: Polestar counts it
+  without sending the arrow to a dropper on another continent. 354 map
+  warnings and 746 "no coordinates" warnings fewer.
+- **Zephras Isle's points**: RestedXP's zone points on a map Era never had are
+  Forever's own (`era` dropped); 252 warnings fewer.
 - **RestedXP: reminders, tools and hearths that check off** (#26): Polestar
   checks a `task` in an `along` step only on the step the route is on, so it
   never checked off. A `#completewith` reminder ("Be careful of the guards")
