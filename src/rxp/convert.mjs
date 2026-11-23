@@ -291,16 +291,23 @@ function buildOne(step, stepNo, data, ctx, cond) {
 	// A race the guide is not for never shows the step.
 	if (ctx.races.length && cond.only.race && !cond.only.race.some((r) => ctx.races.includes(r))) { report.count("step: for races the guide is not for (dropped)"); return null; }
 	// Lines whose condition nobody meets, or no one who gets this step: gone, as in RXP.
+	let droppedCmd = 0;
+	const isGoalCmd = (l) => l.kind === "cmd" && !IGNORED.has(l.name) && l.name !== "goto" && l.name !== "waypoint";
 	const lines = [];
 	for (const l of step.lines) {
 		if (l.cond) {
 			const lc = parseCondition(l.cond, ctx.scope);
 			lc.unknown.forEach((u) => report.note(ctx.name, stepNo, `unknown condition word "${u}"`, l.cond));
 			if (lc.never) {
+				if (isGoalCmd(l)) droppedCmd++;
 				report.count(lc.anywhere ? "line: for characters the guide is not for (dropped)" : "line: condition true for nobody (dropped)");
 				continue;
 			}
-			if (!lc.groups.some((g) => onlyMeet(g, cond.only))) { report.count("line: condition excludes the step's characters (dropped)"); continue; }
+			if (!lc.groups.some((g) => onlyMeet(g, cond.only))) {
+				if (isGoalCmd(l)) droppedCmd++;
+				report.count("line: condition excludes the step's characters (dropped)");
+				continue;
+			}
 		}
 		lines.push(l);
 	}
@@ -505,6 +512,11 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		if (goal.kind === "abandon") { ctx.maybeTaken.add(goal.quest); ctx.surelyTaken.delete(goal.quest); }
 	};
 
+	const addTip = (l) => {
+		if (l.cond || (l.text || "").includes("chatbubble")) return;
+		const t = bare(plain(l.text));
+		if (t && !tips.includes(t)) { tips.push(t); pendingTips.push(t); }
+	};
 	const consumed = new Set();
 	for (let li = 0; li < step.lines.length; li++) {
 		if (consumed.has(li)) continue;
@@ -838,14 +850,14 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			const arg = String(l.args || "").trim();
 			const name = /^\d+$/.test(arg) ? zoneName(data, Number(arg)) : arg;
 			if (name) { enterZone = name; report.count(".zone -> enter"); }
-			else report.count(".zone unknown map (ignored)");
+			else { addTip(l); report.count(".zone unknown map (ignored)"); }
 		} else if (n === "subzone") {
 			// Done once the zone or subzone text reads the area's name (flag 0); flag 1
 			// (done once out of it) and flag 2 (dungeons) have no Polestar form.
 			const [id, flags] = String(l.args || "").split(",").map((x) => x.trim());
 			const area = /^\d+$/.test(id || "") ? areaOf(data, id) : null;
 			if (area && !completewith && !l.cond && !Number(flags)) { enterZone = enterZone || area.name; report.count(".subzone -> enter"); }
-			else report.count(".subzone (ignored)");
+			else { if (!completewith) addTip(l); report.count(".subzone (ignored)"); }
 		} else if (n === "timer") {
 			// `.timer 20,Example RP`: a countdown to sit through (Polestar 0.3.1's `wait`); it
 			// starts once the goals before it in the step are done.
@@ -888,6 +900,7 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			else if (same) { same.gossip = gossip; report.count(".gossipoption -> gossip on the step's talk"); }
 			else { add({ kind: "talk", npc: npc.id, gossip }, l.cond); report.count(".gossipoption -> talk, gossip"); }
 		} else if (n === "goto" || n === "waypoint") {
+			if (!completewith) addTip(l);
 			// handled below
 		} else if (IGNORED.has(n)) {
 			report.count(`.${n} (ignored)`);
@@ -902,7 +915,8 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		goals.push({ kind: "enter", place: enterZone, at: at(last), only: "" });
 		formatNeeds = Math.max(formatNeeds, 5);
 	}
-	if (!completewith && goals.length && goals.every((g) => g.kind === "note")) {
+	const onlyNoteGoals = !completewith && goals.length && goals.every((g) => g.kind === "note");
+	if (onlyNoteGoals) {
 		for (const g of goals) g.kind = "task";
 		formatNeeds = 5;
 		report.count("instruction-only step -> task");
@@ -984,13 +998,34 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			formatNeeds = 5;
 		}
 	}
-	if (!goals.length && (completewith || (!notes.length && !gotos.length))) {
+	// An ordinary step with instructions (`+` notes, or `>>` text with no `.goto`, as
+	// inside a dungeon) holds as a `task` to tick: without one, Polestar would pass it
+	// unseen or the converter would drop it.
+	if (!completewith && (!goals.length || (onlyNoteGoals && goals.every((g) => g.only)))) {
+		const hasMob = step.lines.some((l) => l.kind === "cmd" && l.name === "mob");
+		if (notes.length) {
+			const placed = gotos.filter((g) => g.uiMap);
+			const spot = placed.length ? at(placed[placed.length - 1]) : undefined;
+			if (!title) title = tips[0] || notes[0];
+			goals.unshift(...notes.map((t) => ({ kind: "task", text: t, at: spot, only: "" })));
+			notes.length = 0;
+			formatNeeds = Math.max(formatNeeds, 5);
+			report.count("instruction-only step -> task");
+		} else if (!gotos.length && tips.length && (!droppedCmd || hasMob)) {
+			const first = tips.shift();
+			if (!title) title = first;
+			goals.unshift({ kind: "task", text: first, only: "" });
+			formatNeeds = Math.max(formatNeeds, 5);
+			report.count("instruction-only step -> task");
+		}
+	}
+	if (!goals.length && (completewith || !gotos.length)) {
 		if (gotos.length || tips.length || notes.length) report.count("step: waypoints only (kept as the way into the next step)");
 		return null;
 	}
 	// A grind step (`level` goals only) keeps RXP's last point as the place to go to.
 	const grindOnly = goals.length > 0 && goals.every((g) => g.kind === "level") && !completewith;
-	if ((!goals.length && !notes.length || grindOnly) && gotos.length) {
+	if ((!goals.length || grindOnly) && gotos.length) {
 		const g = gotos[gotos.length - 1];
 		if (g.uiMap) usedMaps.push(g.uiMap);
 		goals.unshift({ kind: "goto", x: g.x, y: g.y, live: g.live, text: tips[0] && !grindOnly ? shorten(tips[0], 80) : undefined, only: "" });

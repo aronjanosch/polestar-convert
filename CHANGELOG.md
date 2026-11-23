@@ -4,6 +4,13 @@
 
 For Polestar 0.4.1: the page's compiler and data are Polestar 0.4.1's.
 
+- **RestedXP: dungeon and text-only steps stay in the guide**: an ordinary
+  step with instructions (`>>` text and no `.goto`, such as boss and route
+  steps inside a dungeon) was dropped before, and a `+`-note-only step had no
+  goal to hold it; both now become `task` steps to tick (with the `.goto` spot
+  when `+` notes have one). On an ordinary step, text written on a `.goto` or
+  an ignored `.subzone`/`.zone` line (such as dungeon entrances with
+  `.subzone <id>,2`) is kept instead of leaving an untitled `Step N` waypoint.
 - **Polestar 0.4.1**: the page's compiler and game data move to 0.4.1, built
   with QuestieDB 1.1.2. Its data names the quest targets the game only knows by
   a placeholder ("Credit", "… (DND)") by their quest-log line, so the
