@@ -530,3 +530,40 @@ test("a bag count with no source on the step's map is counted anywhere; one sour
 	assert.match(out, /^  collect 30 x20 anywhere$/m, out);
 	assert.match(out, /^  collect 31 x5$/m, out);
 });
+
+test("ordinary text-only and note-only steps without a goto (such as inside a dungeon) become tasks instead of being dropped", () => {
+	const boss = convWith({}, ["step", "    >>Climb the spiral ramp", "    >>Ring the bell three times and defeat the Warden", "    .mob Cave Warden"].join("\n"));
+	assert.match(boss, /^step Climb the spiral ramp$/m, boss);
+	assert.match(boss, /^  tip Ring the bell three times and defeat the Warden$/m, boss);
+	assert.match(boss, /^  task "Climb the spiral ramp"$/m, boss);
+
+	const checked = convWith({}, ["step", "    >>Inside the crypt", "    +Defeat the Crypt Lord", "step", "    .goto 1,25,30", "    +Farm silver here"].join("\n"));
+	assert.match(checked, /^  task "Defeat the Crypt Lord"$/m, checked);
+	assert.match(checked, /^  task "Farm silver here" @25,30$/m, checked);
+
+	const mixed = convWith({}, ["step", "    >>Defeat the Warden", "    >>Interrupt the frost cast << Warrior"].join("\n"));
+	assert.match(mixed, /^  task "Defeat the Warden"$/m, mixed);
+	assert.match(mixed, /^  task "Interrupt the frost cast" only Warrior$/m, mixed);
+
+	// A step whose only goal command was dropped by its condition does not leave a stray task.
+	const sod = convWith({}, ["step", "    >>Pick up the seasonal rune", "    .accept 1 << sod"].join("\n"));
+	assert.doesNotMatch(sod, /^step /m, sod);
+});
+
+test("text on an ignored .subzone or on a .goto line is kept as step text", () => {
+	const d = { areas: new Map([[722, { name: "Test Crypt", parent: 0 }]]) };
+	const entrance = convWith(d, ["step", "    .goto 1,45,88", "    .subzone 722,2 >>Enter the Test Crypt instance"].join("\n"));
+	assert.match(entrance, /^step Enter the Test Crypt instance$/m, entrance);
+	assert.match(entrance, /^  goto 45,88 "Enter the Test Crypt instance"$/m, entrance);
+
+	const alone = convWith(d, ["step", "    .subzone 722,2 >>Enter the Test Crypt instance"].join("\n"));
+	assert.match(alone, /^  task "Enter the Test Crypt instance"$/m, alone);
+
+	const inlineGoto = convWith({}, ["step", "    .goto 1,45,88 >>Head into the cave"].join("\n"));
+	assert.match(inlineGoto, /^step Head into the cave$/m, inlineGoto);
+	assert.match(inlineGoto, /^  goto 45,88 "Head into the cave"$/m, inlineGoto);
+
+	// A `#completewith` waypoint's own `.goto ... >>...` stays a way, not a note or task.
+	const alongGoto = convWith({}, ["step", "    #completewith next", "    .goto 1,45,88 >>Travel to Bob", "step", "    .accept 1 >> Accept A Thing"].join("\n"));
+	assert.doesNotMatch(alongGoto, /note "Travel to Bob"|task "Travel to Bob"/, alongGoto);
+});

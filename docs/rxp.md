@@ -108,6 +108,11 @@ Read as RXP's own `applies()` (GuideLoader.lua) reads them:
   Tram) and flag 2 stay out.
 - `.stable`, `.equip`, `.deathskip` and the bank commands have no Polestar goal:
   tasks to tick, with RXP's text.
+- An ordinary step with instructions (`>>` text and no `.goto`, as inside a
+  dungeon, or `+` note lines) becomes a `task` step to tick (carrying its
+  `.goto` spot when `+` notes have one), instead of being dropped or left
+  without goals. On an ordinary step, text written on a `.goto` or an ignored
+  `.subzone`/`.zone` line is kept as step text.
 
 ### Quests the guide may not hold
 
