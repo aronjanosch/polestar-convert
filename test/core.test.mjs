@@ -9,7 +9,7 @@ import { decodeSlot } from "../src/journey/parse.mjs";
 import { convertZygor } from "../src/zygor/run.mjs";
 import { convertJourney } from "../src/journey/run.mjs";
 import { convertRxp, guideList, rxpRoute } from "../src/rxp/run.mjs";
-import { findSources, convertAddons, packFiles } from "../src/core.mjs";
+import { findSources, convertAddons, packFiles, isRxpPluginToc, tocFiles, rxpPluginTocs } from "../src/core.mjs";
 
 const reader = (files) => async (path) => files[path] ?? null;
 
@@ -260,4 +260,91 @@ test("tocVersion and packVersion: the pack carries its sources' versions", async
 	assert.equal(packVersion({ rxp: "1.2.3", zygor: "1.6" }), "rxp1.2.3+zygor1.6");
 	assert.equal(packVersion({ journey: null }), "0.1.0");
 	assert.equal(packVersion({ rxp: "1.2 beta" }), "0.1.0");
+});
+
+test("RXP companion addon TOC helpers: dependencies, AllowLoadGameType, candidate TOCs", () => {
+	assert.equal(isRxpPluginToc("## Dependencies: RXPGuides\n"), true);
+	assert.equal(isRxpPluginToc("## RequiredDeps: Foo, RXPGuides\n"), true);
+	assert.equal(isRxpPluginToc("## OptionalDeps: RXPGuides\n"), true);
+	assert.equal(isRxpPluginToc("## Dependencies: RXPGuides_Themes\n"), false);
+	assert.equal(isRxpPluginToc("## Title: Unrelated\n"), false);
+	assert.deepEqual(tocFiles("## Title: X\n# comment\nA\\B.lua\nEra.lua [AllowLoadGameType vanilla]\nForever.lua [AllowLoadGameType camelot,vanilla]\nList.xml\n"),
+		["A/B.lua", "Forever.lua", "List.xml"]);
+	assert.deepEqual(rxpPluginTocs([
+		"rxpguides/rxpguides.toc",
+		"zeta pack/zeta pack.toc",
+		"alpha pack/alpha pack.toc",
+		"alpha pack/sub/nested.toc",
+		"other/wrong.toc",
+	]), ["alpha pack/alpha pack.toc", "zeta pack/zeta pack.toc"]);
+});
+
+test("convertAddons: companion addons depending on RXPGuides extend RXP guides, prefer #forever/newer versions and skip other game versions", async () => {
+	const data = await loadData(reader(FULL));
+	const names = await loadNames(reader(FULL), data);
+	const pluginPart1 = `RXPGuides.RegisterGuide([[
+#classic
+#version 10
+#group RestedXP Forever Guide (H)
+#name 4-6 Invented Plains
+<< Horde
+step
+    .accept 1 >>Accept A Thing
+]])
+RXPGuides.RegisterGuide([[
+#tbc
+#version 10
+#group RestedXP TBC Guide (H)
+#name 60-62 Outland Step
+<< Horde
+step
+    .accept 1 >>Accept A Thing
+]])`;
+	const pluginPart2 = `RXPGuides.RegisterGuide([[
+#forever
+#version 12
+#group RestedXP Forever Guide (H)
+#name 4-6 Invented Plains
+<< Horde
+step
+    .turnin 1 >>Turn in A Thing
+]])`;
+	const baseGuide = `RXPGuides.RegisterGuide([[
+#forever
+#version 1
+#group RestedXP Forever Guide (H)
+#name 1-4 Testville
+#next 4-6 Invented Plains
+<< Horde
+step
+    .accept 1 >>Accept A Thing
+]])`;
+	const files = {
+		"rxpguides/guides/guidelist-forever.xml": '<Ui><Script file="Guides/forever/A.lua"/></Ui>',
+		"rxpguides/guides/forever/a.lua": baseGuide,
+		"rxpguides/rxpguides.toc": "## Version: v4.0.0\n",
+		"my rxp pack/my rxp pack.toc": "## Dependencies: RXPGuides\n## Version: 2.0.0\nInit.lua\nPart1.lua\nGuides\\List.xml\n",
+		"my rxp pack/init.lua": "-- helper without guides\n",
+		"my rxp pack/part1.lua": pluginPart1,
+		"my rxp pack/guides/list.xml": '<Ui><Script file="Part2.lua"/></Ui>',
+		"my rxp pack/guides/part2.lua": pluginPart2,
+	};
+	const ciRead = async (p) => files[p.toLowerCase()] ?? null;
+	const paths = Object.keys(files);
+	const runs = await convertAddons(ciRead, data, names, { packId: "mine", paths });
+	assert.deepEqual(runs.rxp.guides.map((g) => g.slug), ["1-4-testville", "4-6-invented-plains"]);
+	assert.match(runs.rxp.guides[0].text, /^next mine\/4-6-invented-plains$/m);
+	// The #forever v12 copy wins over the #classic v10 copy (turnin 1, not accept 1).
+	assert.match(runs.rxp.guides[1].text, /^  turnin 1$/m);
+	assert.equal(runs.rxp.report.counts.get("older version of a guide (superseded)"), 1);
+	assert.equal(runs.rxp.report.counts.get("guide RXP does not list on Forever (season, phase, XP rate, SoM; not written)"), 1);
+
+	// Standalone companion addon without RXPGuides/Guides/GuideList-forever.xml is also discovered.
+	const pluginOnly = Object.fromEntries(Object.entries(files).filter(([k]) => !k.startsWith("rxpguides/")));
+	const poRead = async (p) => pluginOnly[p.toLowerCase()] ?? null;
+	const poPaths = Object.keys(pluginOnly);
+	assert.deepEqual(await findSources(poRead, poPaths), ["rxp"]);
+	const poRuns = await convertAddons(poRead, data, names, { packId: "mine", paths: poPaths });
+	assert.deepEqual(poRuns.rxp.guides.map((g) => g.slug), ["4-6-invented-plains"]);
+	assert.equal(poRuns.rxp.version, "2.0.0");
 });

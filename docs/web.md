@@ -12,9 +12,12 @@ The command line takes the game data and the compiler from this site too.
   (`<input webkitdirectory>`). `addonsPaths` finds the files under
   `Interface/AddOns` (the World of Warcraft folder, a client folder, the AddOns
   folder or one addon's folder all work; of several clients `_forever_` comes
-  first). Only the files under `RXPGuides/Guides/`, `Journey/data/Guides/` and
+  first). Only the files under `RXPGuides/Guides/`, `RXPGuides/lang/`,
+  companion addons whose `.toc` depends on `RXPGuides`, `Journey/data/Guides/` and
   `ZygorGuidesViewerForever/Guides-Forever/{Leveling,Dungeons,Professions,Reputations,Events}/` (or `ZygorGuidesViewerClassic/Guides-Classic/` of the older viewer)
-  are passed on.
+  (plus those addons' `.toc` files) are passed on — and, when the pick holds
+  the WTF folder, the account's `WTF/Account/<account>/SavedVariables/RXPGuides.lua`
+  (`savedVariablePaths`: RestedXP's imported guides).
 - `web/worker.mjs` reads those files in the browser, fetches the game data from
   `polestar-data/`, runs `convertAddons`, then Polestar's compiler (`wasm/`, built
   into `web/forge/`: `Compiler` compiles the guides into addon folders, `packFiles`

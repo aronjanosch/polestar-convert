@@ -93,13 +93,17 @@ a { color: var(--accent); }
 <section id="step-folder">
 	<h2><span class="n">1</span> Pick your AddOns folder</h2>
 	<p>Your client's <code>Interface/AddOns</code> folder, for example
-	<code>World of Warcraft/_forever_/Interface/AddOns</code>. The World of Warcraft folder works too.</p>
+	<code>World of Warcraft/_forever_/Interface/AddOns</code>. The World of Warcraft folder works too — pick that
+	one if RestedXP should also read the guides you imported in the game, which it keeps packed in
+	<code>WTF/Account/&lt;account&gt;/SavedVariables/RXPGuides.lua</code>.</p>
 	<details class="where">
 		<summary>Where the guide files must be</summary>
-		<p>The page reads the guide files as plain text, the way the guide addon keeps them. It does not unlock or decode
-		anything: guide files in another form cannot be converted. Directly in <code>Interface/AddOns</code>:</p>
+		<p>The page reads the guide files as plain text, the way the guide addon keeps them. It does not unlock or crack
+		anything: a guide kept locked by its addon cannot be converted. The one packed form it does read is the addon's
+		own storage — RestedXP's imported guides, which the addon unpacks on load and the page unpacks the same way.
+		Directly in <code>Interface/AddOns</code>:</p>
 		<ul>
-			<li><strong>RestedXP:</strong> <code>RXPGuides/Guides/GuideList-forever.xml</code> and the <code>.lua</code> guide files it names</li>
+			<li><strong>RestedXP:</strong> <code>RXPGuides/Guides/GuideList-forever.xml</code> and the <code>.lua</code> guide files it names, plus any companion guide addons beside it whose <code>.toc</code> depends on <code>RXPGuides</code></li>
 			<li><strong>Journey:</strong> <code>Journey/data/Guides/guides.html</code> and the guide pages beside it</li>
 			<li><strong>Zygor:</strong> <code>ZygorGuidesViewerForever/Guides-Forever/</code> with its <code>Leveling/</code> (and other) <code>.lua</code> files</li>
 		</ul>

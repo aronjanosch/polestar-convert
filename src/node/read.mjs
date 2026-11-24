@@ -2,7 +2,7 @@
 // has its own over the files the player picks.
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, dirname } from "node:path";
 import { createRequire } from "node:module";
 
 // A path as a guide addon writes it, matched case-insensitively (the game's file system
@@ -30,4 +30,18 @@ export function folderReader(root) {
 export function levelXpOf(clone) {
 	const xpLib = join(resolve(clone), "tools", "lib", "game", "xp.js");
 	return existsSync(xpLib) ? createRequire(import.meta.url)(xpLib).LEVEL_XP : null;
+}
+
+// RXP's SavedVariables (imported guides, src/rxp/saved.mjs): every account's
+// RXPGuides.lua in the WTF folder of the client an AddOns folder sits in, as bytes
+// ([] when there is none: guides never imported leave no file).
+export function savedVariablesOf(addons) {
+	const wtf = resolveLoose(dirname(dirname(resolve(addons))), "WTF/Account");
+	if (!wtf || !statSync(wtf, { throwIfNoEntry: false }).isDirectory()) return [];
+	const out = [];
+	for (const account of readdirSync(wtf)) {
+		const file = resolveLoose(join(wtf, account), "SavedVariables/RXPGuides.lua");
+		if (file && statSync(file).isFile()) out.push(readFileSync(file));
+	}
+	return out;
 }

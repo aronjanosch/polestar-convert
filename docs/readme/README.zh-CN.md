@@ -61,7 +61,9 @@ npx github:aronjanosch/polestar-convert --path "<WoW>" --locales zhCN --install
 
 它会找到 RestedXP、Journey 和 Zygor(某个阵营没有安装 Zygor 完整攻略时,读取查看器自带的免费试用攻略),
 询问你要哪些 RestedXP 路线(用 `--routes main,dungeon,survival` 可跳过询问;你的攻略里没有的路线会被略过),
-转换全部攻略并写入中文译文,然后把插件放进游戏。去掉 `--install` 时,文件夹会写到 `./polestar-addon`,
+转换全部攻略——游戏里导入的 RestedXP 攻略(购买的攻略就是这样来的)存放在账号的
+`WTF/Account/<account>/SavedVariables/RXPGuides.lua` 里,转换器会从那里读取——并写入中文译文,
+然后把插件放进游戏。去掉 `--install` 时,文件夹会写到 `./polestar-addon`,
 可以先看一看。`--name "My Guides"` 设定插件的名称。
 在中国大陆访问 GitHub、github.io 或 nodejs.org 可能较慢,可以使用镜像或代理。
 
@@ -72,12 +74,15 @@ npx github:aronjanosch/polestar-convert --path "<WoW>" --locales zhCN --install
 ### 攻略文件必须放在哪里
 
 转换器以纯文本方式读取攻略文件,也就是攻略插件在 `World of Warcraft/_forever_/Interface/AddOns`
-里保存它们的样子。它不会解锁或解码任何内容:其他形式的攻略文件无法转换。选择 `AddOns` 文件夹
-(或魔兽世界文件夹),其中必须有:
+里保存它们的样子。它不会解锁或破解任何内容:被插件锁定的攻略无法转换。它读取的唯一打包形式
+是插件自己的存储:游戏里导入的 RestedXP 攻略(购买的攻略就是这样来的)以 DEFLATE 压缩存放在账号的
+`WTF/Account/<account>/SavedVariables/RXPGuides.lua` 里,加载时由插件解包;转换器以同样的方式解包。
+要读取这些文件,选择的文件夹需要包含 WTF 文件夹(选择魔兽世界文件夹或客户端文件夹即可)。
+选择 `AddOns` 文件夹(或魔兽世界文件夹),其中必须有:
 
 | 来源 | `Interface/AddOns` 下的文件夹 | 转换器查找的文件 |
 | --- | --- | --- |
-| RestedXP | `RXPGuides/` | `Guides/GuideList-forever.xml` 以及其中列出的 `.lua` 攻略文件,每个都含有 `RegisterGuide([[ … ]])` 块 |
+| RestedXP | `RXPGuides/`(及扩展插件) | `Guides/GuideList-forever.xml` 以及其中列出的 `.lua` 攻略文件,加上旁边 `.toc` 依赖 `RXPGuides` 的扩展攻略插件,每个都含有 `RegisterGuide([[ … ]])` 块 |
 | Journey | `Journey/` | `data/Guides/guides.html` 以及旁边的攻略页面 |
 | Zygor | `ZygorGuidesViewerForever/` | `Guides-Forever/Leveling/ZygorLevelingHordeCLASSIC.lua` 等(还有副本、专业、声望和活动文件) |
 
@@ -114,6 +119,9 @@ npx github:aronjanosch/polestar-convert rxp --list "<WoW>/_forever_/Interface/Ad
 npx github:aronjanosch/polestar-convert journey --dir "<WoW>/_forever_/Interface/AddOns/Journey" --polestar polestar --pack my-pack
 npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/AddOns/ZygorGuidesViewerForever" --polestar polestar --pack my-pack
 ```
+
+`rxp` 还可以在 `--list`/`--file` 之外加上 `--saved-variables "<WoW>/_forever_/WTF/Account/<account>/SavedVariables/RXPGuides.lua"`,
+用于游戏里导入的攻略。
 
 ## 覆盖率
 

@@ -2,7 +2,8 @@
 // polestar-convert --path <WoW folder> [--routes ...] [--locales ...] [--install]   (every guide addon found, to the addon folders; src/node/path-cli.mjs)
 // polestar-convert journey --dir <Journey> --polestar <clone> --pack <pack dir> [...]
 // polestar-convert zygor --dir <ZygorGuidesViewerForever> --polestar <clone> --pack <pack dir> [--only "<guide>"]
-// polestar-convert rxp --file <RXP guide .lua> | --list <GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<name>"] [--max-start N] [--self-found yes]
+// polestar-convert rxp --file <RXP guide .lua> | --list <GuideList-forever.xml> | --saved-variables <RXPGuides.lua>
+//   --polestar <clone> --pack <pack dir> [--only "<name>"] [--max-start N] [--self-found yes]
 //
 // Reads guides you own from your own install. --path makes the addon folders; the
 // single commands write `.guide` files into a Polestar pack, for working on the
@@ -11,6 +12,8 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { convertRxp, guideList } from "../src/rxp/run.mjs";
+import { savedGuides } from "../src/rxp/saved.mjs";
+import { Report } from "../src/ir.mjs";
 import { loadData } from "../src/data.mjs";
 import { folderReader, resolveLoose, levelXpOf } from "../src/node/read.mjs";
 
@@ -43,8 +46,8 @@ if (cmd === "zygor") {
 	await (await import("../src/zygor/cli.mjs")).run(a);
 	process.exit(0);
 }
-if (cmd !== "rxp" || !(a.file || a.list) || !a.polestar || !a.pack) {
-	console.error('usage: polestar-convert rxp --file <guide.lua> | --list <RXPGuides/Guides/GuideList-forever.xml> --polestar <clone> --pack <pack dir> [--only "<guide name>"] [--max-start N] [--self-found yes]');
+if (cmd !== "rxp" || !(a.file || a.list || a["saved-variables"]) || !a.polestar || !a.pack) {
+	console.error('usage: polestar-convert rxp --file <guide.lua> | --list <RXPGuides/Guides/GuideList-forever.xml> | --saved-variables <WTF/Account/<account>/SavedVariables/RXPGuides.lua> --polestar <clone> --pack <pack dir> [--only "<guide name>"] [--max-start N] [--self-found yes]');
 	process.exit(2);
 }
 
@@ -58,9 +61,14 @@ if (!existsSync(guidesDir)) mkdirSync(guidesDir, { recursive: true });
 // chain runs across files.
 const files = a.list
 	? guideList(readFileSync(a.list, "utf8")).map((f) => resolveLoose(dirname(dirname(a.list)), f) || (console.error(`missing: ${f}`), null)).filter(Boolean)
-	: [a.file];
-const { guides, report } = convertRxp(files.map((f) => ({ path: f, text: readFileSync(f, "utf8") })), data,
-	{ packId, only: a.only, maxStart: a["max-start"], selfFound: a["self-found"] != null, levelXp: ((t) => (t ? (l) => t[l] ?? null : null))(levelXpOf(a.polestar)) });
+	: [];
+if (a.file) files.push(a.file);
+// The guides imported in the game (bought ones come this way) RXP keeps in the
+// account's SavedVariables, packed (src/rxp/saved.mjs); counted in the same report.
+const report = new Report();
+if (a["saved-variables"]) files.push(...await savedGuides([readFileSync(a["saved-variables"])], report));
+const { guides, report: runReport } = convertRxp(files.map((f) => ({ path: f, text: readFileSync(f, "utf8") })), data,
+	{ packId, only: a.only, maxStart: a["max-start"], selfFound: a["self-found"] != null, levelXp: ((t) => (t ? (l) => t[l] ?? null : null))(levelXpOf(a.polestar)), report });
 if (!guides.length) { console.error("no guide matches"); process.exit(1); }
 for (const g of guides) {
 	writeFileSync(join(guidesDir, `${g.slug}.guide`), g.text);
@@ -68,7 +76,7 @@ for (const g of guides) {
 }
 
 console.log("\n== counts");
-for (const [k, v] of [...report.counts].sort((x, y) => y[1] - x[1])) if (v) console.log(String(v).padStart(5), k);
+for (const [k, v] of [...runReport.counts].sort((x, y) => y[1] - x[1])) if (v) console.log(String(v).padStart(5), k);
 console.log("\n== needs a look");
-for (const it of report.items.slice(0, 60)) console.log(`step ${it.stepNo}: ${it.what}${it.line ? "  [" + String(it.line).slice(0, 70) + "]" : ""}`);
-if (report.items.length > 60) console.log(`... and ${report.items.length - 60} more`);
+for (const it of runReport.items.slice(0, 60)) console.log(`step ${it.stepNo}: ${it.what}${it.line ? "  [" + String(it.line).slice(0, 70) + "]" : ""}`);
+if (runReport.items.length > 60) console.log(`... and ${runReport.items.length - 60} more`);

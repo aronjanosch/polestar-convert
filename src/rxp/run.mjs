@@ -24,12 +24,13 @@ export function guideList(xml) {
 	return [...String(xml).matchAll(/<Script file="([^"]+)"/g)].map((m) => m[1]).filter((f) => !/Import\.lua$/i.test(f));
 }
 
-// files: [{ path, text }] in the guide list's order, so a chain runs across files.
-// opts: { packId, only, maxStart, selfFound, routes }.
+// files: [{ path, text }] in the guide list's order, so a chain runs across files;
+// imported guides (src/rxp/saved.mjs) come last, beside the addon's own files.
+// opts: { packId, only, maxStart, selfFound, routes, report (to count into) }.
 // -> { guides: [{ slug, text, stepsIn, stepsOut, format, route }], report,
 //      rawByFile, written, convert } (the last three for the translations).
 export function convertRxp(files, data, opts) {
-	const report = new Report();
+	const report = opts.report || new Report();
 	// The guides of each file as parsed: a translated file pairs with its English one guide by guide.
 	const rawByFile = files.map((f) => extractGuides(f.text).map(parseGuide));
 	const parsed = expandIncludes(rawByFile.flat(), report);
@@ -37,7 +38,7 @@ export function convertRxp(files, data, opts) {
 	const spells = spellNames(parsed);
 	// Slugs, hand-offs and the quests taken on the way in come from the whole file,
 	// so a guide picked alone still knows what the guides before it accept.
-	const plan = planChain(parsed, report);
+	const plan = planChain(parsed, report, (g) => guideShown(g.header));
 	// `en`: the English guide whose plan a translated one takes.
 	const convert = (g, rep, next, en = g) => convertGuide(g, data, { report: rep, slug: plan.slug.get(en), packId: opts.packId, next, before: plan.before.get(en), spells, spellName: opts.spellName, selfFound: !!opts.selfFound, levelXp: opts.levelXp });
 	// A first pass with a report of its own: a guide left with no steps (every step a
