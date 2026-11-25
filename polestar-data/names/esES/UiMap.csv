@@ -1,0 +1,61 @@
+Name_lang,ID,ParentUiMapID,Flags,System,Type,BountySetID,BountyDisplayLocation,VisibilityPlayerConditionID,HelpTextPosition,BkgAtlasID,AlternateUiMapGroup,ContentTuningID,AdventureMapTextureKitID,MapArtZoneTextPosition
+Azeroth,947,0,2304,0,1,0,0,0,0,0,0,0,0,0
+Durotar,1411,1414,2,0,3,0,0,0,0,0,0,0,0,0
+Mulgore,1412,1414,2,0,3,0,0,0,0,0,0,0,0,0
+"Los Baldíos",1413,1414,2,0,3,0,0,0,0,0,0,0,0,0
+Kalimdor,1414,947,0,0,2,0,0,0,0,0,0,0,0,0
+"Reinos del Este",1415,947,0,0,2,0,0,0,0,0,0,0,0,0
+"Montañas de Alterac",1416,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Tierras Altas de Arathi",1417,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Tierras Inhóspitas",1418,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Las Tierras Devastadas",1419,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Claros de Tirisfal",1420,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Bosque de Argénteos",1421,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Tierras de la Peste del Oeste",1422,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Tierras de la Peste del Este",1423,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Laderas de Trabalomas",1424,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Tierras del Interior",1425,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Dun Morogh",1426,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"La Garganta de Fuego",1427,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Las Estepas Ardientes",1428,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Bosque de Elwynn",1429,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Paso de la Muerte",1430,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Bosque del Ocaso",1431,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Loch Modan",1432,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Montañas Crestagrana",1433,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Vega de Tuercespina",1434,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Pantano de las Penas",1435,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Páramos de Poniente",1436,1415,2,0,3,0,0,0,0,0,0,0,0,0
+"Los Humedales",1437,1415,2,0,3,0,0,0,0,0,0,0,0,0
+Teldrassil,1438,1414,2,0,3,0,0,0,0,0,0,0,0,0
+"Costa Oscura",1439,1414,2,0,3,0,0,0,0,0,0,0,0,0
+Vallefresno,1440,1414,2,0,3,0,0,0,0,0,0,0,0,0
+"Las Mil Agujas",1441,1414,2,0,3,0,0,0,0,0,0,0,0,0
+"Sierra Espolón",1442,1414,2,0,3,0,0,0,0,0,0,0,0,0
+Desolace,1443,1414,2,0,3,0,0,0,0,0,0,0,0,0
+Feralas,1444,1414,2,0,3,0,0,0,0,0,0,0,0,0
+"Marjal Revolcafango",1445,1414,2,0,3,0,0,0,0,0,0,0,0,0
+Tanaris,1446,1414,2,0,3,0,0,0,0,0,0,0,0,0
+Azshara,1447,1414,2,0,3,0,0,0,0,0,0,0,0,0
+Frondavil,1448,1414,2,0,3,0,0,0,0,0,0,0,0,0
+"Cráter de Un'Goro",1449,1414,2,0,3,0,0,0,0,0,0,0,0,0
+"Claro de la Luna",1450,1414,2,0,3,0,0,0,0,0,0,0,0,0
+Silithus,1451,1414,2,0,3,0,0,0,0,0,0,0,0,0
+"Cuna del Invierno",1452,1414,2,0,3,0,0,0,0,0,0,0,0,0
+"Ciudad de Ventormenta",1453,1415,0,0,3,0,0,0,0,0,0,0,0,0
+Orgrimmar,1454,1414,0,0,3,0,0,0,0,0,0,0,0,0
+Forjaz,1455,1415,0,0,3,0,0,0,0,0,0,0,0,0
+"Cima del Trueno",1456,1414,0,0,3,0,0,0,0,0,0,0,0,0
+Darnassus,1457,1414,0,0,3,0,0,0,0,0,0,0,0,0
+Entrañas,1458,1415,0,0,3,0,0,0,0,0,0,0,0,0
+"Valle de Alterac",1459,1424,2,0,6,0,0,0,0,0,0,0,0,0
+"Garganta Grito de Guerra",1460,1413,0,0,6,0,0,0,0,0,0,0,0,0
+"Cuenca de Arathi",1461,1417,0,0,6,0,0,0,0,0,0,0,0,0
+"Reinos del Este",1463,0,0,1,2,0,0,0,0,0,0,0,0,0
+Kalimdor,1464,0,0,1,2,0,0,0,0,0,0,0,0,0
+"Monte Hyjal",2482,1414,2,0,3,0,0,0,0,0,0,0,0,0
+"Isla de Zephras",2521,947,2,0,3,0,0,0,0,0,0,0,0,0
+"Islas Lanza Negra",2524,1414,0,0,6,0,0,0,0,0,0,0,0,0
+Clarofluvial,2548,1415,2,0,3,0,0,0,0,0,0,0,0,0
+Shen'dralas,2652,1414,2,0,3,0,0,0,0,0,0,0,0,0
+"Isla de Zephras",2665,0,0,1,3,0,0,0,0,0,0,0,0,0
