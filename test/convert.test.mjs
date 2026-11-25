@@ -567,3 +567,25 @@ test("text on an ignored .subzone or on a .goto line is kept as step text", () =
 	const alongGoto = convWith({}, ["step", "    #completewith next", "    .goto 1,45,88 >>Travel to Bob", "step", "    .accept 1 >> Accept A Thing"].join("\n"));
 	assert.doesNotMatch(alongGoto, /note "Travel to Bob"|task "Travel to Bob"/, alongGoto);
 });
+
+test("an auction-house buy targeting an auctioneer or banker becomes collect, not buy", () => {
+	const d = {
+		npcs: {
+			201: { id: 201, name: "Bob", spawns: { 1: { pts: [[10, 10]] } } },
+			401: { id: 401, name: "Auctioneer Penn", roles: ["auctioneer"], spawns: { 1: { pts: [[20, 20]] } } },
+			402: { id: 402, name: "Banker Reed", roles: ["banker"], spawns: { 1: { pts: [[20, 20]] } } },
+		},
+		items: { 30: { id: 30, name: "Bright Scale", vendors: [] } },
+	};
+	const out = convWith(d, [
+		"step",
+		"    #ah",
+		"    .goto 1,20,20",
+		"    >>Talk to |cRXP_FRIENDLY_Banker Reed|r",
+		"    >>|cRXP_BUY_Buy some|r [Bright Scale] |cRXP_BUY_from the Auction House|r",
+		"    .collect 30,10",
+		"    .target Auctioneer Penn",
+	].join("\n"));
+	assert.doesNotMatch(out, /^  buy /m, out);
+	assert.match(out, /^  collect 30 x10/m, out);
+});

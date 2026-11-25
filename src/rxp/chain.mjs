@@ -21,10 +21,26 @@ const keyOf = (g) => `${g.header.group || ""}\\${g.header.name || ""}`;
 const sideOf = (g) => (parseCondition(g.header.faction).only.faction || [null])[0]
 	|| { A: "Alliance", H: "Horde" }[(String(g.header.group || "").match(/\(([AH])\)/) || [])[1]] || null;
 
+const isForever = (g) => (g.header.flags || []).some((f) => /^forever(\s|$)/i.test(f));
+const versionOf = (g) => Number(g.header.version) || 0;
+// When two guides share a key, prefer a `#forever` guide over `#classic`, then a higher `#version`, then later-loaded.
+function betterGuide(prev, next) {
+	if (!prev) return true;
+	const pf = isForever(prev), nf = isForever(next);
+	if (pf !== nf) return nf;
+	const pv = versionOf(prev), nv = versionOf(next);
+	if (pv !== nv) return nv > pv;
+	return true;
+}
+
 // `#include Group\Name` in a step: RXP puts that guide's steps there (its dungeon
 // variants of the starting routes are a step turning a dungeon on and the route).
 export function expandIncludes(guides, report) {
-	const byKey = new Map(guides.map((g) => [keyOf(g), g]));
+	const byKey = new Map();
+	for (const g of guides) {
+		const k = keyOf(g);
+		if (betterGuide(byKey.get(k), g)) byKey.set(k, g);
+	}
 	const expand = (g, depth) => g.steps.flatMap((s) => {
 		const inc = s.tags.find((t) => t.name === "include");
 		if (!inc) return [s];
@@ -49,20 +65,37 @@ export function expandIncludes(guides, report) {
 
 const isSkip = (g) => /\bskip\b/i.test(String(g.header.faction || ""));
 
-export function planChain(guides, report) {
+export function planChain(guides, report, shown = () => true) {
 	// RXP registers some guides twice under one group and name: the one it lists
 	// (`#disabledungeons`) and a twin it hides (`skip` in its condition), the same
 	// steps. Only the listed one is written; a hand-off to the twin goes to it.
 	const listed = new Map();
-	for (const g of guides) if (!isSkip(g)) listed.set(keyOf(g), g);
+	for (const g of guides) if (!isSkip(g) && shown(g)) {
+		const k = keyOf(g);
+		if (betterGuide(listed.get(k), g)) listed.set(k, g);
+	}
 	const twinOf = new Map(guides.filter((g) => isSkip(g) && listed.has(keyOf(g))).map((g) => [g, listed.get(keyOf(g))]));
 	const hidden = new Set(twinOf.keys());
 	if (hidden.size) report.count("hidden twin of a listed guide (not written)", hidden.size);
+	// Companion addons can register a newer or `#forever` copy of a guide under the same
+	// group, name and condition; keep the best copy and point hand-offs at it.
+	const dupKey = (g) => `${keyOf(g)}\0${String(g.header.faction || "").trim().toLowerCase()}`;
+	const best = new Map();
+	for (const g of guides) if (!hidden.has(g) && !isSkip(g) && shown(g)) {
+		const k = dupKey(g);
+		if (betterGuide(best.get(k), g)) best.set(k, g);
+	}
+	let superseded = 0;
+	for (const g of guides) if (!hidden.has(g) && !isSkip(g) && shown(g)) {
+		const win = best.get(dupKey(g));
+		if (win && win !== g) { twinOf.set(g, win); hidden.add(g); superseded++; }
+	}
+	if (superseded) report.count("older version of a guide (superseded)", superseded);
 	guides = guides.filter((g) => !hidden.has(g));
 	const byKey = new Map();
 	const byName = new Map();
 	for (const g of guides) {
-		byKey.set(keyOf(g), g);
+		if (shown(g) || !byKey.has(keyOf(g))) byKey.set(keyOf(g), g);
 		const n = g.header.name || "";
 		if (!byName.has(n)) byName.set(n, []);
 		byName.get(n).push(g);
@@ -98,7 +131,7 @@ export function planChain(guides, report) {
 		});
 		// The guide of a part for a character, or null: one of its side, open to its class and race.
 		const resolve = (part, ch) => {
-			const ok = (o) => o && [null, ch.faction].includes(sideOf(o)) && meets(who(o), ch);
+			const ok = (o) => o && shown(o) && [null, ch.faction].includes(sideOf(o)) && meets(who(o), ch);
 			// RXP looks in the part's group, and only elsewhere when the group has no such guide.
 			let hit = byKey.get(`${part.group}\\${part.name}`);
 			if (hit) { if (!ok(hit)) hit = null; }

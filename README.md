@@ -74,10 +74,12 @@ It finds RestedXP, Journey and Zygor (its leveling, dungeon, profession,
 reputation and event guides; for a faction whose full guides are not
 installed, the free trial guides the viewer ships), asks which RestedXP routes
 you want (`--routes main,dungeon,survival` skips the question; routes your
-guides do not have are left out), converts every guide with all of RestedXP's
-languages (`--locales zhCN` for one, `none` for none) and puts the addon into
-the game. Without `--install` it writes the folders into `./polestar-addon` to
-look at first. `--name "My Guides"` names the addon.
+guides do not have are left out), converts every guide — RestedXP guides you
+imported in the game, which the addon keeps packed in the account's
+`WTF/Account/<account>/SavedVariables/RXPGuides.lua`, are read there — with
+all of RestedXP's languages (`--locales zhCN` for one, `none` for none) and
+puts the addon into the game. Without `--install` it writes the folders into
+`./polestar-addon` to look at first. `--name "My Guides"` names the addon.
 
 Both ways make the same addon: Polestar's own compiler, run as WebAssembly,
 builds it from the converted guides, with the game data the page hosts
@@ -90,13 +92,19 @@ Community guides.
 ### Where the guide files must be
 
 The converter reads the guide files as plain text, the way the guide addon
-keeps them in `World of Warcraft/_forever_/Interface/AddOns`. It does not unlock
-or decode anything: guide files in another form cannot be converted. Pick the
-`AddOns` folder (or the World of Warcraft folder); it must hold:
+keeps them in `World of Warcraft/_forever_/Interface/AddOns`. It does not
+unlock or crack anything: a guide kept locked by its addon cannot be converted.
+The one packed form it does read is the addon's own storage: RestedXP keeps
+guides you imported in the game (bought ones come that way) DEFLATE-packed in
+the account's `WTF/Account/<account>/SavedVariables/RXPGuides.lua` and
+unpacks them on load; the converter unpacks them the same way. Pick the
+`AddOns` folder (or the World of Warcraft folder; for the SavedVariables the
+pick must hold the WTF folder too, so pick the World of Warcraft or the client
+folder); it must hold:
 
 | Source | Folder under `Interface/AddOns` | What the converter looks for |
 | --- | --- | --- |
-| RestedXP | `RXPGuides/` | `Guides/GuideList-forever.xml` and the `.lua` guide files it names, each with `RegisterGuide([[ … ]])` blocks |
+| RestedXP | `RXPGuides/` (and companion addons) | `Guides/GuideList-forever.xml` and the `.lua` guide files it names, plus any companion addons beside it whose `.toc` depends on `RXPGuides`, each with `RegisterGuide([[ … ]])` blocks |
 | Journey | `Journey/` | `data/Guides/guides.html` and the guide pages beside it |
 | Zygor | `ZygorGuidesViewerForever/` | `Guides-Forever/Leveling/ZygorLevelingHordeCLASSIC.lua` and the like (dungeon, profession, reputation and event files too) |
 
@@ -140,6 +148,9 @@ npx github:aronjanosch/polestar-convert rxp --list "<WoW>/_forever_/Interface/Ad
 npx github:aronjanosch/polestar-convert journey --dir "<WoW>/_forever_/Interface/AddOns/Journey" --polestar polestar --pack my-pack
 npx github:aronjanosch/polestar-convert zygor --dir "<WoW>/_forever_/Interface/AddOns/ZygorGuidesViewerForever" --polestar polestar --pack my-pack
 ```
+
+`rxp` also takes `--saved-variables "<WoW>/_forever_/WTF/Account/<account>/SavedVariables/RXPGuides.lua"`
+beside `--list`/`--file`, for the guides imported in the game.
 
 > [!TIP]
 > `--only "<guide name>"` converts a single guide, which is much faster while

@@ -12,12 +12,12 @@ import { join, resolve, basename, dirname } from "node:path";
 import { homedir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { createInterface } from "node:readline/promises";
-import { findSources, runReport, SOURCES, ROUTES } from "../core.mjs";
+import { findSources, runReport, isRxpPluginToc, SOURCES, ROUTES } from "../core.mjs";
 import { buildAddons } from "../build.mjs";
 import { addonEntries } from "../addon.mjs";
 import { packIdProblem } from "../pack.mjs";
 import { rxpLocales } from "../rxp/translations.mjs";
-import { folderReader, resolveLoose } from "./read.mjs";
+import { folderReader, resolveLoose, savedVariablesOf } from "./read.mjs";
 
 export const PATH_USAGE = `usage: polestar-convert --path <WoW folder> [--routes main,dungeon,survival]
          [--sources rxp,journey,zygor] [--locales all|none|zhCN,deDE] [--name "My Guides"]
@@ -116,13 +116,26 @@ function siteReader(site) {
 	};
 }
 
-// Every file under the guide addons, as AddOns-relative lowercase paths.
+// Every file under the guide addons (including companion addons depending on RXPGuides),
+// as AddOns-relative lowercase paths.
 function guidePaths(addons) {
 	const out = [];
+	const known = new Set(GUIDE_ADDONS.map((a) => a.toLowerCase()));
+	const walk = (dir) => {
+		for (const rel of readdirSync(dir, { recursive: true })) {
+			if (!isDir(join(dir, rel))) out.push(`${basename(dir)}/${rel}`.replace(/\\/g, "/").toLowerCase());
+		}
+	};
 	for (const a of GUIDE_ADDONS) {
 		const dir = resolveLoose(addons, a);
-		if (!dir) continue;
-		for (const rel of readdirSync(dir, { recursive: true })) if (!isDir(join(dir, rel))) out.push(`${basename(dir)}/${rel}`.replace(/\\/g, "/").toLowerCase());
+		if (dir) walk(dir);
+	}
+	for (const name of readdirSync(addons)) {
+		if (known.has(name.toLowerCase())) continue;
+		const dir = join(addons, name);
+		if (!isDir(dir)) continue;
+		const toc = resolveLoose(dir, `${name}.toc`);
+		if (toc && statSync(toc).isFile() && isRxpPluginToc(readFileSync(toc, "utf8"))) walk(dir);
 	}
 	return out;
 }
@@ -149,7 +162,8 @@ export async function run(a) {
 	} catch (e) { fail(e.message); }
 	console.log("Convert only guides you have the right to use; what you convert is your responsibility.");
 	const read = folderReader(addons);
-	const found = (await findSources(read)).filter((s) => sources.includes(s));
+	const paths = guidePaths(addons);
+	const found = (await findSources(read, paths)).filter((s) => sources.includes(s));
 	if (!found.length) fail(`no guide addon (${GUIDE_ADDONS.join(", ")}) in ${addons}`);
 	console.log(`${addons}: ${found.map((s) => SOURCE_NAMES[s]).join(", ")}`);
 	if (found.includes("rxp") && !routes) routes = a.yes || !process.stdin.isTTY ? [...ROUTES] : await askRoutes();
@@ -167,20 +181,20 @@ export async function run(a) {
 	const module = await import(pathToFileURL(await forge("polestar_convert_wasm.js")));
 	await module.default({ module_or_path: readFileSync(await forge("polestar_convert_wasm_bg.wasm")) });
 
-	const paths = guidePaths(addons);
 	try {
 		const shipped = rxpLocales(paths).filter((l) => (manifest.names || []).includes(l));
 		locales = typeof a.locales === "string" ? (a.locales === "none" ? [] : listArg(a.locales, shipped.map((l) => l.toLowerCase()), "--locales").map((l) => shipped.find((s) => s.toLowerCase() === l))) : shipped;
 	} catch (e) { fail(e.message); }
 
-	const r = await buildAddons({ read, paths, readData, manifest, Compiler: module.Compiler, pack, opts: { sources: found, routes, selfFound: a["self-found"] != null, ah: a.ah, groups: a.groups }, locales, say: (t) => console.log(t) });
+	const r = await buildAddons({ read, paths, readData, manifest, Compiler: module.Compiler, pack, opts: { sources: found, routes, selfFound: a["self-found"] != null, ah: a.ah, groups: a.groups, savedVariables: savedVariablesOf(addons) }, locales, say: (t) => console.log(t) });
 	const reports = resolve(a.install ? "polestar-convert-reports" : join(typeof a.out === "string" ? a.out : "polestar-addon", "reports"));
 	mkdirSync(reports, { recursive: true });
 	for (const [source, run] of Object.entries(r.runs)) {
 		writeFileSync(join(reports, `${source}-run.txt`), runReport(run));
 		for (const m of run.missing || []) console.error(`missing: ${m}`);
 		const steps = run.guides.reduce((n, g) => n + g.stepsOut, 0);
-		console.log(`${SOURCE_NAMES[source]}: ${run.guides.length} guides, ${steps} steps${source === "rxp" ? ` (${routes.join(", ")})` : ""}; ${run.report.items.length} lines need a look (${join(reports, `${source}-run.txt`)})`);
+		const imported = run.report.counts.get("imported guide read (SavedVariables)");
+		console.log(`${SOURCE_NAMES[source]}: ${run.guides.length} guides${imported ? ` (${imported} imported)` : ""}, ${steps} steps${source === "rxp" ? ` (${routes.join(", ")})` : ""}; ${run.report.items.length} lines need a look (${join(reports, `${source}-run.txt`)})`);
 	}
 	if (r.errors) {
 		for (const e of r.errors.slice(0, 50)) console.error(`${e.file}${e.line ? `:${e.line}` : ""}: ${e.message}`);

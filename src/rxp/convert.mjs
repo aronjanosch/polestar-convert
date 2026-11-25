@@ -50,20 +50,29 @@ for (const [prof, ids] of Object.entries({
 })) for (const id of ids) PROFESSION_SPELLS[id] = prof;
 const PROFESSION_BASE = new Set([2259, 2018, 7411, 4036, 2366, 2108, 2575, 8613, 3908, 3273, 2550, 7620]);
 const PROFESSIONS = new Set(["Mining", "Herbalism", "Skinning", "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Leatherworking", "Tailoring", "First Aid", "Cooking", "Fishing"]);
-// Whether RXP lists the guide on Forever (GuideWindow's IsGuideActive): its header's
-// `#season`, `#phase` and `#xprate` as variantShown reads them, no `#som`, and a header
-// `<<` some character meets (RXP skips the guide otherwise: `<<sod`). RXP keeps
+const GAME_TAGS = new Set(["classic", "tbc", "wotlk", "cata", "mop", "df", "retail", "forever"]);
+// Whether RXP lists the guide on Forever (GuideWindow's IsGuideActive & GuideLoader):
+// compatible with Forever (`#forever` or `#classic`, when any game tag is present), its
+// header's `#season`, `#phase` and `#xprate` as variantShown reads them, no `#som`, and a
+// header `<<` some character meets (RXP skips the guide otherwise: `<<sod`). RXP keeps
 // the first line of a tag; a line with `<<` holds for some characters only and hides nothing here.
 export function guideShown(header) {
 	if (header.faction && parseCondition(header.faction).never) return false;
 	const seen = new Set();
+	let hasGameTag = false, gameOk = false;
 	for (const flag of header.flags || []) {
 		const [, name, args] = flag.match(/^(\S+)\s*(.*)$/) || [];
-		if (!name || args.includes("<<") || seen.has(name)) continue;
-		seen.add(name);
-		if (name === "som" || !variantShown({ name, args })) return false;
+		if (!name || args.includes("<<")) continue;
+		const low = name.toLowerCase();
+		if (GAME_TAGS.has(low)) {
+			hasGameTag = true;
+			if (low === "forever" || low === "classic") gameOk = true;
+		}
+		if (seen.has(low)) continue;
+		seen.add(low);
+		if (low === "som" || !variantShown({ name: low, args })) return false;
 	}
-	return true;
+	return !hasGameTag || gameOk;
 }
 
 // RXP's variant tags: `#hardcore` steps only in hardcore mode; `#ssf` (buy at a
@@ -388,8 +397,8 @@ function buildOne(step, stepNo, data, ctx, cond) {
 		}
 		let pool = cands.filter((c) => (c.npc.roles || []).includes(role) || sells(c.npc));
 		if (opt.item != null && pool.some((c) => sells(c.npc))) pool = pool.filter((c) => sells(c.npc));
-		// Only a vendor may be taken without its role (the data lists few of them); a trainer never.
-		if (!pool.length && role === "vendor" && cands.length === 1 && !cands[0].named) pool = cands;
+		// Only a vendor may be taken without its role (the data lists few of them); never a trainer, auctioneer or banker.
+		if (!pool.length && role === "vendor" && cands.length === 1 && !cands[0].named && !(cands[0].npc.roles || []).some((r) => r === "auctioneer" || r === "banker")) pool = cands;
 		if (pool.length < 2) return pool.length ? pool[0].npc : null;
 		// Several fit: the one the line's own text names, else the target RXP wrote beside it
 		// (after the line, before the next of its kind; else before it), else the line's turn.
@@ -602,16 +611,18 @@ function buildOne(step, stepNo, data, ctx, cond) {
 			const itemId = Number(item);
 			const known = data.items[itemId];
 			const itemName = known ? undefined : plain(l.comment || l.text || "item " + itemId);
-			if (buyText && !npcFor("vendor", l.cond) && !((known || {}).vendors || []).length) {
-				// No vendor sells it: bought at the auction house, so the bag counts.
-				add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
-				report.count("buy without a vendor (auction house) -> collect");
-			} else if (buyText) {
+			if (buyText) {
 				const npc = npcFor("vendor", l.cond, { item: itemId, names: true, idx: li, kinds: ["collect"], text: l.comment || enText(l) });
-				const base = npc && baseItemSoldBy(data, itemId, npc.id);
-				if (base) report.count("buy of a made item -> buy of the item it is made from");
-				add({ kind: "buy", item: base || itemId, itemName: base ? undefined : itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
-				if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", l.comment || "");
+				if (!npc && (step.tags.some((t) => t.name === "ah") || !((known || {}).vendors || []).length)) {
+					// No vendor sells it (or an auction-house step with no vendor): the bag counts.
+					add({ kind: "collect", item: itemId, itemName, count: count || 1 }, l.cond);
+					report.count("buy without a vendor (auction house) -> collect");
+				} else {
+					const base = npc && baseItemSoldBy(data, itemId, npc.id);
+					if (base) report.count("buy of a made item -> buy of the item it is made from");
+					add({ kind: "buy", item: base || itemId, itemName: base ? undefined : itemName, count: count || 1, npc: npc ? npc.id : undefined }, l.cond);
+					if (!npc) report.note(ctx.name, stepNo, "vendor not resolved; `nearest` used", l.comment || "");
+				}
 			} else if (qid && data.quests[Number(qid)]) {
 				const hit = resolveObjective(data.quests[Number(qid)], "", itemId, { strictItem: true });
 				// RXP often collects ahead of the accept; Polestar wants the accept first,

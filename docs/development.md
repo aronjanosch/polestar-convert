@@ -29,6 +29,7 @@ src/objective.mjs    a source's quest objective matched to Polestar's (RXP, Zygo
 src/rxp/parse.mjs    RXP Lua -> steps and lines
 src/rxp/convert.mjs  RXP adapter: steps -> intermediate guide
 src/rxp/chain.mjs    RXP's #next and #include across guides
+src/rxp/saved.mjs    RXP's imported guides: the account's SavedVariables, unpacked
 src/journey/         Journey adapter: decode slots, Lua tables, conditions, steps
 src/zygor/parse.mjs  Zygor Lua -> guides, steps and lines (no Lua is evaluated)
 src/zygor/cond.mjs   `|only` / `|complete` expressions -> only, when, goals

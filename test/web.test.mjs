@@ -73,6 +73,8 @@ test("addonsPaths: the paths under Interface/AddOns of the files a folder pick g
 	assert.deepEqual(addonsPaths(["_forever_/Interface/AddOns/RXPGuides/Guides/A.lua", "_forever_/WTF/Config.wtf"]),
 		new Map([["rxpguides/guides/a.lua", 0]]));
 	assert.deepEqual(addonsPaths(["RXPGuides/Guides/A.lua"]), new Map([["rxpguides/guides/a.lua", 0]]));
+	assert.deepEqual(addonsPaths(["ExamplePack/ExamplePack.toc", "ExamplePack/Guides.lua"]),
+		new Map([["examplepack/examplepack.toc", 0], ["examplepack/guides.lua", 1]]));
 	assert.deepEqual(addonsPaths(["Interface/AddOns/Journey/a"]), new Map([["journey/a", 0]]));
 	// The World of Warcraft folder: the Forever client's AddOns, not another client's.
 	assert.deepEqual(addonsPaths(["WoW/_classic_era_/Interface/AddOns/Journey/a", "WoW/_forever_/Interface/AddOns/Journey/b"]),

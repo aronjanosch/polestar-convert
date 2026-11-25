@@ -4,6 +4,28 @@
 
 For Polestar 0.4.1: the page's compiler and data are Polestar 0.4.1's.
 
+- **RestedXP: imported guides (SavedVariables)**: guides imported in the game —
+  bought ones come that way — never exist as `.lua` files: RestedXP keeps them
+  packed in the account's `WTF/Account/<account>/SavedVariables/RXPGuides.lua`.
+  The converter now reads that file the way the addon itself does on load (each
+  cached guide unpacks from raw DEFLATE to the text of a `RegisterGuide` block)
+  and converts the guides beside the addon's own files, one copy of each, a
+  newer `#version` superseding an older one. `--path` finds the file next to
+  `Interface/AddOns`, the browser page reads it when the picked folder holds the
+  WTF folder too (pick the World of Warcraft or the client folder), and
+  `polestar-convert rxp --saved-variables <RXPGuides.lua>` converts one alone.
+  What cannot be unpacked is counted in the report, as is everything read.
+- **RestedXP: companion guide addons**: `--path` and the browser page now also
+  pick up companion addons beside `RXPGuides` in `Interface/AddOns` whose
+  `.toc` lists `RXPGuides` as a dependency (following `.lua` and `.xml` entries
+  and `[AllowLoadGameType ...]` tags for Forever). Guides tagged only for other
+  game versions (`#tbc`, `#wotlk`, …) are left out, and when a companion addon
+  registers a `#forever` or higher `#version` copy of the same guide, the newer
+  copy supersedes the older one.
+- **RestedXP: auction-house buys**: auctioneers and bankers are no longer
+  treated as fallback vendors on a `.collect` under `RXP_BUY` / `#ah`; items
+  with no vendor stay `collect` instead of emitting a vendorless `buy` that
+  Polestar's compiler refuses.
 - **RestedXP: dungeon and text-only steps stay in the guide**: an ordinary
   step with instructions (`>>` text and no `.goto`, such as boss and route
   steps inside a dungeon) was dropped before, and a `+`-note-only step had no

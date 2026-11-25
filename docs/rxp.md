@@ -43,10 +43,44 @@ Read as RXP's own `applies()` (GuideLoader.lua) reads them:
   selected a guide meant for Undead" in an Undead guide), and goals for quests
   the data closes to the guide's races. In a guide for both sides, the step's
   side counts.
-- A guide RXP does not list on Forever is not written: a header `#season`
-  without 0, `#phase` without 6, `#xprate` without 1, `#som`, or a header `<<`
-  nobody meets (`<<sod`), as GuideWindow's IsGuideActive reads them. A header
-  line with its own `<<` (`#season 2 << Druid`) hides nothing.
+- A guide RXP does not list on Forever is not written: a header with another
+  game-version tag (`#tbc`, `#wotlk`, `#cata`, `#retail`, …) without `#forever`
+  or `#classic`, a header `#season` without 0, `#phase` without 6, `#xprate`
+  without 1, `#som`, or a header `<<` nobody meets (`<<sod`), as GuideWindow's
+  IsGuideActive and GuideLoader read them. A header line with its own `<<`
+  (`#season 2 << Druid`) hides nothing.
+- Companion addons beside `RXPGuides` in `Interface/AddOns` whose `.toc`
+  declares `RXPGuides` as a dependency are loaded after `GuideList-forever.xml`
+  (honouring `[AllowLoadGameType ...]` tags for `camelot` and following XML
+  lists). When two shown guides share the same group, name and header
+  condition, `#forever` wins over `#classic`, then the higher `#version`, then
+  the later-loaded copy.
+
+### Imported guides (SavedVariables)
+
+Guides imported in the game — bought ones come that way — never appear as
+`.lua` files: RXP unpacks the import string itself and keeps each guide in the
+account's `WTF/Account/<account>/SavedVariables/RXPGuides.lua` (variable
+`RXPDB`, every profile's `guides`), the guide's lines raw-DEFLATE-packed with a
+`--<number>` comment line before them that it checks on load. The converter
+reads that file the same way (a SavedVariables parser and `DecompressionStream`,
+no dependency, `src/rxp/saved.mjs`):
+
+- Each cached guide unpacks to the text of one `RegisterGuide([[ … ]])` block
+  (the shape of RXP's own `Guides/Import.lua`), newlines and comments already
+  squeezed as the addon squeezed them; it then converts like any guide file,
+  after the addon's own files and the companion addons'.
+- Every profile's guides are read (a player may have imported on any), one
+  copy of each; an imported guide with the same group, name and condition as
+  a file's own wins by `#version`, exactly as RXP prefers a newer guide.
+- What cannot be unpacked — or does not carry the addon's marker line — is
+  counted in the report, as RXP would drop it; the account-locked import
+  string (`RXPString`) is not touched: the guides are already unpacked beside
+  it.
+- `--path` finds the file in the WTF folder next to `Interface/AddOns`; the
+  browser page passes it in when the picked folder holds the WTF folder (pick
+  the World of Warcraft or the client folder, not only `Interface/AddOns`);
+  `rxp --saved-variables <RXPGuides.lua>` converts one file alone.
 
 ### Goals
 
@@ -203,6 +237,11 @@ comes from a catalog of RXP's text-only steps, some read by hand:
 
 - Step numbers count every class's steps ("3 / 72"); RXP counts only yours.
   A Polestar change, not the converter's.
+- The SavedVariables reader takes the addon's own dump format: an RXP update
+  that caches its guides another way (the marker line changes) leaves them
+  counted as not decodable, not broken. Guides the account-locked
+  `RXPString` holds are read only after RXP itself unpacks them into
+  `RXPDB` (a restart of the game does that).
 - A `goto` radius is the arrival radius only; Polestar draws no area. A text
   step gets one point, not a circle.
 - A step with no title shows its first goal as the heading, so a one-task step

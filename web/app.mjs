@@ -2,7 +2,7 @@
 // addon ZIP back (and installs it into the folder the player picks, where the browser
 // allows). The files stay in the browser.
 
-import { addonsPaths, findSources } from "./src/core.mjs";
+import { addonsPaths, findSources, isRxpPluginToc, rxpPluginTocs, savedVariablePaths } from "./src/core.mjs";
 import { packIdProblem } from "./src/pack.mjs";
 import { rxpLocales } from "./src/rxp/translations.mjs";
 import { topFolders } from "./src/addon.mjs";
@@ -13,6 +13,7 @@ const NAMES = { rxp: "RestedXP", journey: "Journey", zygor: "Zygor" };
 const LOCALE_NAMES = { deDE: "Deutsch", esES: "Español", frFR: "Français", ptBR: "Português (Brasil)", zhCN: "中文 (简体)" };
 // The folders the converter reads from; the rest of the AddOns folder is not touched.
 const READS = ["rxpguides/guides/", "rxpguides/lang/", "journey/data/guides/", ...["zygorguidesviewerforever/guides-forever/", "zygorguidesviewerclassic/guides-classic/"].flatMap((dir) => ["leveling", "dungeons", "professions", "reputations", "events"].map((f) => `${dir}${f}/`))];
+const TOCS = new Set(["rxpguides/rxpguides.toc", "journey/journey.toc", "zygorguidesviewerforever/zygorguidesviewerforever.toc", "zygorguidesviewerclassic/zygorguidesviewerclassic.toc"]);
 
 let picked = null; // { files: [[path, File]], sources }
 let siteNames = []; // the locales the page has names for (manifest.json `names`)
@@ -52,7 +53,7 @@ function show(sources, count) {
 		const on = sources.includes(box.value);
 		box.disabled = !on;
 		box.checked = on;
-		$(`src-${box.value}`).textContent = on ? (box.value === "rxp" ? "found: the routes you tick below" : (box.value === "zygor" ? "found: its guides, or its free trial guides" : "found: its whole route")) : "not in this folder";
+		$(`src-${box.value}`).textContent = on ? (box.value === "rxp" ? `found: the routes you tick below${picked?.saved ? `, ${picked.saved} imported guide${picked.saved === 1 ? "" : "s"} (SavedVariables) included` : ""}` : (box.value === "zygor" ? "found: its guides, or its free trial guides" : "found: its whole route")) : "not in this folder";
 	}
 	routesEnabled();
 	$("step-pack").setAttribute("aria-disabled", String(!sources.length));
@@ -95,11 +96,25 @@ function check() {
 $("pick").addEventListener("click", () => $("folder").click());
 $("folder").addEventListener("change", async () => {
 	const all = [...$("folder").files];
-	const paths = addonsPaths(all.map((f) => f.webkitRelativePath || f.name));
-	const files = [...paths].filter(([p]) => READS.some((r) => p.startsWith(r))).map(([p, i]) => [p, all[i]]);
-	const have = new Set(files.map(([p]) => p));
-	const sources = await findSources(async (p) => (have.has(p.toLowerCase()) ? "" : null));
-	picked = { files, sources };
+	const relative = all.map((f) => f.webkitRelativePath || f.name);
+	const paths = addonsPaths(relative);
+	const plugins = [];
+	for (const tocPath of rxpPluginTocs(paths.keys())) {
+		if (isRxpPluginToc(await all[paths.get(tocPath)].text())) plugins.push(`${tocPath.split("/")[0]}/`);
+	}
+	// RXP's imported guides: the account's SavedVariables file, when the pick holds
+	// the WTF folder beside the AddOns one (the World of Warcraft or client folder).
+	const saved = savedVariablePaths(relative);
+	const files = [...paths]
+		.filter(([p]) => READS.some((r) => p.startsWith(r)) || TOCS.has(p) || plugins.some((d) => p.startsWith(d) && /\.(toc|lua|xml)$/.test(p)))
+		.map(([p, i]) => [p, all[i]])
+		.concat(saved.map(({ path, index }) => [path, all[index]]));
+	const fileMap = new Map(files);
+	const sources = await findSources(async (p) => {
+		const f = fileMap.get(p.toLowerCase());
+		return !f ? null : p.toLowerCase().endsWith(".toc") ? f.text() : "";
+	}, [...fileMap.keys()]);
+	picked = { files, sources, saved: saved.length };
 	show(sources, all.length);
 });
 for (const el of document.querySelectorAll("#pack-id, #rights, input[name=route], input[name=source]")) el.addEventListener("input", () => { routesEnabled(); check(); });

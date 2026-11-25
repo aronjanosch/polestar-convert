@@ -25,7 +25,7 @@ export async function buildAddons({ read, paths, readData, manifest, Compiler, p
 	say("Loading Polestar's game data …");
 	const data = await loadData(readData);
 	const names = await loadNames(readData, data, manifest.levelXp);
-	const runs = await convertAddons(read, data, names, { ...opts, packId: pack.id, progress: (s) => say(`Converting ${NAMES[s]} …`) });
+	const runs = await convertAddons(read, data, names, { ...opts, paths, packId: pack.id, progress: (s) => say(`Converting ${NAMES[s]} …`) });
 
 	say("Compiling the addon with Polestar's compiler …");
 	const texts = {};
