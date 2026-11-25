@@ -31,7 +31,7 @@ self.onmessage = async ({ data: msg }) => {
 			return f ? decode(await f.arrayBuffer()) : null;
 		};
 		// RXP's imported guides, in the WTF folder the pick held (src/rxp/saved.mjs).
-		const savedVariables = await Promise.all(savedVariablePaths([...files.keys()]).map(({ path }) => files.get(path).arrayBuffer()).then((all) => all.map((b) => new Uint8Array(b))));
+		const savedVariables = await Promise.all(savedVariablePaths([...files.keys()]).map(async ({ path }) => new Uint8Array(await files.get(path).arrayBuffer())));
 		await init({ module_or_path: new URL("./forge/polestar_convert_wasm_bg.wasm", import.meta.url) });
 		const r = await buildAddons({ read, paths: [...files.keys()], readData, manifest, Compiler, pack: msg.pack, opts: { ...msg.opts, savedVariables }, locales: msg.locale ? [msg.locale] : [], say });
 		if (r.errors) {
