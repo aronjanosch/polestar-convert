@@ -57,7 +57,8 @@ export function savedVariablePaths(paths) {
 	const addonsClient = clientRoots(lower)[0]?.split("/").pop();
 	const root = roots.find((r) => addonsClient && r.slice(0, -marker.length).split("/").pop() === addonsClient) || roots.sort((a, b) => rank(a) - rank(b))[0];
 	const out = [];
-	if (root) lower.forEach((p, i) => { if (p.startsWith(root) && p.endsWith("/savedvariables/rxpguides.lua")) out.push({ path: p.slice(1), index: i }); });
+	const accountFile = /^[^/]+\/savedvariables\/rxpguides\.lua$/;
+	if (root) lower.forEach((p, i) => { if (p.startsWith(root) && accountFile.test(p.slice(root.length))) out.push({ path: p.slice(1), index: i }); });
 	return out;
 }
 

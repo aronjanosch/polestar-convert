@@ -24,7 +24,13 @@ const latin1 = new TextDecoder("latin1");
 export function parseSavedVariables(bytes) {
 	const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
 	let i = 0;
-	const ws = () => { while (i < b.length && isSpace(b[i])) i++; };
+	const ws = () => {
+		while (i < b.length) {
+			if (isSpace(b[i])) { i++; continue; }
+			if (b[i] === 45 && b[i + 1] === 45) { while (i < b.length && b[i] !== 10 && b[i] !== 13) i++; continue; }
+			break;
+		}
+	};
 	const take = (chars) => {
 		ws();
 		for (const c of chars) { if (b[i] !== c.charCodeAt(0)) return false; i++; ws(); }
@@ -93,7 +99,12 @@ export function parseSavedVariables(bytes) {
 			if (i >= b.length) throw new Error("a SavedVariables table ends early");
 			if (b[i] === 125) { i++; return out; }
 			let key = null;
-			if (b[i] === 91) { i++; key = latin1.decode(string()); if (!take("]=")) throw new Error("a SavedVariables key is written wrong"); }
+			if (b[i] === 91) {
+				i++;
+				ws();
+				key = b[i] === 34 ? latin1.decode(string()) : String(value());
+				if (!take("]=")) throw new Error("a SavedVariables key is written wrong");
+			}
 			else {
 				const save = i;
 				const word = ident();

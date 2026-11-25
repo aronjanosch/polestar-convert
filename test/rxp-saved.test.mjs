@@ -59,7 +59,7 @@ step
 test("parseSavedVariables: the game's dump, every value form", () => {
 	const vars = parseSavedVariables(concat(
 		text('Data = {\n["maxLoadTime"] = 4000,\n["off"] = false,\n["nothing"] = nil,\n["plain"] = "a\\116b",\n["hi"] = "caf\\233",\n'),
-		text('["nested"] = {\n["in"] = "deep",\n},\nBare = 7,\n}\n'),
+		text('["nested"] = {\n["in"] = "deep",\n[8] = true,\n"item", -- [1]\n},\nBare = 7,\n}\n'),
 		text('Str = nil\n'),
 	));
 	assert.equal(vars.Data.maxLoadTime, 4000);
@@ -68,6 +68,8 @@ test("parseSavedVariables: the game's dump, every value form", () => {
 	assert.deepEqual([...vars.Data.plain], [97, 116, 98]); // \116, not "t"
 	assert.deepEqual([...vars.Data.hi], [99, 97, 102, 233]);
 	assert.deepEqual([...vars.Data.nested.in], [100, 101, 101, 112]);
+	assert.equal(vars.Data.nested["8"], true);
+	assert.deepEqual([...vars.Data.nested["1"]], [105, 116, 101, 109]);
 	assert.equal(vars.Data.Bare, 7);
 	assert.equal(vars.Str, null);
 	assert.throws(() => parseSavedVariables(text('X = { ["k"] = @\n')), /cannot read the SavedVariables file/);
@@ -142,16 +144,17 @@ test("savedVariablePaths: the WTF folder of the client whose AddOns the pick hol
 		"World of Warcraft/_forever_/WTF/Account/54492#2/SavedVariables/RXPGuides.lua",
 		"World of Warcraft/_forever_/WTF/Account/54492#2/SavedVariables/RXPGuides.lua.bak",
 		"World of Warcraft/_forever_/WTF/Account/54492#2/SavedVariables/RXPCData.lua",
+		"World of Warcraft/_forever_/WTF/Account/54492#2/Realm/Hero/SavedVariables/RXPGuides.lua",
 		"World of Warcraft/_forever_/WTF/Account/Second Acc/SavedVariables/RXPGuides.lua",
 		"World of Warcraft/_classic_beta_/Interface/AddOns/RXPGuides/Guides/GuideList-forever.xml",
 		"World of Warcraft/_classic_beta_/WTF/Account/Beta/SavedVariables/RXPGuides.lua",
 	];
 	assert.deepEqual(savedVariablePaths(wow), [
 		{ path: "world of warcraft/_forever_/wtf/account/54492#2/savedvariables/rxpguides.lua", index: 1 },
-		{ path: "world of warcraft/_forever_/wtf/account/second acc/savedvariables/rxpguides.lua", index: 4 },
+		{ path: "world of warcraft/_forever_/wtf/account/second acc/savedvariables/rxpguides.lua", index: 5 },
 	]);
 	// Without the AddOns the WTF folder alone is found; only AddOns is not.
-	assert.deepEqual(savedVariablePaths(wow.filter((p) => !p.includes("Second Acc")).slice(1, 4).concat(wow[6])),
+	assert.deepEqual(savedVariablePaths(wow.filter((p) => !p.includes("Second Acc") && !p.includes("Hero")).slice(1, 4).concat(wow[7])),
 		[{ path: "world of warcraft/_forever_/wtf/account/54492#2/savedvariables/rxpguides.lua", index: 0 }]);
 	assert.deepEqual(savedVariablePaths(["RXPGuides/Guides/GuideList-forever.xml"]), []);
 });
